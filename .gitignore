@@ -1,0 +1,17 @@
+# Java build output
+*.class
+*.jar
+*.war
+*.ear
+/target/
+/out/
+/build/
+
+# Generated lab output
+assignment-data.txt
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
