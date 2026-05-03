@@ -1,7 +1,3 @@
-Alright — here’s your **complete A→Z assignment document** based on the transcript + notes, structured exactly like a proper submission you can use directly (and even copy as README).
-
----
-
 # 📄 **Advanced DBMS – Lab Assignment 1**
 
 ## **Topic: File I/O, System Calls & Storage Journey**
@@ -249,19 +245,5 @@ This is foundation for:
 * B+ Trees
 * WAL (Write Ahead Logging)
 * Database internals
-
----
-
-# 🏁 Final Checklist
-
-Before submitting:
-
-* [ ] Code works
-* [ ] Used low-level file operations
-* [ ] Ran `strace`
-* [ ] Explained syscalls
-* [ ] Covered all required concepts
-* [ ] README complete
-* [ ] Understood everything
 
 ---

@@ -231,4 +231,3 @@ This lab made the file path much clearer. A program does not magically read or w
 * `FileIOAssignment.java`
 * `README.md`
 * `trace.log`
-* Optional `strace` output captured from a Linux machine running the program
