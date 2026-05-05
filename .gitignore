@@ -32,6 +32,7 @@
 # Lab binaries (no extension on macOS/Linux)
 StorageEngine/**/file_io
 StorageEngine/**/lab*
+!StorageEngine/**/lab*/
 
 # --- Java ---
 *.class
