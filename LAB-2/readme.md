@@ -1,15 +1,16 @@
 # Lab Report: SQLite3 vs PostgreSQL — Storage Internals & Query Performance
+```LLM was used to polish and structure the content rest all the cmnds and practical was done by me ```
 
 **Course:** Advanced Database Systems — Lab 2  
-**Name:** [Your Name]  
-**Role Number:** [Your Role Number]  
+**Name:** Ujjwal Jain \
+**Role Number:** 10173 \
 **Environment:** Docker Desktop on Windows (Ubuntu 22.04 container for SQLite, postgres:15 image for PostgreSQL)
 
 ---
 
 ## Introduction
 
-Honestly, I went into this expecting a straightforward "install two databases, run some queries" kind of lab. What I didn't expect was to come out of it actually understanding *why* SQLite and PostgreSQL behave the way they do at a hardware level — pages, memory mapping, dead rows, background daemons. Turns out the reason one is "lightweight" and the other is "production-grade" has very little to do with features and almost everything to do with how they talk to the OS and manage data on disk. This is what I found.
+Honestly, I went into this expecting a straightforward "install two databases, run some queries" kind of lab. What I didn't expect was to come out of it actually understanding why SQLite and PostgreSQL behave the way they do at a hardware level pages, memory mapping, dead rows, background daemons. Turns out the reason one is "lightweight" and the other is "production-grade" has very little to do with features and almost everything to do with how they talk to the OS and manage data on disk. This is what I found.
 
 ---
 
@@ -65,7 +66,7 @@ PRAGMA page_count;
 | Page Count | 246 pages |
 | Calculated Total | 4096 × 246 = **1,007,616 bytes (~984 KB)** |
 
-The 4KB page size is not random — it exactly matches the default memory page size of the Linux kernel. SQLite aligns itself with the OS intentionally, so when the kernel loads a page into memory, it maps directly to one SQLite page with no waste.
+The 4KB page size is not random it exactly matches the default memory page size of the Linux kernel. SQLite aligns itself with the OS intentionally, so when the kernel loads a page into memory, it maps directly to one SQLite page with no waste.
 
 ---
 
@@ -78,7 +79,7 @@ PRAGMA mmap_size;       -- 0
 PRAGMA integrity_check; -- ok
 ```
 
-`mmap_size = 0` means memory mapping is off by default. `cache_size = -2000` means SQLite will use up to 2000 × page_size = ~8MB of in-memory page cache. `journal_mode = delete` is the classic rollback journal — SQLite writes changes to a separate `-journal` file and deletes it on commit.
+`mmap_size = 0` means memory mapping is off by default. `cache_size = -2000` means SQLite will use up to 2000 × page_size = ~8MB of in-memory page cache. `journal_mode = delete` is the classic rollback journal SQLite writes changes to a separate -journal file and deletes it on commit.
 
 ---
 
@@ -96,7 +97,7 @@ time sqlite3 chinook.db "SELECT * FROM Track;"
 | Run 2 (warm) | **16ms** | 4ms | 12ms |
 | Run 3 (warm) | **18ms** | 17ms | 0ms |
 
-The drop from 37ms to 16ms between Run 1 and Run 2 — without changing anything — is the OS page cache doing its job. The database file got loaded into kernel memory on the first read, so subsequent reads never touched disk. That's purely the operating system, not SQLite.
+The drop from 37ms to 16ms between Run 1 and Run 2 without changing anything is the OS page cache doing its job. The database file got loaded into kernel memory on the first read, so subsequent reads never touched disk. That's purely the operating system, not SQLite.
 
 ---
 
@@ -155,7 +156,7 @@ SELECT a.Title, COUNT(t.TrackId) FROM Album a JOIN Track t ON a.AlbumId = t.Albu
 -- Run Time: real 0.003  user 0.000000  sys 0.002886
 ```
 
-The higher `sys` time vs `user` time on the full Track scan shows the CPU was spending more time in kernel mode (I/O handling) than in user-space computation. For the JOIN query it flips — more user time, meaning the CPU was actually computing rather than waiting on I/O.
+The higher `sys` time vs `user` time on the full Track scan shows the CPU was spending more time in kernel mode (I/O handling) than in user-space computation. For the JOIN query it flips more user time, meaning the CPU was actually computing rather than waiting on I/O.
 
 ---
 
@@ -173,7 +174,7 @@ root  2905  0.9  0.0  6532  4608  pts/0  S+  01:07  0:02  sqlite3 chinook.db
 root  2919  0.0  0.0  3472  1792  pts/1  S+  01:12  0:00  grep --color=auto sqlite
 ```
 
-Just two entries: the sqlite3 process and the grep itself. There is no SQLite server, no daemon, no background process. SQLite is a C library that gets loaded directly into whatever process invokes it. The `sqlite3` CLI is just a thin shell embedding that library. This means zero network overhead, zero IPC — but also means only one writer can hold the file lock at a time.
+Just two entries: the sqlite3 process and the grep itself. There is no SQLite server, no daemon, no background process. SQLite is a C library that gets loaded directly into whatever process invokes it. The `sqlite3` CLI is just a thin shell embedding that library. This means zero network overhead, zero IPC but also means only one writer can hold the file lock at a time.
 
 ---
 
@@ -231,7 +232,7 @@ SELECT pg_size_pretty(pg_total_relation_size('users'));
 | Calculated Size | 8192 × 568 = **4,653,056 bytes (4544 KB)** |
 | Total with Indexes + TOAST | **5696 KB** |
 
-Postgres uses 8KB blocks — double SQLite's 4KB. The larger block size makes sense for server workloads: larger fetches per I/O operation means fewer disk reads when scanning big tables. The difference between `pg_relation_size` (4544 KB) and `pg_total_relation_size` (5696 KB) is the primary key index + TOAST overhead — about 1.1MB of infrastructure cost on top of raw data.
+Postgres uses 8KB blocks double SQLite's 4KB. The larger block size makes sense for server workloads: larger fetches per I/O operation means fewer disk reads when scanning big tables. The difference between `pg_relation_size` (4544 KB) and `pg_total_relation_size` (5696 KB) is the primary key index + TOAST overhead — about 1.1MB of infrastructure cost on top of raw data.
 
 ---
 
@@ -290,7 +291,7 @@ Planning Time: 0.088 ms
 Execution Time: 12.787 ms
 ```
 
-Postgres chose a HashAggregate — it read all rows in one pass and built a hash map keyed by city. Only 24KB of memory needed for 50,000 rows, because it was only storing 5 distinct city buckets.
+Postgres chose a HashAggregate it read all rows in one pass and built a hash map keyed by city. Only 24KB of memory needed for 50,000 rows, because it was only storing 5 distinct city buckets.
 
 #### Sort + Limit
 
@@ -306,7 +307,7 @@ Planning Time: 0.062 ms
 Execution Time: 7.434 ms
 ```
 
-Instead of sorting all 50,000 rows and taking the top 50, Postgres used a **top-N heapsort** — maintains a heap of only 50 elements as it scans, which uses 37KB instead of megabytes.
+Instead of sorting all 50,000 rows and taking the top 50, Postgres used a **top-N heapsort** maintains a heap of only 50 elements as it scans, which uses 37KB instead of megabytes.
 
 ---
 
@@ -361,7 +362,7 @@ SHOW maintenance_work_mem;  -- 64MB
 SHOW effective_cache_size;  -- 4GB
 ```
 
-`shared_buffers` is Postgres's internal page cache — all connections share this pool. `work_mem` is the memory budget per sort or hash operation. `maintenance_work_mem` is for heavier ops like VACUUM and CREATE INDEX. `effective_cache_size` is a planner hint — it tells Postgres how much the OS page cache is likely holding, influencing whether it prefers index scans over seq scans.
+`shared_buffers` is Postgres's internal page cache all connections share this pool. `work_mem` is the memory budget per sort or hash operation. `maintenance_work_mem` is for heavier ops like VACUUM and CREATE INDEX. `effective_cache_size` is a planner hint — it tells Postgres how much the OS page cache is likely holding, influencing whether it prefers index scans over seq scans.
 
 ---
 
@@ -468,19 +469,19 @@ VACUUM reclaimed all 10,000 dead row slots. If autovacuum never ran on a write-h
 
 ### Why the page size difference makes sense
 
-SQLite's 4KB page aligns with the OS memory page — built for embedded environments where memory is tight and alignment with the kernel's unit of work matters most. Postgres's 8KB block is a deliberate trade-off for server workloads: larger blocks mean fewer I/O operations per table scan, and when you have 128MB of shared_buffers anyway, the extra memory cost per block is irrelevant.
+SQLite's 4KB page aligns with the OS memory page built for embedded environments where memory is tight and alignment with the kernel's unit of work matters most. Postgres's 8KB block is a deliberate trade-off for server workloads: larger blocks mean fewer I/O operations per table scan, and when you have 128MB of shared_buffers anyway, the extra memory cost per block is irrelevant.
 
 ### mmap: when it helps and when it doesn't
 
-The honest result from the mmap experiment: on a ~1MB database, it barely made a difference. The OS page cache already keeps the file warm after the first read, with or without mmap. Where mmap would actually matter is at scale — a database too large to fit in the OS page cache, accessed frequently enough that individual `read()` syscalls accumulate into real overhead. For our dataset, both approaches hit the same ceiling: the file fit in memory either way. That's a real finding, not a failure of the experiment.
+The honest result from the mmap experiment: on a ~1MB database, it barely made a difference. The OS page cache already keeps the file warm after the first read, with or without mmap. Where mmap would actually matter is at scale a database too large to fit in the OS page cache, accessed frequently enough that individual read() syscalls accumulate into real overhead. For our dataset, both approaches hit the same ceiling: the file fit in memory either way. That's a real finding, not a failure of the experiment.
 
 ### The index decision Postgres made correctly
 
-The `score > 10` query matching 90% of the table was deliberately ignored by the index — and that is the right call. Random I/O (jumping between index leaf pages and heap pages) is slower than sequential I/O (reading the table block by block) when the result set is large. Postgres's query planner estimated the cost of both plans using table statistics and chose the cheaper one. This kind of cost-based reasoning doesn't exist at the same level in SQLite — it has a simpler rule-based planner.
+The score > 10 query matching 90% of the table was deliberately ignored by the index and that is the right call. Random I/O (jumping between index leaf pages and heap pages) is slower than sequential I/O (reading the table block by block) when the result set is large. Postgres's query planner estimated the cost of both plans using table statistics and chose the cheaper one. This kind of cost-based reasoning doesn't exist at the same level in SQLite — it has a simpler rule-based planner.
 
 ### MVCC overhead is the price of concurrency
 
-10,000 dead rows from a single UPDATE is a lot of ghost data on disk. But that is the cost of MVCC: readers never block writers and writers never block readers, because old versions stay alive until no active transaction needs them anymore. SQLite avoids this overhead entirely — but the trade-off is one writer at a time, always. For a personal app: totally fine. For any backend with concurrent writes: not viable.
+10,000 dead rows from a single UPDATE is a lot of ghost data on disk. But that is the cost of MVCC: readers never block writers and writers never block readers, because old versions stay alive until no active transaction needs them anymore. SQLite avoids this overhead entirely but the trade-off is one writer at a time, always. For a personal app: totally fine. For any backend with concurrent writes: not viable.
 
 ### Architecture is the root of everything
 
