@@ -24,7 +24,7 @@ g++ -std=c++17 rawcalls.cpp -o rawcalls
 Expected output:
 
 ```text
-Done. Copied input.txt to output.txt using system calls.
+Copied from input.txt to output.txt using system calls.
 ```
 
 ---
