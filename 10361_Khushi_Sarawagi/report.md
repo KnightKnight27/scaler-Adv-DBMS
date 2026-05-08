@@ -79,7 +79,7 @@ ps aux | grep sqlite
 ```
 
 ```
-akshatsipany  15216  0.0  0.0  435310272  2816  s001  S+  11:00AM  0:00.15  sqlite3 sakila.db
+khushisarawagi  10361  0.0  0.0  435310272  2816  s001  S+  11:00AM  0:00.15  sqlite3 sakila.db
 ```
 
 SQLite3 runs as a single-process, in-process database engine. The process shows minimal CPU and memory usage (~2.8 MB RSS), consistent with SQLite's lightweight, embedded design philosophy.
