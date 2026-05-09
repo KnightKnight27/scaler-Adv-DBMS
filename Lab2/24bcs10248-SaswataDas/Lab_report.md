@@ -1,8 +1,7 @@
 # Lab 2: SQLite3 vs PostgreSQL Comparison
 
-| Student | Roll No |
-| --- | --- |
-| Saswata Das | 24bcs10248 |
+Name: Saswata Das  
+Roll No: 24bcs10248
 
 ## Aim
 
