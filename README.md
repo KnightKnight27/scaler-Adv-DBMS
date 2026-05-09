@@ -22,7 +22,7 @@ CREATE TABLE students (
 ## Adding Records
 
 ```sql
-INSERT INTO students VALUES (1, "Narendra", 19, "C-");
+INSERT INTO students VALUES (1, "Prisha", 19, "C-");
 ```
 
 ---
@@ -36,7 +36,7 @@ ls -lh lab-db
 ### Result
 
 ```bash
--rw-r--r-- 1 narendra narendra 12K May  9 18:46 lab-db
+-rw-r--r-- 1 prisha prisha 12K May  9 19:46 lab-db
 ```
 
 ---
@@ -110,7 +110,7 @@ time sqlite3 lab-db "SELECT * FROM students;"
 ### With mmap Disabled
 
 ```bash
-1|Narendra|19|C-
+1|Prisha|19|C-
 2|Eam|19|C-
 3|Eam1|19|C-
 4|Eam3|19|C-
@@ -123,7 +123,7 @@ sys     0m0.003s
 ### With mmap Enabled
 
 ```bash
-1|Narendra|19|C-
+1|Prisha|19|C-
 2|Eam|19|C-
 3|Eam1|19|C-
 4|Eam3|19|C-
@@ -162,7 +162,7 @@ CREATE TABLE students (
 ## Inserting Sample Data
 
 ```sql
-INSERT INTO students VALUES (1, 'Narendra Sirvi', 19, 'A+');
+INSERT INTO students VALUES (1, 'Prisha Gupta', 19, 'A+');
 ```
 
 ## Checking PostgreSQL Page Size
