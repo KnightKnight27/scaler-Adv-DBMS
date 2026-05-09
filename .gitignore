@@ -1,0 +1,23 @@
+# Compiled Binaries
+file_ops
+a.out
+*.o
+*.out
+
+# Generated Output
+output.txt
+
+# OS/System Files
+.DS_Store
+Thumbs.db
+
+# IDE/Editor Settings
+.vscode/
+.idea/
+*.swp
+*~
+
+# C++ build artifacts
+build/
+bin/
+obj/
