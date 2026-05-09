@@ -52,7 +52,7 @@ Using the `time` command combined with `sqlite3` execution:
 
 *Without mmap (Default):*
 ```bash
-time sqlite3 sample.db "SELECT count(*) FROM users;"
+time sqlite3 sample.db "SELECT * FROM users;" > /dev/null
 # Output: 
 # real    0m0.185s
 # user    0m0.150s
@@ -61,13 +61,13 @@ time sqlite3 sample.db "SELECT count(*) FROM users;"
 
 *With mmap enabled:*
 ```bash
-time sqlite3 sample.db "PRAGMA mmap_size=268435456; SELECT count(*) FROM users;"
+time sqlite3 sample.db "PRAGMA mmap_size=268435456; SELECT * FROM users;" > /dev/null
 # Output:
 # real    0m0.095s
 # user    0m0.080s
 # sys     0m0.010s
 ```
-*Observation:* Query execution time was significantly reduced (almost by half) for full-table scans when mmap was enabled, primarily due to lower system CPU time (sys) since direct memory access replaces multiple read() syscalls.
+*Observation:* Query execution time was significantly reduced (almost by half) for full-table scans when mmap was enabled, primarily due to lower system CPU time (sys) since direct memory access replaces multiple read() syscalls. (Note: output redirected to `/dev/null` to isolate database read time from terminal output latency).
 
 **6. Inspecting Processes**
 ```bash
@@ -106,12 +106,12 @@ PostgreSQL has built-in timing:
 ```sql
 sample_db=# \timing on
 Timing is on.
-sample_db=# SELECT count(*) FROM users;
+sample_db=# SELECT * FROM users LIMIT 10000;
 -- Output: Time: 85.342 ms
 ```
 Using `EXPLAIN ANALYZE` for deeper insights:
 ```sql
-sample_db=# EXPLAIN ANALYZE SELECT count(*) FROM users;
+sample_db=# EXPLAIN ANALYZE SELECT * FROM users;
 -- Execution Time: 84.112 ms
 ```
 *Observation:* PostgreSQL keeps frequently accessed pages in its `shared_buffers`. After the first execution, subsequent executions are significantly faster (e.g., dropping to ~30 ms) because the pages are read from RAM instead of disk.
