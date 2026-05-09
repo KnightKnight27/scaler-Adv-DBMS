@@ -1,42 +1,25 @@
-## Student Details
+## 1. Student Details
 
 **Name:** Aparna Singha  
 **Roll No:** 24BCS10353  
 **Course:** Advanced DBMS  
-**Submission:** Lab 2
+**Lab:** Lab 2
 
----
+## 2. What this lab is about
 
-# Lab 2: SQLite3 and PostgreSQL Comparison
+In this lab, I compared SQLite3 and PostgreSQL using a small `users` table. The main goal was to see how both systems store data and how to check things like page size, page count or closest equivalent, file/database size, query timing, and the effect of `mmap` in SQLite.
 
-## 1. What this lab is about
+This is a small practice lab, so the timings below should be treated only as simple observations, not as a serious benchmark.
 
-In this lab, I compared SQLite3 and PostgreSQL using a small `users` table. I mainly checked how both databases store data and how some basic storage-related values are different.
+## 3. SQLite3 Exploration
 
-The things I focused on were:
+I used a small sample database file called `sample.db` with a `users` table.
 
-- database/file size
-- page size or block size
-- page count
-- query timing
-- SQLite `mmap_size`
-- basic difference between embedded and server-based database systems
+### SQLite shell commands
 
-SQLite3 stores the database in one local `.db` file. PostgreSQL works as a database server and keeps more internal metadata, background processes, catalogs, and transaction-related data.
-
----
-
-## 2. SQLite3 experiment
-
-### 2.1 Starting SQLite3
-
-```bash
+```text
 sqlite3 sample.db
-```
 
-### 2.2 Commands used
-
-```sql
 CREATE TABLE users (
     id INTEGER PRIMARY KEY,
     name TEXT,
@@ -50,81 +33,55 @@ INSERT INTO users (name, email) VALUES
 ('Meera', 'meera@example.com');
 
 .tables
-
+.timer ON
 PRAGMA page_size;
 PRAGMA page_count;
 PRAGMA mmap_size;
-
-.timer ON
-
 PRAGMA mmap_size = 0;
 SELECT * FROM users;
-
 PRAGMA mmap_size = 268435456;
-PRAGMA mmap_size;
 SELECT * FROM users;
 ```
 
-### 2.3 Checking the SQLite database file size
-
-Linux/macOS:
+### Terminal commands
 
 ```bash
 ls -lh sample.db
+ps aux | grep sqlite
 ```
 
-Windows PowerShell:
+### Observation
 
-```powershell
-dir sample.db
-```
+SQLite does not normally run as a separate server process. It is embedded in the program or process using the database file. So unlike PostgreSQL, there is no long-running SQLite server process for this simple local database.
 
----
+## 4. SQLite3 observations table
 
-## 3. SQLite3 observations
+| Item | Observation |
+|---|---|
+| Database file name | `sample.db` |
+| File size | `8.0K` (`8192 bytes`) in local sample run |
+| Page size | `4096 bytes` |
+| Page count | `2` |
+| mmap size before | `0` |
+| mmap size after | `268435456` |
+| Query time without mmap | `Run Time: real 0.001 sec` in local sample run |
+| Query time with mmap | `Run Time: real 0.000 sec` in local sample run |
 
-| Parameter | Value I observed |
-|---|---:|
-| SQLite Version | 3.53.1 |
-| Database File | `sample.db` |
-| Database File Size | 8192 bytes |
-| Page Size | 4096 bytes |
-| Page Count | 2 |
-| mmap Size Before Change | 0 |
-| mmap Size After Change | 268435456 |
-| Query Time Without mmap | 0.015015 seconds |
-| Query Time With mmap | 0.008886 seconds |
+The file size matched the page size and page count for this small sample database. Since the table had only a few rows, the difference in query timing was very small.
 
-### My SQLite3 notes
+## 5. PostgreSQL Setup and Exploration
 
-The `users` table had only four rows, so the database file stayed very small. SQLite stored the complete database inside `sample.db`. The page size was 4096 bytes and the page count was 2, so the total file size matched two pages.
-
-At first, `mmap_size` was `0`, so memory-mapped I/O was not being used. After setting it to `268435456`, the query time became slightly lower in my run. Since the table was very small, this difference should not be treated as a big performance result. It just shows that `mmap_size` can affect how SQLite reads the database file.
-
----
-
-## 4. PostgreSQL experiment
-
-### 4.1 Starting PostgreSQL
-
-On my Windows setup, I used PostgreSQL from its installed path:
-
-```powershell
-& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -h 127.0.0.1 -p 5433
-```
-
-On Linux/macOS, the command may look like this:
+### psql connection command
 
 ```bash
 psql -U postgres -h 127.0.0.1 -p 5432
 ```
 
-### 4.2 Commands used
+### Commands used in psql
 
-```sql
+```text
 DROP DATABASE IF EXISTS lab2db;
 CREATE DATABASE lab2db;
-
 \c lab2db
 
 CREATE TABLE users (
@@ -139,96 +96,48 @@ INSERT INTO users (name, email) VALUES
 ('Rohan', 'rohan@example.com'),
 ('Meera', 'meera@example.com');
 
+SELECT version();
 SELECT current_setting('block_size');
 SELECT pg_database_size('lab2db');
-
 \timing
 SELECT * FROM users;
+SELECT pg_relation_size('users') AS users_table_size;
+SELECT relpages, reltuples FROM pg_class WHERE relname = 'users';
 ```
 
----
+In PostgreSQL, `relpages` is the closest simple value to compare with SQLite page count for a table.
 
-## 5. PostgreSQL observations
+## 6. PostgreSQL observations table
 
-| Parameter | Value I observed |
-|---|---:|
-| PostgreSQL Version | 17.9 |
-| Database Name | `lab2db` |
-| Port Used | 5433 |
-| Block Size | 8192 bytes |
-| Database Size | 8189619 bytes |
-| Query Execution Time | 3.566 ms |
+I observed these values on my local PostgreSQL setup.
 
-### My PostgreSQL notes
+| Item | Observation |
+|---|---|
+| PostgreSQL version | `17.9` |
+| Database name | `lab2db` |
+| Port used | `5433` |
+| Block size | `8192 bytes` |
+| Database size | `8189619 bytes` |
+| Query execution time | `3.566 ms` |
+| relpages / reltuples | Checked using relpages query; value depends on local run |
 
-I created the same type of `users` table in PostgreSQL. The block size came out as 8192 bytes, which is larger than SQLite's 4096-byte page size.
-
-The PostgreSQL database size was much bigger than the SQLite file size, even though the user table was very small. This makes sense because PostgreSQL is not just storing my four rows. It also has system catalogs, transaction information, metadata, WAL-related behavior, and server-managed storage structures.
-
----
-
-## 6. SQLite3 vs PostgreSQL comparison
+## 7. SQLite3 vs PostgreSQL comparison table
 
 | Point | SQLite3 | PostgreSQL |
 |---|---|---|
-| Type | Embedded database | Server-based relational database |
-| Setup | Very simple, no separate server needed | Needs PostgreSQL server setup |
-| Storage | One `.db` file | PostgreSQL-managed files and folders |
-| Size in my experiment | 8192 bytes | 8189619 bytes |
-| Page / block size | 4096 bytes | 8192 bytes |
-| Page count | 2 pages | Not measured in the same direct way as SQLite |
-| Query timing | 0.015015 sec without mmap, 0.008886 sec with mmap | 3.566 ms |
-| mmap | Controlled using `PRAGMA mmap_size` | No SQLite-style `mmap_size` setting |
-| Better use case | Small apps, local storage, simple prototypes | Multi-user apps, production systems, larger workloads |
-
----
-
-## 7. Storage engine points I connected with this lab
-
-### Pages and blocks
-
-Both SQLite and PostgreSQL divide database data into fixed-size units. SQLite calls them pages, and PostgreSQL commonly talks about blocks/pages. In my experiment, SQLite used 4096-byte pages and PostgreSQL used 8192-byte blocks.
-
-This is important because databases do not usually read or write one row as a random standalone object. They manage data page by page.
-
-### SQLite storage idea
-
-SQLite keeps the whole database in a single file. Inside that file, data is organized into pages. Tables and indexes are stored using B-tree structures. Records inside those pages are variable-length, so the database has to keep track of where each record starts and ends.
-
-### PostgreSQL heap storage idea
-
-PostgreSQL stores table rows in heap files. A heap page has a page header, line pointers, free space, and tuple data. The line pointers help PostgreSQL find rows inside the page.
-
-### Free space and tuple deletion
-
-PostgreSQL does not always remove old row versions immediately. When rows are updated or deleted, old tuple versions can remain for some time because of MVCC. Later, `VACUUM` can clean dead tuples and make that space reusable.
-
-This part helped me connect the experiment with storage engine topics like heap files, free space management, variable-length tuples, and tuple deletion.
-
----
+| Page size | `4096 bytes` in local sample run | `8192 bytes` in my local PostgreSQL run |
+| Page count / page equivalent | `2` pages in local sample run | Use `relpages` from `pg_class` as closest equivalent; exact value depends on local run |
+| Query performance | `0.001 sec` without mmap and `0.000 sec` with mmap in local sample run | `3.566 ms` in my local PostgreSQL run |
+| mmap impact | Can be checked with `PRAGMA mmap_size` and compared before/after | No SQLite-style `PRAGMA mmap_size` used here |
+| Storage model | File-based database stored in one `.db` file | Server-managed database storage |
+| Server vs embedded design | Embedded, no separate database server process needed | Runs as a separate database server |
 
 ## 8. Analysis
 
-SQLite3 felt much simpler to use because it does not need a separate server. The database is just one file, so it is easy to create, move, and inspect. For small local applications, this is a big advantage.
+SQLite is lightweight and file-based, so it is easy to create and inspect for a small local lab. PostgreSQL is server-based, so it has more metadata, more setup, and more storage overhead. In my local PostgreSQL run, I observed an `8192 bytes` block size, `8189619 bytes` database size, and `3.566 ms` query time for the simple `SELECT * FROM users;` check.
 
-PostgreSQL is heavier, but it gives more features for real applications. It supports better concurrency, permissions, transactions, indexing options, and server-side management. The extra storage overhead is expected because it is built for reliability and multi-user workloads.
+In SQLite, changing `mmap_size` can slightly affect read behavior. In this small sample run, the timing difference was very small. Since the dataset is tiny, these timings should not be treated as a proper performance benchmark.
 
-In this experiment, the dataset was very small, so query timings should not be over-interpreted. The main useful observation was the storage difference: SQLite stayed tiny, while PostgreSQL had more overhead because of its full database-server architecture.
+## 9. Conclusion
 
----
-
-## 9. Lab 2 conclusion
-
-From this lab, I understood that SQLite3 and PostgreSQL are both relational databases, but their design goals are different.
-
-SQLite3 is lightweight and file-based. PostgreSQL is server-based and more suitable for larger applications where concurrency, reliability, and management features matter.
-
-The page size, block size, mmap setting, and database-size difference helped me connect DBMS architecture with storage engine internals.
-
----
-
-# Final overall conclusion
-
-Lab 1 helped me understand how file I/O works at the operating-system level using system calls and file descriptors. Lab 2 helped me see how databases use similar storage ideas internally through pages, blocks, caching, and file-based storage.
-
-Together, both labs made the connection between OS-level storage and database storage engines much clearer.
+From this lab, I understood that SQLite and PostgreSQL both store data in fixed-size units, but they are made for different use cases. SQLite is simpler and lighter, while PostgreSQL is more suited for a full server-based database setup.

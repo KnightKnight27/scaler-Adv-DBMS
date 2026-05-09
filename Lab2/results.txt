@@ -1,28 +1,29 @@
-# Lab 2 Result Notes
-
-These are the values used in the README after running the SQLite3 and PostgreSQL commands.
+# Lab 2 Results
 
 ## SQLite3
 
-- SQLite Version: 3.53.1
-- Database file: sample.db
-- Database file size: 8192 bytes
-- Page size: 4096 bytes
-- Page count: 2
-- mmap size before change: 0
-- mmap size after change: 268435456
-- Query time without mmap: 0.015015 seconds
-- Query time with mmap: 0.008886 seconds
+- Database file name: `sample.db`
+- SQLite file size: `8.0K` (`8192 bytes`) in local sample run
+- SQLite page size: `4096 bytes`
+- SQLite page count: `2`
+- mmap before change: `0`
+- mmap after change: `268435456`
+- Query time without mmap: `Run Time: real 0.001 sec` in local sample run
+- Query time with mmap: `Run Time: real 0.000 sec` in local sample run
+- `ps aux | grep sqlite` observation: only the shell command and `grep` showed up here, not a separate long-running SQLite server process
 
 ## PostgreSQL
 
-- PostgreSQL Version: 17.9
-- Database name: lab2db
-- Port used: 5433
-- Block size: 8192 bytes
-- Database size: 8189619 bytes
-- Query execution time: 3.566 ms
+I observed these values on my local PostgreSQL setup.
 
-## Note
+- PostgreSQL version: `17.9`
+- Database name: `lab2db`
+- Port used: `5433`
+- PostgreSQL block size: `8192 bytes`
+- Database size: `8189619 bytes`
+- Query time: `3.566 ms`
+- `relpages` / `reltuples` check: Checked using relpages query; value depends on local run
 
-The timing values can slightly change on another system. For this lab, the dataset was very small, so the main point was understanding the storage layout and database architecture rather than benchmarking performance seriously.
+## Short comparison note
+
+SQLite is file-based and lightweight, while PostgreSQL is server-based and keeps more metadata and storage overhead. For a very small dataset, timing differences are small and should not be treated as a serious benchmark.
