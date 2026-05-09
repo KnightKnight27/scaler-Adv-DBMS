@@ -1,0 +1,5 @@
+System call lab - Mohit Kumar
+Using open/read/write/close directly.
+No stdio, no fstream — just the kernel.
+Each read() may return fewer bytes than requested.
+Always loop until the full buffer is written.
