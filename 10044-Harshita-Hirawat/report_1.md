@@ -16,9 +16,6 @@ Sample database: Sakila
 | SQLite database created | `sakila_lab.db` |
 | PostgreSQL database used | `postgres` |
 | PostgreSQL schema created | `lab_sakila` |
-| PostgreSQL version | PostgreSQL 17.9 |
-| PostgreSQL server | `localhost:5432` |
-| PostgreSQL data directory | `C:/Program Files/PostgreSQL/17/data` |
 
 The Sakila files provided were MySQL-style SQL files, so I imported the useful Sakila tables into a generated SQLite database and then loaded the same table data into PostgreSQL.
 
