@@ -1,0 +1,21 @@
+Hello, this is input.txt being read by fileio.cpp.
+
+The point of this program is to do file I/O the way the kernel
+actually sees it — with raw open / read / write / close calls
+and no help from stdio, iostream, or fstream.
+
+When we call read(), here is what really happens:
+
+  1. The CPU executes a SYSCALL instruction.
+  2. The mode switches from user-space to kernel-space (ring 0).
+  3. The kernel finds the file, looks up its pages in the page
+     cache, and either copies them to our buffer (cache hit) or
+     fetches them from the storage device first (cache miss).
+  4. Control returns to user-space with the byte count.
+
+That single function call hides an entire trip through the VFS,
+the filesystem driver (ext4 / xfs / apfs), the block layer, and
+finally the disk driver. Understanding this path is what the
+lab is really about.
+
+— Krritin
