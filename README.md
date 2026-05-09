@@ -1,7 +1,7 @@
 # Advanced DBMS Lab: SQLite3 vs PostgreSQL Comparison
 
-**Name:** [Your Name]  
-**Role Number:** [Your Role Number]  
+**Name:** Piyush Kumar Gupta  
+**Role Number:** 24BCS10332  
 
 ## 1. SQLite3 Exploration
 
