@@ -75,7 +75,7 @@ indexes, logs, or metadata. Everything lives in `advDbLab.db`.
 ### 1.5 Page Size
 
 ```bash
-sqlite3 adbDbLab.db "PRAGMA page_size;"
+sqlite3 advDbLab.db "PRAGMA page_size;"
 ```
 
 ```
@@ -90,16 +90,17 @@ file.
 ### 1.6 Page Count
 
 ```bash
-sqlite3 adbDbLab.db "PRAGMA page_count;"
+sqlite3 advDbLab.db "PRAGMA page_count;"
 ```
 
 ```
 0
 ```
 
-The page count returned 0 because the PRAGMA was run against a different connection where the
-database had not yet been written. This highlights that SQLite uses a file-level locking model
-and each connection sees a consistent snapshot of the database at the time it opened it.
+The `page_count` returned 0 because the PRAGMA command was accidentally executed on a different
+database file (`adbDbLab.db`) instead of the populated database (`advDbLab.db`). SQLite
+automatically creates a new empty database file if the specified file does not already exist,
+which resulted in an empty database with zero allocated pages.
 
 ### 1.7 Memory-Mapped I/O in SQLite
 
@@ -107,7 +108,7 @@ SQLite supports optional memory-mapped I/O through the `mmap_size` PRAGMA. By de
 is disabled:
 
 ```bash
-sqlite3 adbDbLab.db "PRAGMA mmap_size;"
+sqlite3 advDbLab.db "PRAGMA mmap_size;"
 ```
 
 ```
@@ -157,6 +158,28 @@ was open. The process had minimal memory usage and disappeared when the connecti
 This reflects SQLite's embedded architecture. The library runs inside the calling application's
 process. There is no separate server process. The application links against the SQLite library
 and all database operations happen within the same process memory space.
+
+### 1.9 Query Timing
+
+```bash
+time sqlite3 advDbLab.db "SELECT * FROM users;"
+```
+
+```
+real    0m0.820s
+user    0m0.146s
+sys     0m0.332s
+```
+
+These three values measure different aspects of the time taken:
+
+- `real` -- total elapsed time from start to finish, including any waiting
+- `user` -- CPU time spent executing application-level code
+- `sys` -- CPU time spent inside kernel calls such as file reads and memory operations
+
+SQLite completed the full table scan in under one second despite having no server, no buffer
+pool, and no background processes. This demonstrates that its lightweight embedded architecture
+is competitive for single-user local workloads.
 
 ---
 
@@ -288,19 +311,23 @@ the result set, not just count them.
 ps aux | grep postgres
 ```
 
-Several background processes were observed running at all times:
+Unlike SQLite, PostgreSQL runs as a server with multiple background processes responsible for
+memory management, disk writes, logging, and concurrency control. This architecture allows
+PostgreSQL to support multiple concurrent users efficiently.
 
-| Process | Role |
-|---|---|
-| checkpointer | Periodically flushes dirty pages from shared buffers to disk |
-| background writer | Proactively writes dirty pages to disk to keep shared buffers available |
-| walwriter | Writes the write-ahead log (WAL) to disk for crash recovery |
-| autovacuum launcher | Manages dead tuple cleanup and statistics updates |
-| logical replication launcher | Handles logical replication slots if configured |
-
-Each client connection also spawns a dedicated backend process. This is PostgreSQL's
-process-per-connection model. Shared buffers are a region of shared memory that all these
-processes can access simultaneously, coordinated through locking and the buffer manager.
+```
+postgres  386672  0.0  0.1 225464 31212 ?        Ss   16:18   0:00 /usr/lib/postgresql/16/bin/postgres -D /var/lib/postgresql/16/main -c config_file=/etc/postgresql/16/main/postgresql.conf
+postgres  386676  0.0  0.0 225596 12216 ?        Ss   16:18   0:00 postgres: 16/main: checkpointer 
+postgres  386677  0.0  0.0 225620  7916 ?        Ss   16:18   0:00 postgres: 16/main: background writer 
+postgres  386679  0.0  0.0 225464 10396 ?        Ss   16:18   0:00 postgres: 16/main: walwriter 
+postgres  386680  0.0  0.0 227072  8860 ?        Ss   16:18   0:00 postgres: 16/main: autovacuum launcher 
+postgres  386681  0.0  0.0 227048  8140 ?        Ss   16:18   0:00 postgres: 16/main: logical replication launcher 
+root      387573  0.1  0.0  19820  7632 pts/0    S+   16:18   0:00 sudo -u postgres psql
+root      387574  0.0  0.0  19820  2644 pts/2    Ss   16:18   0:00 sudo -u postgres psql
+postgres  387575  0.0  0.0  28684 12004 pts/2    S+   16:18   0:00 /usr/lib/postgresql/16/bin/psql
+postgres  389273  0.2  0.2 228352 34104 ?        Ss   16:19   0:00 postgres: 16/main: postgres oslab_pg [local] idle
+kavya-d+  405463  0.0  0.0   9148  2272 pts/1    S+   16:23   0:00 grep --color=auto postgres
+```
 
 ---
 
@@ -401,38 +428,96 @@ sequential scan (which should not pollute the cache) versus which pages are part
 that is accessed repeatedly (which should be kept in cache).
 
 ---
-## 6. Performance Analysis
+
+## 6. Process Architecture Comparison
+
+### SQLite - Embedded, Single Process
+
+SQLite is a C library that an application links against. There is no daemon, no network socket,
+and no server process. When the application calls a SQLite function, the library code runs in
+the same thread, in the same process, and has direct access to the process's memory.
+
+```
+Application Process
+    |
+    +-- SQLite Library (linked in)
+    |       |
+    |       +-- reads/writes advDbLab.db directly
+    |
+    +-- Application code
+```
+
+This design makes SQLite extremely lightweight. The tradeoff is that only one writer can access
+the database at a time (file-level write lock), making it unsuitable for applications with many
+concurrent writers.
+
+### PostgreSQL - Client-Server, Multi-Process
+
+PostgreSQL uses a forking model. A master process called `postmaster` listens for incoming
+connections. When a client connects, `postmaster` forks a new backend process dedicated to that
+client. All backend processes share a common block of shared memory (shared buffers) and
+communicate through it under the coordination of the buffer manager and lock manager.
+
+```
+postmaster (main process)
+    |
+    +-- shared memory (shared buffers, lock tables, etc.)
+    |
+    +-- backend (client 1)
+    +-- backend (client 2)
+    +-- checkpointer
+    +-- background writer
+    +-- walwriter
+    +-- autovacuum launcher
+```
+
+This architecture supports true concurrent read and write access from many clients at the same
+time. MVCC ensures that readers do not block writers and writers do not block readers by keeping
+multiple versions of rows in the data pages.
+
+The cost is higher baseline resource usage: even with no clients connected, PostgreSQL runs
+several background processes and holds a large shared memory allocation.
+
+---
+
+## 7. Performance Analysis
 
 ### File Size Difference
 
 The same dataset (100,000 rows) consumed 2.0 MB in SQLite and 15 MB in PostgreSQL. This
 difference comes from several factors:
 
-- PostgreSQL's 8192-byte pages versus SQLite's 4096-byte pages means more space is allocated
-  per page even if the page is not fully used.
-- Each PostgreSQL row carries a 23-byte tuple header for MVCC (transaction visibility
-  information).
-- PostgreSQL maintains a SERIAL sequence object, primary key index, and system catalog entries
-  that all consume space.
-- PostgreSQL pre-allocates WAL segment files even when the database is small.
+- PostgreSQL uses 8192-byte pages, while SQLite uses 4096-byte pages.
+- PostgreSQL stores additional MVCC metadata and tuple headers for concurrency control.
+- PostgreSQL maintains WAL (Write-Ahead Logging), indexes, and system catalog information.
+- SQLite uses a simpler file-based architecture with lower storage overhead.
 
 For applications where disk space is limited, such as embedded systems or mobile devices,
 SQLite's compact storage is a significant advantage.
 
-### Query Speed and Caching Effect
+### Query Timing Comparison
 
-| Query | First Run | Subsequent Runs |
+| Database | Query | Observed Time |
 |---|---|---|
-| `SELECT COUNT(*) FROM users` (PostgreSQL) | 10-36 ms | 8-12 ms |
-| `SELECT * FROM users` (PostgreSQL) | 54 ms | Lower on repeated runs |
+| SQLite3 | `SELECT * FROM users;` | real: 0.820s |
+| PostgreSQL | `SELECT COUNT(*) FROM users;` | 10-36 ms |
+| PostgreSQL | `SELECT * FROM users;` | 54 ms |
 
-The variation in the first few runs of `COUNT(*)` reflects OS-level and PostgreSQL-level
-caching warming up. Once the pages are resident in shared buffers, query execution time drops
-and stabilizes because the buffer manager serves pages from RAM rather than reading from disk.
 
-SQLite's query performance for simple local workloads is competitive and often faster than
-PostgreSQL for single-user scenarios because there is no network layer, no inter-process
-communication, and no shared memory coordination overhead.
+### Performance Comparison
+
+| Aspect | SQLite | PostgreSQL |
+|---|---|---|
+| Query overhead | Minimal -- no network or IPC | Higher -- client-server communication |
+| Caching | Relies on OS page cache | Manages its own shared buffer pool |
+| Concurrency overhead | None (single writer) | Coordination across multiple processes |
+| Best workload | Lightweight, single-user, local access | Concurrent, multi-user, high-throughput |
+
+SQLite has lower architectural overhead because it runs entirely inside the application process.
+There is no network round-trip, no inter-process communication, and no shared memory
+coordination. PostgreSQL introduces additional overhead from its server processes and concurrency
+management, but this is the cost of supporting multiple simultaneous users reliably. PostgreSQL
+is optimized for scalability; SQLite is optimized for simplicity and local access.
 
 ### When Each System Performs Better
 
