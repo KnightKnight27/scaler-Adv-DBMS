@@ -1,7 +1,3 @@
-# Advanced DBMS Assignment: Lab 1 and Lab 2
-
----
-
 ## Student Details
 
 **Name:** Aparna Singha  

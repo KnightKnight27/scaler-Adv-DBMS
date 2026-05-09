@@ -1,3 +1,12 @@
+## Student Details
+
+**Name:** Aparna Singha  
+**Roll No:** 24BCS10353  
+**Course:** Advanced DBMS  
+**Submission:** Lab 1 
+
+---
+
 # Lab 2: SQLite3 and PostgreSQL Comparison
 
 ## 1. Objective
