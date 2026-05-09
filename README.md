@@ -1,8 +1,8 @@
 # Database Performance Lab: SQLite3 and PostgreSQL Comparison
 
 ## Author Details
-- **Name:** Snehangshu Roy
-- **Roll Number:** 24BCS10155
+- **Name:** Mohammed Masihuddin
+- **Roll Number:** 24BCS10570
 
 ## 1. Investigating SQLite3
 
