@@ -10,35 +10,73 @@ This assignment demonstrates file operations in C++ using raw POSIX system calls
 ## Program Overview
 
 - Source file: `file_syscalls.cpp`
-- Input file: `input.txt`
-- Output file: `output.txt`
+- Build system: `Makefile`
+- Input file: `input.txt` (auto-created with seed data on first run)
+- Output file: `output.txt` (truncated on each run)
 
-### Behavior:
+### Behavior (3-Phase Flow):
 
-- Creates `input.txt` (if not already present) with initial data.
-- Opens the input file for reading.
-- Opens/creates the output file for writing.
-- Copies data from input to output using a 4KB buffer with `read()` + `write()`.
-- Closes all file descriptors.
+1. **Phase 1** — Creates `input.txt` (if not already present) with seed payload using `O_CREAT | O_EXCL` to avoid overwriting. Checks `errno == EEXIST` to distinguish "already exists" from actual errors.
+2. **Phase 2** — Opens source for reading (`O_RDONLY`) and destination for writing (`O_CREAT | O_TRUNC`).
+3. **Phase 3** — Copies data via a 4KB buffer loop: `read()` from source → `safe_write()` to destination, until `read()` returns 0 (EOF).
+4. **Finalize** — Closes all FDs and writes completion message via raw `write(STDOUT_FILENO, ...)`.
 
 ### Robustness Features:
-- **`safe_write`**: Handles partial writes and signal interruptions (`EINTR`) to ensure data integrity.
-- **Error Handling**: Uses `perror` and `errno` to provide descriptive error messages if a system call fails.
+- **`safe_write`**: Loops over `write()` to handle partial writes and resumes on `EINTR` (signal interruption), ensuring all bytes are written.
+- **`log_info`**: Uses raw `write(STDOUT_FILENO, ...)` instead of `printf`, demonstrating direct syscall usage for output.
+- **`O_EXCL` with `EEXIST` check**: Atomically fails if the target already exists during creation, preventing accidental data loss.
+- **Error Handling**: Every syscall is checked; on failure, FDs are closed and `perror` reports descriptive messages.
+- **Permission Mode**: Files are created with `0664` (owner + group: rw-rw-r--), ensuring the program has write access while keeping files readable by collaborators.
 
 ---
 
 ## Build and Run
 
+### Using Make (recommended)
 ```bash
-g++ -std=c++17 file_syscalls.cpp -o task1
+make        # builds: g++ -std=c++17 -Wall -Wextra file_syscalls.cpp -o task1
+./task1    # runs the program
+make clean # removes: task1 binary + input.txt + output.txt
+```
+
+### Manual compilation
+```bash
+g++ -std=c++17 -Wall -Wextra file_syscalls.cpp -o task1
 ./task1
 ```
 
 Expected output:
 
 ```text
+$ ./task1
 Done. Copied input.txt to output.txt using system calls.
+
+$ cat output.txt
+Initial data for the system call lab.
+Generated using low-level I/O.
 ```
+
+---
+
+## Verification with `strace`
+
+`strace` traces every system call made by the program, confirming the kernel interaction:
+
+```bash
+strace -o trace.txt ./task1
+cat trace.txt
+```
+
+Key syscalls visible in the trace:
+
+| Syscall | Purpose |
+|---------|---------|
+| `openat(..., "input.txt", O_RDONLY)` | Phase 2: open source for reading |
+| `openat(..., "output.txt", O_WRONLY\|O_CREAT\|O_TRUNC, 0664)` | Phase 2: open/create destination |
+| `read(3, "Initial data...", 4096)` | Phase 3: read from source |
+| `write(4, "Initial data...", 47)` | Phase 3: write to destination |
+| `close(3)` / `close(4)` | Finalize: release FDs |
+| `write(1, "Done...", 51)` | Output completion message to stdout |
 
 ---
 
@@ -57,26 +95,7 @@ Done. Copied input.txt to output.txt using system calls.
 
 ---
 
-### 2) `strace`
-
-- `strace` (Linux) traces system calls and signals for a process.
-- It is useful to verify exactly what the program asks the kernel to do.
-
-Example:
-
-```bash
-strace -o trace.txt ./task1
-```
-
-Typical calls visible in trace:
-- `openat(...)`
-- `read(...)`
-- `write(...)`
-- `close(...)`
-
----
-
-### 3) Inodes in the Kernel
+### 2) Inodes in the Kernel
 
 - An inode is the kernel metadata structure for a file.
 - It stores:
@@ -91,7 +110,16 @@ Typical calls visible in trace:
 
 ---
 
-### 4) Journey of Opening/Reading a File
+### 4) File Permissions (umask)
+
+- Files created with `open(..., mode)` apply the mode and then the process `umask` subtracts bits.
+- `0664` means: owner + group get read+write; others get read.
+- After umask (e.g., `0022`), effective permission is `0642` (owner: rw-, group: r--, others: r--).
+- Check with `ls -l input.txt` to see the actual permissions on disk.
+
+---
+
+### 5) Journey of Opening/Reading a File
 
 1. Program calls `open("input.txt", O_RDONLY)`.
 2. CPU transitions from user mode to kernel mode.
@@ -108,7 +136,7 @@ Typical calls visible in trace:
 
 ## Additional Concepts
 
-### 5) Pages
+### 7) Pages
 
 - Memory is managed in fixed-size blocks called pages (commonly 4 KB).
 - File data is cached by the kernel in page cache pages.
@@ -116,7 +144,7 @@ Typical calls visible in trace:
 
 ---
 
-### 6) Drivers
+### 8) Drivers
 
 - Device drivers are kernel components that control hardware.
 - For storage I/O, filesystem and block-layer code eventually interact with storage drivers (NVMe/SATA/USB) to fetch or persist data.
@@ -124,7 +152,7 @@ Typical calls visible in trace:
 
 ---
 
-### 7) DMA (Direct Memory Access)
+### 9) DMA (Direct Memory Access)
 
 - DMA allows devices to transfer data to/from RAM without the CPU copying each byte manually.
 - In disk I/O paths, DMA reduces CPU overhead and improves throughput.
@@ -132,7 +160,7 @@ Typical calls visible in trace:
 
 ---
 
-### 8) Eviction
+### 10) Eviction
 
 - The page cache has limited memory.
 - When memory pressure rises, the kernel evicts less useful pages (often based on recency/usage heuristics).
@@ -143,8 +171,9 @@ Typical calls visible in trace:
 
 ## My Understanding (Summary)
 
-- System calls provide direct, explicit control over file I/O.
-- File descriptors are the process-facing handles; inodes are the filesystem metadata objects behind pathnames.
-- The `read` path often goes through page cache first, then drivers and hardware if cache misses.
-- DMA and page cache are major performance helpers.
-- Eviction explains why I/O latency can vary across repeated runs.
+- System calls (`open`, `read`, `write`, `close`) provide direct kernel-level control over file I/O without buffering or stdio overhead.
+- File descriptors are process-level handles; inodes are the filesystem metadata objects that pathnames resolve into.
+- A `read()` goes through the page cache first (fast), then drivers and hardware only on cache misses.
+- DMA offloads data movement to hardware; page cache reduces disk traffic; eviction explains why I/O latency fluctuates across runs.
+- `safe_write` demonstrates defensive coding: retry on EINTR, loop to handle partial writes.
+
