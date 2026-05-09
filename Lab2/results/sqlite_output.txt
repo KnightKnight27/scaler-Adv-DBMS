@@ -1,0 +1,53 @@
+==========================================
+  SQLite3 Experiment (1000000 rows)
+==========================================
+3.45.1 2024-01-30 16:01:20 e876e51a0ed5c5b3126f52e532044363a014bc594cfefa87ffb5b82257ccalt1 (64-bit)
+
+Inserting 1000000 rows (single transaction)...
+
+=== ls -lh on db file ===
+-rw-r--r-- 1 ridaa ridaa 42M May  9 10:17 /tmp/lab2_sqlite.db
+
+=== Page metadata (PRAGMA) ===
+page_size
+---------
+4096     
+page_count
+----------
+10502     
+freelist_count
+--------------
+0             
+cache_size
+----------
+-2000     
+journal_mode
+------------
+delete      
+mmap_size
+---------
+0        
+
+=== Query timing — mmap DISABLED (mmap_size=0) ===
+0
+Run Time: real 0.000 user 0.000022 sys 0.000000
+1000000|57.5
+Run Time: real 0.055 user 0.043027 sys 0.012120
+837500
+Run Time: real 0.038 user 0.033628 sys 0.004312
+
+=== Query timing — mmap ENABLED (mmap_size=256 MB) ===
+268435456
+Run Time: real 0.000 user 0.000000 sys 0.000024
+1000000|57.5
+Run Time: real 0.040 user 0.037282 sys 0.002538
+837500
+Run Time: real 0.033 user 0.033616 sys 0.000209
+
+=== ps aux | grep sqlite ===
+ridaa       5134  0.0  0.0   4752  3468 pts/0    S+   10:17   0:00 bash /mnt/c/Users/ridaa/scaler-Adv-DBMS/Lab2/sqlite_experiment.sh
+ridaa       5135  0.0  0.0   3132  1736 pts/0    S+   10:17   0:00 tee /mnt/c/Users/ridaa/scaler-Adv-DBMS/Lab2/results/sqlite_output.txt
+
+==========================================
+  SQLite experiment done.
+==========================================
