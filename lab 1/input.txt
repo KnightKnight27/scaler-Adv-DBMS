@@ -1,0 +1,17 @@
+Hello from input.txt!
+
+This file is read by fileio.cpp using raw Linux syscalls —
+no fopen, no fread, no iostream. Just:
+
+  open()  → read()  → write()  → close()
+
+Each call drops straight into the kernel via the syscall instruction
+(INT 0x80 on x86 / SYSCALL on x86-64), bypasses the C runtime, and
+interacts directly with the Virtual File System (VFS) layer.
+
+The VFS dispatches to the actual filesystem driver (ext4, xfs, tmpfs…),
+which talks to the block layer, which talks to the device driver,
+which finally hits the physical storage hardware.
+
+That's the full journey — from a single line of C++ to spinning rust
+(or flash cells on an SSD).
