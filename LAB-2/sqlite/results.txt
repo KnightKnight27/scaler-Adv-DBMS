@@ -1,0 +1,28 @@
+SQLite Page Size:
+4096
+SQLite Page Count:
+3
+Without mmap:
+0
+1|Bohemian Rhapsody|Queen
+2|Imagine|John Lennon
+3|Blinding Lights|The Weeknd
+4|Shape of You|Ed Sheeran
+5|Hotel California|Eagles
+6|Smells Like Teen Spirit|Nirvana
+7|Stairway to Heaven|Led Zeppelin
+8|Like a Rolling Stone|Bob Dylan
+9|Yesterday|The Beatles
+10|Hallelujah|Leonard Cohen
+With mmap:
+268435456
+1|Bohemian Rhapsody|Queen
+2|Imagine|John Lennon
+3|Blinding Lights|The Weeknd
+4|Shape of You|Ed Sheeran
+5|Hotel California|Eagles
+6|Smells Like Teen Spirit|Nirvana
+7|Stairway to Heaven|Led Zeppelin
+8|Like a Rolling Stone|Bob Dylan
+9|Yesterday|The Beatles
+10|Hallelujah|Leonard Cohen

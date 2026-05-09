@@ -1,0 +1,54 @@
+# General
+# Ignore temporary files, editor dirs, and OS files
+.DS_Store
+Thumbs.db
+*~
+*.swp
+
+# Build artifacts
+build/
+bin/
+obj/
+*.o
+*.out
+*.exe
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Visual Studio / IDEs
+*.sln
+*.vcxproj*
+.vscode/
+.idea/
+
+# Python virtualenvs
+venv/
+env/
+.env
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# Database files (local test DBs)
+*.db
+*.sqlite
+*.sqlite3
+*-journal
+
+# Coverage and test output
+coverage/
+*.cover
+
+# Misc
+node_modules/
+dist/
+
+# If you want to keep demo_db files tracked, remove the following line
+demo_db/*.db
+recovered/
