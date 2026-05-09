@@ -1,5 +1,5 @@
-name: Kushal S
-roll no: 24bcs10355
+name: Samarth Patil
+roll no: 24bcs10171
 
 # syscall-fileio
 
