@@ -1,0 +1,28 @@
+# Lab 2 Result Notes
+
+These are the values used in the README after running the SQLite3 and PostgreSQL commands.
+
+## SQLite3
+
+- SQLite Version: 3.53.1
+- Database file: sample.db
+- Database file size: 8192 bytes
+- Page size: 4096 bytes
+- Page count: 2
+- mmap size before change: 0
+- mmap size after change: 268435456
+- Query time without mmap: 0.015015 seconds
+- Query time with mmap: 0.008886 seconds
+
+## PostgreSQL
+
+- PostgreSQL Version: 17.9
+- Database name: lab2db
+- Port used: 5433
+- Block size: 8192 bytes
+- Database size: 8189619 bytes
+- Query execution time: 3.566 ms
+
+## Note
+
+The timing values can slightly change on another system. For this lab, the dataset was very small, so the main point was understanding the storage layout and database architecture rather than benchmarking performance seriously.

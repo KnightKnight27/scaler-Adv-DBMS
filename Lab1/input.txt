@@ -1,0 +1,35 @@
+Advanced DBMS Lab 1 input file
+Name: Aparna Singha
+Roll No: 24BCS10353
+
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+This is sample text used for testing file copy using low-level POSIX system calls. The program reads bytes from this input file into a buffer and writes the same bytes into output.txt.
+T
