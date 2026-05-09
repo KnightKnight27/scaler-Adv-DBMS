@@ -1,0 +1,29 @@
+=== POSTGRES STORAGE ===
+                           version                           
+-------------------------------------------------------------
+ PostgreSQL 15.15, compiled by Visual C++ build 1944, 64-bit
+(1 row)
+
+-- block size --
+ block_size 
+------------
+ 8192
+(1 row)
+
+-- per-table sizes & relfilenodes --
+ relname  |     filepath     | heap_size  | total_size_with_indexes_toast 
+----------+------------------+------------+-------------------------------
+ courses  | base/32768/32776 | 8192 bytes | 32 kB
+ students | base/32768/32769 | 8192 bytes | 32 kB
+(2 rows)
+
+-- database total size --
+ db_size 
+---------
+ 7597 kB
+(1 row)
+
+-- count of files in the per-database directory --
+advdbms OID = 32768
+307
+(file count in base/32768/ — every relation gets at least one file)
