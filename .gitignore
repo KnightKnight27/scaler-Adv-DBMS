@@ -1,0 +1,13 @@
+# Build artefacts from the Read_Write_File assignment
+Read_Write_File/main
+Read_Write_File/test.txt
+
+# Windows / WSL metadata
+*:Zone.Identifier
+
+# Editor / OS junk
+.DS_Store
+.vscode/
+.idea/
+*.swp
+__pycache__/
