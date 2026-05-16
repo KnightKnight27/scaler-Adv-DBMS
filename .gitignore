@@ -1,0 +1,27 @@
+# Compiled binaries
+*.out
+*.exe
+*.o
+*.dylib
+*.dSYM/
+
+# Build artifacts
+a.out
+core
+[Ta]sk[0-9]
+file_syscalls
+
+# SQLite temp files
+*.db-shm
+*.db-wal
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
