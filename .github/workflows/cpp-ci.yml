@@ -24,3 +24,23 @@ jobs:
           path: |
             build/storage_buffer/storage_buffer_main
             build/lab3/24bcs10276/lab3_code
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (MSVC)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+      - name: Build (Release)
+        run: cmake --build build --config Release -- /m
+      - name: Run Windows executables
+        shell: powershell
+        run: |
+          if (Test-Path build\storage_buffer\Release\storage_buffer_main.exe) { build\storage_buffer\Release\storage_buffer_main.exe } else { Write-Output 'storage_buffer binary not found' }
+          if (Test-Path build\lab3\24bcs10276\Release\lab3_code.exe) { build\lab3\24bcs10276\Release\lab3_code.exe } else { Write-Output 'lab3 binary not found' }
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpp-windows-binaries
+          path: |
+            build/storage_buffer/Release/storage_buffer_main.exe
+            build/lab3/24bcs10276/Release/lab3_code.exe
