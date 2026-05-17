@@ -27,7 +27,7 @@ private:
     std::mutex bufferMutex;
 
 public:
-    ClockBuffer(int size) {
+    explicit ClockBuffer(int size) {
         capacity = size;
         frames.resize(capacity);
         hand = 0;
@@ -36,8 +36,10 @@ public:
     void accessPage(T page) {
         std::lock_guard<std::mutex> lock(bufferMutex);
 
-        if (pageTable.find(page) != pageTable.end()) {
-            int index = pageTable[page];
+        auto it = pageTable.find(page);
+
+        if (it != pageTable.end()) {
+            int index = it->second;
             frames[index].referenceBit = 1;
 
             std::cout << "Page "
@@ -100,6 +102,8 @@ public:
     }
 
     void displayBuffer() {
+        std::lock_guard<std::mutex> lock(bufferMutex);
+        
         std::cout << "\nCurrent Buffer State\n";
 
         for (int i = 0; i < capacity; i++) {
