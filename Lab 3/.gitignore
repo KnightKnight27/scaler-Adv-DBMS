@@ -1,0 +1,43 @@
+# =========================================================================
+# Git Ignore Configuration - Clock Sweep Cache (Lab 3)
+# =========================================================================
+
+# Compiled Binary Binaries / Executables
+*.exe
+*.out
+*.app
+clock_sweep_cache
+
+# MSVC / Visual Studio Build Artifacts
+*.obj
+*.ilk
+*.pdb
+*.suo
+*.user
+*.ncb
+*.sdf
+*.opensdf
+.vs/
+ipch/
+Debug/
+Release/
+x64/
+x86/
+ARM64/
+
+# GCC / MinGW Object Files
+*.o
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+
+# CMake Build Directory and Temporary Files
+build/
+cmake-build-debug/
+cmake-build-release/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
