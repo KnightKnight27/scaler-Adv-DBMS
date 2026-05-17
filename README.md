@@ -1,361 +1,189 @@
-# Database Storage Engine Exploration Lab
+# Clock Sweep Page Replacement Algorithm
 
-## Name
-Shifa
+## Overview
 
-## Role Number
-10354
+This project demonstrates the implementation of the **Clock Sweep Page Replacement Algorithm** in C++.
 
----
+Clock Sweep is an efficient approximation of the **Least Recently Used (LRU)** page replacement strategy used in:
 
-# 1. SQLite3 Exploration
+- Operating Systems
+- Database Buffer Managers
+- Virtual Memory Systems
+- Cache Management Systems
 
-## Installation
-
-```bash
-sudo apt install sqlite3
-```
-
-## Creating Sample Database
-
-```bash
-sqlite3 sample.db
-```
-
-Inside SQLite:
-
-```sql
-CREATE TABLE users(
-    id INTEGER PRIMARY KEY,
-    name TEXT,
-    age INTEGER
-);
-
-INSERT INTO users(name, age)
-VALUES
-('Alice', 21),
-('Bob', 22),
-('Charlie', 23);
-```
-
-Exit:
-
-```sql
-.exit
-```
+Instead of maintaining exact usage order like LRU, Clock Sweep uses a **reference bit** and a **circular clock hand** to decide which page to evict.
 
 ---
 
-## Checking File Size
+# Features
 
-```bash
-ls -lh
-```
-
-### Observation
-
-- SQLite stores the entire database inside a single `.db` file.
-- File size increases as more rows are inserted.
+- Fixed-size buffer/cache
+- Page insertion and retrieval
+- Second-chance mechanism using reference bits
+- Automatic page eviction when buffer is full
+- Circular clock-hand traversal
+- Generic implementation using C++ templates
+- Console visualization of cache state
 
 ---
 
-## Finding Page Size
+# How Clock Sweep Works
 
-```bash
-sqlite3 sample.db
+Each frame in memory contains:
+
+| Field | Description |
+|---|---|
+| Key | Page identifier |
+| Value | Stored page data |
+| Valid Bit | Indicates whether frame is occupied |
+| Reference Bit | Indicates recent usage |
+
+---
+
+## Algorithm Steps
+
+### 1. Page Access
+When a page is accessed:
+- Its reference bit becomes `true`
+
+### 2. Buffer Full Condition
+When inserting into a full buffer:
+- The clock hand checks frames one by one
+
+### 3. Second Chance
+If a frame's reference bit is:
+- `true` → clear it and move ahead
+- `false` → evict the page
+
+### 4. Replacement
+The new page is inserted into the evicted frame.
+
+---
+
+# Data Structures Used
+
+## 1. Vector
+```cpp
+vector<Frame> frames_;
 ```
 
-```sql
-PRAGMA page_size;
+Stores all cache frames.
+
+---
+
+## 2. Hash Map
+```cpp
+unordered_map<Key, size_t> index_map_;
 ```
 
-### Output
+Provides O(1) lookup for pages.
 
+---
+
+## 3. Circular Pointer
+```cpp
+size_t clock_hand_;
+```
+
+Acts as the rotating clock hand.
+
+---
+
+# Time Complexity
+
+| Operation | Complexity |
+|---|---|
+| Get Page | O(1) |
+| Insert Page | O(1) Average |
+| Eviction | O(n) Worst Case |
+
+---
+
+# Sample Execution
+
+## Initial Inserts
 ```text
-4096
+Insert page 1 into free frame 0
+Insert page 2 into free frame 1
+Insert page 3 into free frame 2
 ```
-
-### Observation
-
-- SQLite default page size is 4096 bytes (4KB).
 
 ---
 
-## Finding Page Count
-
-```sql
-PRAGMA page_count;
-```
-
-### Observation
-
-- Page count increases with inserted data.
-- Total DB size:
-
+## Access Pages
 ```text
-Database Size = page_size × page_count
+Page hit: 1 found in frame 0
+Page hit: 2 found in frame 1
 ```
 
 ---
 
-## Experimenting with mmap_size
-
-### Checking Current mmap Size
-
-```sql
-PRAGMA mmap_size;
-```
-
-### Setting mmap Size
-
-```sql
-PRAGMA mmap_size = 268435456;
-```
-
-(256 MB)
-
-### Observation
-
-- mmap enables memory-mapped I/O.
-- Reduces repeated disk reads.
-- Improves read-heavy query performance.
-
----
-
-## Timing Queries Without mmap
-
-```bash
-time sqlite3 sample.db "SELECT * FROM users;"
-```
-
-### Observation
-
-- Query execution takes comparatively more time.
-
----
-
-## Timing Queries With mmap
-
-Enable mmap:
-
-```sql
-PRAGMA mmap_size = 268435456;
-```
-
-Run:
-
-```bash
-time sqlite3 sample.db "SELECT * FROM users;"
-```
-
-### Observation
-
-- Slightly faster execution for repeated reads.
-- Improvement is more noticeable for large databases.
-
----
-
-## Checking SQLite Process
-
-```bash
-ps aux | grep sqlite
-```
-
-### Observation
-
-- SQLite runs as an embedded database.
-- No separate database server process exists.
-
----
-
-# 2. PostgreSQL Exploration
-
-## Installation
-
-```bash
-sudo apt install postgresql postgresql-contrib
-```
-
-## Starting PostgreSQL
-
-```bash
-sudo systemctl start postgresql
-```
-
-## Access PostgreSQL
-
-```bash
-sudo -u postgres psql
-```
-
----
-
-## Creating Database
-
-```sql
-CREATE DATABASE labdb;
-```
-
-Connect:
-
-```sql
-\c labdb
-```
-
-Create table:
-
-```sql
-CREATE TABLE users(
-    id SERIAL PRIMARY KEY,
-    name TEXT,
-    age INT
-);
-```
-
-Insert data:
-
-```sql
-INSERT INTO users(name, age)
-VALUES
-('Alice',21),
-('Bob',22),
-('Charlie',23);
-```
-
----
-
-## Finding Page Size
-
-```sql
-SHOW block_size;
-```
-
-### Output
-
+## Buffer Full Eviction
 ```text
-8192
+Buffer full. Searching victim for page 4
+
+Frame 0 has reference bit = true
+Giving second chance
+
+Frame 1 has reference bit = true
+Giving second chance
+
+Evicting page 3 from frame 2
+Insert page 4 into frame 2
 ```
-
-### Observation
-
-- PostgreSQL default page size is 8KB.
 
 ---
 
-## Finding Page Count
+# Compilation & Execution
 
-Install extension:
-
-```sql
-CREATE EXTENSION pgstattuple;
-```
-
-Check table stats:
-
-```sql
-SELECT * FROM pgstattuple('users');
-```
-
-### Observation
-
-- PostgreSQL stores data in multiple pages internally.
-- Page statistics include free space and tuple usage.
-
----
-
-## Timing Queries
-
+## Compile
 ```bash
-time psql -d labdb -c "SELECT * FROM users;"
+g++ main.cpp -o clock
 ```
 
-### Observation
-
-- PostgreSQL query execution includes server communication overhead.
-- Better optimized for concurrent queries.
-
----
-
-## Checking PostgreSQL Processes
-
+## Run
 ```bash
-ps aux | grep postgres
+./clock
 ```
 
-### Observation
+---
 
-- PostgreSQL runs as a dedicated server process.
-- Multiple background worker processes are visible.
+# Concepts Demonstrated
+
+- Page Replacement Algorithms
+- Cache Management
+- Memory Management
+- Circular Queue Traversal
+- Template Programming in C++
+- Hash-Based Lookup
+- Buffer Pool Design
 
 ---
 
-# 3. SQLite3 vs PostgreSQL Comparison
+# Applications
 
-| Feature | SQLite3 | PostgreSQL |
-|---|---|---|
-| Architecture | Embedded DB | Client-Server DB |
-| Default Page Size | 4KB | 8KB |
-| Storage | Single file | Multiple internal files |
-| Server Process | No | Yes |
-| mmap Support | Yes | Limited internal use |
-| Best For | Lightweight apps | Large scalable systems |
-| Query Performance | Fast for small/local workloads | Better for concurrent workloads |
-| Concurrency | Limited | High |
-| Setup Complexity | Very Easy | Moderate |
+Clock Sweep is widely used in:
+
+- Linux memory management
+- Database systems like PostgreSQL
+- Buffer pool managers
+- CPU cache simulations
+- Virtual memory systems
 
 ---
 
-# mmap Impact Analysis
+# Future Improvements
 
-## SQLite
-
-### Without mmap
-
-- More disk I/O
-- Slower repeated reads
-
-### With mmap
-
-- Uses virtual memory mapping
-- Faster read performance
-- Reduced syscall overhead
-
-## PostgreSQL
-
-- PostgreSQL internally manages shared buffers and caching.
-- mmap tuning is generally less exposed to users.
+Possible enhancements:
+- Multi-threaded support
+- Dirty bit handling
+- Statistics tracking (hits/misses)
+- Variable-sized pages
+- Persistent storage integration
+- GUI visualization
 
 ---
 
-# Final Observations
+# Author
 
-## SQLite3
-
-Advantages:
-- Lightweight
-- Easy setup
-- Single portable file
-- Very fast for local applications
-
-Disadvantages:
-- Limited concurrency
-- Not ideal for high-scale production systems
-
----
-
-## PostgreSQL
-
-Advantages:
-- Powerful query optimizer
-- Excellent concurrency support
-- Suitable for enterprise applications
-
-Disadvantages:
-- More resource usage
-- Requires server management
-
----
-
-# Conclusion
-
-SQLite3 is ideal for embedded and lightweight applications, while PostgreSQL is better suited for scalable multi-user systems. mmap significantly improves SQLite read performance by reducing disk access overhead.
+Developed as part of Operating Systems / System Design learning and demonstration project.
