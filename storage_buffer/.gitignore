@@ -1,0 +1,23 @@
+# Build directory
+build/
+
+# Compiled binary
+main.exe
+db_engine
+db_engine.exe
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# VS / VS Code
+.vs/
+*.suo
+*.user
+.vscode/
+
+# Misc
+*.o
+*.obj
