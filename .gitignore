@@ -1,0 +1,20 @@
+# Build artifacts
+/build/
+/*.exe
+/*.dll
+/*.so
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+
+# Database files
+*.db
+lab3/24bcs10276/student.db
+
+# VS Code
+.vscode/
