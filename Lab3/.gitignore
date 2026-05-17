@@ -1,0 +1,4 @@
+build/
+*.o
+db_engine
+db_engine.exe
