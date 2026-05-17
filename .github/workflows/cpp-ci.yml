@@ -17,3 +17,10 @@ jobs:
         run: |
           if [ -x build/storage_buffer/storage_buffer_main ]; then build/storage_buffer/storage_buffer_main || true; fi
           if [ -x build/lab3/24bcs10276/lab3_code ]; then build/lab3/24bcs10276/lab3_code || true; fi
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpp-binaries
+          path: |
+            build/storage_buffer/storage_buffer_main
+            build/lab3/24bcs10276/lab3_code
