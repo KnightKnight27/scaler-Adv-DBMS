@@ -1,5 +1,3 @@
-// Lab 3 - Clock Sweep buffer replacement
-// Vanditabyaa Dwivedi (24BCS10505)
 
 #include <atomic>
 #include <chrono>
