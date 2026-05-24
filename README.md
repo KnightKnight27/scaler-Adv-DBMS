@@ -1,157 +1,254 @@
-# scaler-Adv-DBMS
-# SQLite3 vs PostgreSQL Comparison
+````markdown
+# Exploring SQLite Internals using xxd
 
-This repository contains a hands-on comparison between **SQLite3** and **PostgreSQL**, demonstrating database setup, query performance, memory usage, and process architecture.
+## Objective
 
+This project explores the internal structure of a SQLite3 database using hexadecimal inspection.
 
-## SQLite3 Experiments
+The analysis includes:
 
-### Commands Used
+- SQLite database header
+- Page structure
+- B-Tree pages
+- Cell pointer arrays
+- Record storage
+- Address calculations
 
-```bash
-# Open SQLite database
-sqlite3 ~/test.db
-
-# Create table
-CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    name TEXT,
-    email TEXT
-);
-
-# Insert sample data
-INSERT INTO users (name, email) VALUES
-('Alice', 'alice@example.com'),
-('Bob', 'bob@example.com'),
-('Charlie', 'charlie@example.com');
-
-# Verify data
-SELECT * FROM users;
-
-# Check database info
-PRAGMA page_size;
-PRAGMA page_count;
-PRAGMA mmap_size;
-
-# Set memory-mapped I/O to 256 MB
-PRAGMA mmap_size = 268435456;
-
-# Query performance
-time sqlite3 ~/test.db "PRAGMA mmap_size=0; SELECT * FROM users;"
-time sqlite3 ~/test.db "PRAGMA mmap_size=268435456; SELECT * FROM users;"
-
-# Check running SQLite processes
-ps aux | grep sqlite
-```
-
-### Observations
-
-* **Database File Size:** 8 KB
-* **Page Size:** 4096 bytes (4 KB)
-* **Page Count:** 2 pages
-* **mmap_size:** Default 0, temporarily set to 256 MB; connection-specific
-* **Query Performance:**
-
-| mmap  | real   | user   | sys    |
-| ----- | ------ | ------ | ------ |
-| 0     | 0.001s | 0.000s | 0.001s |
-| 256MB | 0.001s | 0.000s | 0.000s |
-
-* **Process Observation:** Single lightweight process; very low memory and CPU usage
-* **Conclusion:** SQLite is lightweight, embedded in a single file, and mmap slightly improves query performance.
-
----
-
-## PostgreSQL Experiments
-
-### Commands Used
-
-```bash
-sudo service postgresql start
-sudo -u postgres psql
-
--- Create a test database
-CREATE DATABASE testdb;
-
--- Connect to the database
-\c testdb
-
--- Create table
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    name TEXT,
-    email TEXT
-);
-
--- Insert sample data
-INSERT INTO users (name, email) VALUES
-('Alice', 'alice@example.com'),
-('Bob', 'bob@example.com'),
-('Charlie', 'charlie@example.com');
-
--- Verify data
-SELECT * FROM users;
-
--- Database info
-SHOW block_size;
-
--- Table pages
-SELECT relpages FROM pg_class WHERE relname = 'users';
-
--- Analyze query execution
-EXPLAIN ANALYZE SELECT * FROM users;
-
--- Check running PostgreSQL processes
-ps aux | findstr postgres
-```
-
-### Observations
-
-* **Block Size:** 8192 bytes (8 KB)
-* **Page Count:** 0 (small table, minimal pages used initially)
-* **Query Execution:**
+Database used:
 
 ```text
-Seq Scan on users  (cost=0.00..18.50 rows=850 width=68) 
-(actual time=0.014..0.015 rows=3 loops=1)
-Planning Time: 0.064 ms
-Execution Time: 0.039 ms
+students.db
 ```
 
-* **Process Observation:** Multiple background processes exist:
+---
 
-  * `checkpointer`, `background writer`, `walwriter`, `autovacuum launcher`, `logical replication launcher`
-* PostgreSQL follows a **client-server architecture**, unlike SQLite.
+# Tools Used
 
-
-
-## Comparison Analysis
-
-| Feature             | SQLite3                    | PostgreSQL                 |
-| ------------------- | -------------------------- | -------------------------- |
-| Architecture        | Embedded database          | Client-server database     |
-| Storage             | Single file                | Multiple internal files    |
-| Page Size           | 4096 bytes                 | 8192 bytes                 |
-| Page Count          | 2                          | 0 (small table)            |
-| mmap Support        | Direct mmap support        | Internal shared buffers    |
-| Query Timing        | 0.001s                     | 0.039 ms                   |
-| Processes           | Single lightweight process | Multiple server processes  |
-| Setup Complexity    | Very simple                | More complex               |
-| Concurrency Support | Limited                    | Strong concurrency support |
-| Resource Usage      | Very low                   | Higher                     |
-
-
-
-## Conclusion
-
-* **SQLite3:** Lightweight, easy to set up, minimal resources, suitable for embedded apps or local testing.
-* **PostgreSQL:** Full-featured, multi-process, advanced query planner, strong concurrency, suitable for production and multi-user environments.
-
-From the experiments:
-
-* SQLite was easier to configure and inspect.
-* PostgreSQL had a more advanced architecture.
-* mmap slightly improved SQLite performance.
-* PostgreSQL demonstrated efficient query execution and process management.
+- sqlite3
+- xxd
+- VS Code
+- WSL
 
 ---
+
+# Database Schema
+
+```sql
+CREATE TABLE students (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    age INTEGER
+);
+```
+
+---
+
+# Records Inserted
+
+| id | name | age |
+|---|---|---|
+| 1 | Alice | 21 |
+| 2 | Bob | 22 |
+| 3 | Charlie | 23 |
+| 4 | David | 24 |
+
+---
+
+# Hex Dump Generation
+
+```bash
+xxd students.db > hexDump.txt
+```
+
+---
+
+# SQLite Header
+
+## Actual Hex Data
+
+```text
+00000000: 5351 4c69 7465 2066 6f72 6d61 7420 3300
+00000010: 1000 0101 0040 2020 0000 0002 0000 0002
+00000020: 0000 0000 0000 0000 0000 0001 0000 0004
+00000030: 0000 0000 0000 0000 0000 0001 0000 0000
+00000040: 0000 0000 0000 0000 0000 0000 0000 0000
+00000050: 0000 0000 0000 0000 0000 0000 0000 0002
+00000060: 002e 574a 0d00 0000 010f 8d00 0f8d 0000
+```
+
+---
+
+# Header Interpretation
+
+| Offset | Value | Meaning |
+|---|---|---|
+| 0x00 | SQLite format 3 | SQLite signature |
+| 0x10 | 1000 | Page size |
+| 0x1C | 00000002 | Total pages |
+
+Page size:
+
+```text
+0x1000 = 4096 bytes
+```
+
+---
+
+# Database Pages
+
+| Page | Address Range |
+|---|---|
+| Page 1 | 0x0000 – 0x0FFF |
+| Page 2 | 0x1000 – 0x1FFF |
+
+---
+
+# Root Page
+
+Query used:
+
+```sql
+SELECT name, rootpage FROM sqlite_master;
+```
+
+Output:
+
+```text
+students|2
+```
+
+This means the `students` table starts at page 2.
+
+---
+
+# Page 2 Inspection
+
+Command:
+
+```bash
+xxd -s 4096 -l 256 students.db
+```
+
+Output:
+
+```text
+00001000: 0d00 0000 040f d000 0ff4 0fea 0fdc 0fd0
+00001010: 0000 0000 0000 0000 0000 0000 0000 0000
+00001020: 0000 0000 0000 0000 0000 0000 0000 0000
+00001030: 0000 0000 0000 0000 0000 0000 0000 0000
+```
+
+---
+
+# B-Tree Page Analysis
+
+| Value | Meaning |
+|---|---|
+| 0D | Leaf table B-Tree page |
+| 0004 | Number of cells |
+| 0FD0 | Start of cell content |
+
+Cell pointers:
+
+```text
+0ff4 0fea 0fdc 0fd0
+```
+
+| Cell | Offset |
+|---|---|
+| 1 | 0x0FF4 |
+| 2 | 0x0FEA |
+| 3 | 0x0FDC |
+| 4 | 0x0FD0 |
+
+---
+
+# Address Navigation
+
+Example:
+
+```text
+Page base:
+0x1000
+
+Cell pointer:
+0x0FDC
+```
+
+Actual row location:
+
+```text
+0x1000 + 0x0FDC
+= 0x1FDC
+```
+
+---
+
+# Visible Record Data
+
+Using:
+
+```bash
+strings students.db
+```
+
+Output:
+
+```text
+David
+Charlie
+Alice
+```
+
+This shows SQLite stores TEXT values directly inside record payloads.
+
+---
+
+# Lookup Process
+
+Example query:
+
+```sql
+SELECT * FROM students WHERE id = 3;
+```
+
+SQLite internally:
+
+1. Opens root page
+2. Reads B-Tree header
+3. Traverses cell pointers
+4. Finds matching row
+5. Decodes payload
+
+---
+
+# Internal Structure
+
+```text
+students.db
+│
+├── SQLite Header
+├── Page 1 (sqlite_master)
+└── Page 2 (students table)
+     ├── Page Header
+     ├── Cell Pointer Array
+     └── Record Payloads
+```
+
+---
+
+# Conclusion
+
+This project explored the internal storage architecture of SQLite3 using real hexadecimal dumps.
+
+The analysis demonstrated:
+
+- SQLite file headers
+- page organization
+- B-Tree pages
+- cell pointer navigation
+- payload storage
+- manual address calculations
+
+This provides insight into how SQLite stores and retrieves records internally.
+````

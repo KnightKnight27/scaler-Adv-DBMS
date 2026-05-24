@@ -1,3 +1,7 @@
-project(db_engine)
+cmake_minimum_required(VERSION 3.10)
 
-add_executable(db_engine main.cpp)
+project(storage_buffer)
+
+set(CMAKE_CXX_STANDARD 17)
+
+add_executable(storage_buffer main.cpp)
