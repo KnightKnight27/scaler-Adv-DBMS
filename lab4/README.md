@@ -199,6 +199,21 @@ Page navigation occurs using page numbers and offsets stored inside B-tree struc
 
 ---
 
+# Screenshots
+![alt text](<screenshots/Screenshot 2026-05-24 230736.png>)
+
+
+![alt text](<screenshots/Screenshot 2026-05-24 230842.png>) 
+
+![alt text](<screenshots/Screenshot 2026-05-24 230920.png>) 
+
+![alt text](<screenshots/Screenshot 2026-05-24 231126.png>) 
+
+![alt text](<screenshots/Screenshot 2026-05-24 231139.png>) 
+
+![alt text](<screenshots/Screenshot 2026-05-24 231210.png>)
+
 # Conclusion
 
 This experiment successfully demonstrated the low-level internal structure of a SQLite3 database. Using `xxd`, the database header, page structure, B-tree node format, and record pointers were analyzed. The experiment provided practical understanding of how SQLite stores and navigates records internally.
+
