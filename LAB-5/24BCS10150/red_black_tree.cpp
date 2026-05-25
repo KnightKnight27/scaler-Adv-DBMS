@@ -1,4 +1,5 @@
 #include <iostream>
+#include <algorithm>
 using namespace std;
 
 enum Color { RED, BLACK };
@@ -98,7 +99,7 @@ private:
 
                     // Left Left Case
                     rotateRight(root, grand_parent_pt);
-                    swap(parent_pt->color, grand_parent_pt->color);
+                    sstd::swap(parent_pt->color, grand_parent_pt->color);
                     pt = parent_pt;
                 }
             }
@@ -125,7 +126,7 @@ private:
 
                     // Right Right Case
                     rotateLeft(root, grand_parent_pt);
-                    swap(parent_pt->color, grand_parent_pt->color);
+                    std::swap(parent_pt->color, grand_parent_pt->color);
                     pt = parent_pt;
                 }
             }
