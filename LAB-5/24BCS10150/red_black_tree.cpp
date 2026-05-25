@@ -99,7 +99,7 @@ private:
 
                     // Left Left Case
                     rotateRight(root, grand_parent_pt);
-                    sstd::swap(parent_pt->color, grand_parent_pt->color);
+                    std::swap(parent_pt->color, grand_parent_pt->color);
                     pt = parent_pt;
                 }
             }
