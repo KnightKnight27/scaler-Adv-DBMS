@@ -1,17 +1,31 @@
-# Java build output
-*.class
-*.jar
-*.war
-*.ear
-/target/
-/out/
-/build/
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
 
-# Generated lab output
-assignment-data.txt
+# Precompiled Headers
+*.gch
+*.pch
 
-# OS and editor noise
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+Lab-5/rbtree
+rbtree
