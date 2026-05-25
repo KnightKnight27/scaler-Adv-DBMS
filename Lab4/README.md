@@ -1,6 +1,6 @@
 # Advanced DBMS Lab - 4: SQLite3 Page Navigation & B-Tree Hex Dump Analysis
 
-## Objective
+## Objectives
 
 The goal of this lab session was to tear down a SQLite3 database file at the byte level to understand how it actually manages storage under the hood. Using the `xxd` hex dump utility, I analyzed a custom-built database (`students.db`) to identify and decode:
 
