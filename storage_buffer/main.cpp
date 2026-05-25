@@ -1,25 +1,19 @@
-#include "ClockSweep.h"
 
-#include <iostream>
-#include <string>
+template<typename T>
+class ClockSweep
+public:
+   ClockSweep(int maxNumber): maxCacheSize(maxNumber) {};
 
-int main() {
-    ClockSweep<int> integer_cache(3);
-    integer_cache.put(10);
-    integer_cache.put(20);
-    integer_cache.put(30);
+   T getKey(T key){}
 
-    if (const auto page = integer_cache.get(20); page.has_value()) {
-        std::cout << "Found integer page: " << *page << '\n';
-    }
+   void putKey(T key){}
 
-    ClockSweep<std::string> string_cache(2);
-    string_cache.put("users_page");
-    string_cache.put("orders_page");
+private:
+  uint maxCacheSize{0u};
+  std::thread bgClockThread;
+	
+};
+int main(){
+	ClockSweep<int> clockSweep;
 
-    if (const auto page = string_cache.get("users_page"); page.has_value()) {
-        std::cout << "Found string page: " << *page << '\n';
-    }
-
-    return 0;
 }
