@@ -1,7 +1,7 @@
 # Lab 5 — Red-Black Tree Implementation
 
 > **Course:** Advanced DBMS
-> **Author:** Krritin Keshan (24BCS10122)
+> **Author:** Vanditabyaa Dwivedi (24BCS10505)
 > **Language:** C++17
 
 A from-scratch implementation of a **Red-Black Tree** — a self-balancing binary search tree where every node carries a color (red or black) and a small set of invariants forces the tree to stay within `O(log n)` height. RBTs are the backbone of in-memory ordered indexes in many databases (PostgreSQL's `RBTree`, Linux kernel scheduling structures, `std::map` / `std::set` in libstdc++).
