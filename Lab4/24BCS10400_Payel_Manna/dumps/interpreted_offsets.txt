@@ -1,0 +1,43 @@
+SQLite Page Offset Calculations
+
+Page size = 4096 bytes
+Total pages = 7
+
+Formula:
+offset = (page_number - 1) * page_size
+
+Page 1:
+(1 - 1) * 4096 = 0
+
+Page 2:
+(2 - 1) * 4096 = 4096
+
+Page 3:
+(3 - 1) * 4096 = 8192
+
+Page 4:
+(4 - 1) * 4096 = 12288
+
+Root pages from sqlite_master:
+
+users    -> page 2
+products -> page 3
+
+Actual file offsets:
+
+users root page:
+4096 bytes
+
+products root page:
+8192 bytes
+
+SQLite stores:
+- database header in page 1
+- B-Tree root pages in later pages
+- rows inside leaf pages
+
+B-Tree pages contain:
+- page header
+- cell pointer array
+- free space
+- cell content area
