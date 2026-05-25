@@ -3,45 +3,34 @@
 
 class RedBlackTree {
 public:
-    enum Color { black = 0, red = 1 };
+    enum class Color { Red, Black };
 
     struct Node {
-        int val;
-        Node *left, *right, *parent;
+        int data;
         Color color;
-        Node(int v) : val(v), left(nullptr), right(nullptr), parent(nullptr), color(Color::red) {}
+        Node *left, *right, *parent;
+
+        Node(int d, Node *nil)
+            : data(d), color(Color::Red), left(nil), right(nil), parent(nullptr) {}
     };
 
     RedBlackTree();
     ~RedBlackTree();
 
-    bool find(int val);
     void insert(int val);
-    void remove(int val);
+    bool search(int val);
     void print();
 
-    Node *NIL;
-
 private:
-    Node *m_Root;
+    Node *root;
+    Node *nil; // sentinel leaf
 
-    void fixTree(Node *node);
-    void rotateLeft(Node *node);
-    void rotateRight(Node *node);
-    void destroyTree(Node *node);
+    void fixInsert(Node *node);
+    void rotateLeft(Node *pivot);
+    void rotateRight(Node *pivot);
+    void freeTree(Node *node);
 
-    bool isCase0(Node *node);
-    bool isCase1(Node *node);
-    bool isCase2(Node *node);
-    bool isCase3(Node *node);
-
-    void handleCase0(Node *node);
-    void handleCase1(Node *node);
-    void handleCase2(Node *node);
-    void handleCase3(Node *node);
-
-    Node* getGrandParent(Node *node);
-    Node* getUncle(Node *node);
+    bool isRed(Node *node) { return node != nil && node->color == Color::Red; }
 };
 
 #endif
