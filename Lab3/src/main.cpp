@@ -1,5 +1,5 @@
 #include <iostream>
-#include "../include/ClockSweep.hpp"
+#include "ClockSweep.hpp"
 
 int main() {
     ClockSweep<int> cs(4);
