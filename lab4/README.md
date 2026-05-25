@@ -1,6 +1,6 @@
 # Lab 4 - SQLite on-disk format with `xxd`
 
-**Author:** Rohan Jangam
+**Author:** Praneeth
 **Branch:** `lab4`   
 **Tooling:** SQLite 3.44.2, `xxd` (Git for Windows)
 
