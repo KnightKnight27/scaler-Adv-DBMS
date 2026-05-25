@@ -87,7 +87,7 @@ private:
         y->parent = x->parent;     // link x's parent to y
 
         if (x->parent == NIL)
-            root = y;              // x was root → y becomes root
+            root = y;              // x was root → y becomes the root
         else if (x == x->parent->left)
             x->parent->left  = y;
         else

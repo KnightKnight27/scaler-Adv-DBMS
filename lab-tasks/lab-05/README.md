@@ -55,8 +55,7 @@ Every valid Red-Black Tree satisfies **all** five of these simultaneously:
 | 4 | If a node is **RED**, both its children are **BLACK** (no two adjacent RED nodes). |
 | 5 | For every node, all simple paths from it to descendant leaves contain the **same number of BLACK nodes** (the "black-height"). |
 
-The implementation verifies all five properties at any point via
-`isValidRBTree()`.
+The implementation verifies all five properties at any point via `isValidRBTree()`.
 
 ---
 
