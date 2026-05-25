@@ -78,18 +78,18 @@ Key header fields decoded:
 ### B-Tree page header for page 1 (starts at byte 100)
 
 ```
-00000064: 002e 8df8 0d00 0000 020f 0600 0f60 0f06
+00000060: 002e 8df8 0d00 0000 020f 0600 0f60 0f06
 ```
 
-After the 100-byte file header, the B-Tree page header begins. Offset `0x64 = 100`:
+The line above starts at file offset `0x60 = 96`. The first 4 bytes (`002e8df8`) are the tail end of the 100-byte file header (SQLite version). The B-Tree page header kicks in at byte 100 (`0x64` within this line, which is `0x60 + 4`):
 
-| Offset in page | Value | Meaning |
-|----------------|-------|---------|
-| 100            | `0d`  | Page type = **0x0D = leaf table B-Tree page** |
-| 101–102        | `0000`| First freeblock offset = 0 (no free blocks) |
-| 103–104        | `0002`| Number of cells = 2 (sqlite_master has 2 entries) |
-| 105–106        | `0f06`| Cell content area starts at offset `0x0F06 = 3846` |
-| 107            | `00`  | Fragmented free bytes = 0 |
+| File offset | Value | Meaning |
+|-------------|-------|---------|
+| 100 (`0x64`) | `0d`  | Page type = **0x0D = leaf table B-Tree page** |
+| 101–102      | `0000`| First freeblock offset = 0 (no free blocks) |
+| 103–104      | `0002`| Number of cells = 2 (sqlite_master has 2 entries) |
+| 105–106      | `0f06`| Cell content area starts at offset `0x0F06 = 3846` |
+| 107          | `00`  | Fragmented free bytes = 0 |
 
 The cell pointer array follows immediately. Two 2-byte big-endian offsets:
 - `0f60` → cell at offset `0x0F60 = 3936` (the `students` table entry)
