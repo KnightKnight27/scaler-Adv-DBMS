@@ -1,0 +1,63 @@
+Red-Black Tree demo
+
+=== six mixed inserts ===
+inserting: 10 20 30 15 5 1 
+size         : 6
+height       : 4
+black-height : 2
+in-order     : 1 5 10 15 20 30
+shape (right subtree on top, parent in middle):
+        /----- 30(B)
+20(B)
+                /----- 15(B)
+        /----- 10(R)
+                /----- 5(B)
+                        /----- 1(R)
+validate()   : OK (all five RB invariants hold)
+contains 15  : yes
+contains 99  : no
+
+=== ascending 1..10 ===
+inserting: 1 2 3 4 5 6 7 8 9 10 
+size         : 10
+height       : 5
+black-height : 3
+in-order     : 1 2 3 4 5 6 7 8 9 10
+shape (right subtree on top, parent in middle):
+                                /----- 10(R)
+                        /----- 9(B)
+                /----- 8(R)
+                        /----- 7(B)
+        /----- 6(B)
+                /----- 5(B)
+4(B)
+                /----- 3(B)
+        /----- 2(B)
+                /----- 1(B)
+validate()   : OK (all five RB invariants hold)
+contains 15  : no
+contains 99  : no
+
+=== descending 10..1 ===
+inserting: 10 9 8 7 6 5 4 3 2 1 
+size         : 10
+height       : 5
+black-height : 3
+in-order     : 1 2 3 4 5 6 7 8 9 10
+shape (right subtree on top, parent in middle):
+                /----- 10(B)
+        /----- 9(B)
+                /----- 8(B)
+7(B)
+                /----- 6(B)
+        /----- 5(B)
+                        /----- 4(B)
+                /----- 3(R)
+                        /----- 2(B)
+                                /----- 1(R)
+validate()   : OK (all five RB invariants hold)
+contains 15  : no
+contains 99  : no
+
+=== duplicate insert is a no-op ===
+size after three insert(42) calls: 1
