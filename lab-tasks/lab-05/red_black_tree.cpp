@@ -1,7 +1,7 @@
 /**
  * Red-Black Tree - Complete Implementation in C++
  *
- * Properties of a Red-Black Tree -
+ * Properties of a Red-Black Tree:
  *  1. Every node is either RED or BLACK.
  *  2. The root is always BLACK.
  *  3. Every NULL leaf (NIL sentinel) is BLACK.

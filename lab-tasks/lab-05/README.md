@@ -114,7 +114,7 @@ g++ -std=c++17 -Wall -Wextra -o rbt red_black_tree.cpp
 ./rbt
 ```
 
-No external libraries or build the system required — it is a single self-contained
+No external libraries or build system required — it is a single self-contained
 file.
 
 ---
