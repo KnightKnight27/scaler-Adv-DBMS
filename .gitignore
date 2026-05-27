@@ -1,10 +1,30 @@
-# Compiled Binaries
+# Compiled Binaries & Executables
 file_ops
+app
+app.exe
 a.out
 *.o
 *.out
+*.obj
+*.exe
 
-# Generated Output
+# CMake Build System Artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+Makefile.in
+build/
+bin/
+obj/
+cmake-build-debug/
+cmake-build-release/
+.cache/
+
+# Database Journal & Temporary Files
+*.db-journal
+*.db-shm
+*.db-wal
 output.txt
 
 # OS/System Files
@@ -15,9 +35,5 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+*.swo
 *~
-
-# C++ build artifacts
-build/
-bin/
-obj/
