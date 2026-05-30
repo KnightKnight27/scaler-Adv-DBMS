@@ -1,9 +1,15 @@
-> // Compact B-tree implementation with rewritten identifiers and comments
+// Compact B-tree implementation with rewritten identifiers and comments
 #include "btree.h"
+#include <iostream>
+
+using namespace std;
 
 // Interactive driver; excluded when building tests
 #ifndef TESTING
-    int main()
+int main()
+
+    - **Search ** : Starts at the root,
+    compares keys, and recursively navigates down matching child pointers until the target is found or a leaf is fully traversed(returns not found).- **Insert ** : Traverses to the appropriate leaf to place the key.If any node along the path is full(2t - 1 keys), it preemptively splits into two nodes and pushes the middle key up to its parent to keep the tree balanced.- **Delete ** : Removes the target key.If it 's in an internal node, it' s replaced by a predecessor or successor.As it traverses down, if nodes lack enough keys(below t - 1), it borrows from siblings or merges nodes to maintain the B - tree properties.
 {
     int t;
     cout << "Enter minimum degree (t >= 2): ";
@@ -60,5 +66,7 @@
         else
             cout << "Invalid option.\n";
     }
+    return 0;
+}
 
 #endif
