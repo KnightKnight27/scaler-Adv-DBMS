@@ -3,139 +3,148 @@
 #include <string>
 using namespace std;
 
-template <typename Key, typename Value>
-class BTree {
+template <typename Key, typename Row>
+class DB {
+public:
     struct Entry {
         Key key;
-        Value value;
+        Row row;
     };
 
-    struct Node {
+private:
+    struct BTree {
+        vector<Entry> keys;
+        vector<BTree*> children;
         bool isLeaf;
-        vector<Entry> entries;
-        vector<Node*> children;
-        Node(bool leaf) : isLeaf(leaf) {}
+        BTree(bool leaf) : isLeaf(leaf) {}
     };
 
-    int minDegree;
-    Node* root;
+    BTree* root;
+    size_t minDegree;
+    size_t maxKeys;
 
-    void splitChild(Node* parent, int idx) {
-        Node* child = parent->children[idx];
-        Node* sibling = new Node(child->isLeaf);
-        int t = minDegree;
+    bool isFull(BTree* node) {
+        return node->keys.size() == maxKeys;
+    }
 
-        for (int j = 0; j < t - 1; j++)
-            sibling->entries.push_back(child->entries[t + j]);
+    void SplitChild(BTree* parent, size_t idx) {
+        BTree* child = parent->children[idx];
+        BTree* sibling = new BTree(child->isLeaf);
+        size_t t = minDegree;
+
+        for (size_t j = 0; j < t - 1; j++)
+            sibling->keys.push_back(child->keys[t + j]);
 
         if (!child->isLeaf)
-            for (int j = 0; j < t; j++)
+            for (size_t j = 0; j < t; j++)
                 sibling->children.push_back(child->children[t + j]);
 
-        Entry median = child->entries[t - 1];
-        child->entries.resize(t - 1);
+        Entry median = child->keys[t - 1];
+        child->keys.resize(t - 1);
         if (!child->isLeaf)
             child->children.resize(t);
 
         parent->children.insert(parent->children.begin() + idx + 1, sibling);
-        parent->entries.insert(parent->entries.begin() + idx, median);
+        parent->keys.insert(parent->keys.begin() + idx, median);
     }
 
-    void insertNonFull(Node* node, Key key, Value value) {
-        int i = node->entries.size() - 1;
+    void InsertNonFull(BTree* node, Key key, Row row) {
+        int i = (int)node->keys.size() - 1;
 
         if (node->isLeaf) {
-            node->entries.push_back({key, value});
-            while (i >= 0 && node->entries[i].key > key) {
-                node->entries[i + 1] = node->entries[i];
+            node->keys.push_back({key, row});
+            while (i >= 0 && node->keys[i].key > key) {
+                node->keys[i + 1] = node->keys[i];
                 i--;
             }
-            node->entries[i + 1] = {key, value};
+            node->keys[i + 1] = {key, row};
         } else {
-            while (i >= 0 && node->entries[i].key > key)
+            while (i >= 0 && node->keys[i].key > key)
                 i--;
             i++;
-            if ((int)node->children[i]->entries.size() == 2 * minDegree - 1) {
-                splitChild(node, i);
-                if (node->entries[i].key < key)
+            if (isFull(node->children[i])) {
+                SplitChild(node, i);
+                if (node->keys[i].key < key)
                     i++;
             }
-            insertNonFull(node->children[i], key, value);
+            InsertNonFull(node->children[i], key, row);
         }
     }
 
-    void printInOrder(Node* node) {
+    Entry SearchRecursive(Key key, BTree* node) {
+        if (node == nullptr)
+            return Entry{Key(), Row()};
+
+        size_t i = 0;
+        while (i < node->keys.size() && key > node->keys[i].key)
+            i++;
+
+        if (i < node->keys.size() && key == node->keys[i].key)
+            return node->keys[i];
+
+        if (node->isLeaf)
+            return Entry{Key(), Row()};
+
+        return SearchRecursive(key, node->children[i]);
+    }
+
+    void PrintInOrder(BTree* node) {
         if (!node) return;
-        for (int i = 0; i < (int)node->entries.size(); i++) {
+        for (size_t i = 0; i < node->keys.size(); i++) {
             if (!node->isLeaf)
-                printInOrder(node->children[i]);
-            cout << "[" << node->entries[i].key << ": " << node->entries[i].value << "] ";
+                PrintInOrder(node->children[i]);
+            cout << "[" << node->keys[i].key << "|" << node->keys[i].row << "] ";
         }
         if (!node->isLeaf)
-            printInOrder(node->children[node->entries.size()]);
+            PrintInOrder(node->children[node->keys.size()]);
     }
 
 public:
-    BTree(int degree) : minDegree(degree), root(new Node(true)) {}
+    DB(size_t degree) {
+        minDegree = degree;
+        maxKeys = 2 * degree - 1;
+        root = new BTree(true);
+    }
 
-    void insert(Key key, Value value) {
-        if ((int)root->entries.size() == 2 * minDegree - 1) {
-            Node* newRoot = new Node(false);
+    Entry Search(Key key) {
+        return SearchRecursive(key, root);
+    }
+
+    void Insert(Key key, Row row) {
+        if (isFull(root)) {
+            BTree* newRoot = new BTree(false);
             newRoot->children.push_back(root);
             root = newRoot;
-            splitChild(root, 0);
+            SplitChild(root, 0);
         }
-        insertNonFull(root, key, value);
+        InsertNonFull(root, key, row);
     }
 
-    bool search(Key key, Value& result) {
-        Node* cur = root;
-        while (cur) {
-            int i = 0;
-            while (i < (int)cur->entries.size() && key > cur->entries[i].key)
-                i++;
-            if (i < (int)cur->entries.size() && key == cur->entries[i].key) {
-                result = cur->entries[i].value;
-                return true;
-            }
-            if (cur->isLeaf) break;
-            cur = cur->children[i];
-        }
-        return false;
-    }
-
-    void display() {
-        printInOrder(root);
+    void Display() {
+        PrintInOrder(root);
         cout << endl;
     }
 };
 
 int main() {
-    BTree<int, string> db(3);
+    DB<int, string> db(3);
 
-    db.insert(10, "Alice");
-    db.insert(20, "Bob");
-    db.insert(5, "Charlie");
-    db.insert(15, "Diana");
-    db.insert(25, "Eve");
-    db.insert(30, "Frank");
-    db.insert(1, "Grace");
+    db.Insert(10, "ROW_OF_10");
+    db.Insert(20, "ROW_OF_20");
+    db.Insert(5, "ROW_OF_5");
+    db.Insert(15, "ROW_OF_15");
+    db.Insert(25, "ROW_OF_25");
+    db.Insert(30, "ROW_OF_30");
+    db.Insert(40, "ROW_OF_40");
 
-    cout << "B-Tree contents: ";
-    db.display();
+    cout << "B-Tree: ";
+    db.Display();
 
-    string val;
-    int key = 20;
-    if (db.search(key, val))
-        cout << "Found key " << key << ": " << val << endl;
-    else
-        cout << "Key " << key << " not found" << endl;
+    auto res = db.Search(20);
+    cout << "Search(20): " << res.row << endl;
 
-    key = 99;
-    if (db.search(key, val))
-        cout << "Found key " << key << ": " << val << endl;
-    else
-        cout << "Key " << key << " not found" << endl;
+    res = db.Search(99);
+    cout << "Search(99): " << res.row << endl;
 
     return 0;
 }
