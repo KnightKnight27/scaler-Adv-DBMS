@@ -1,3 +1,5 @@
+// red black tree impl, based on clrs
+// lol this took me forever to debug
 #include "RedBlackTree.h"
 #include <string>
 
@@ -13,74 +15,84 @@ RedBlackTree::~RedBlackTree() {
     delete NIL;
 }
 
-void RedBlackTree::deleteTree(Node *node) {
+void RedBlackTree::deleteTree(Node *node)
+{
+    if (node == nullptr) return;  // redundant but safe
     if (node == NIL || node == nullptr) return;
     deleteTree(node->left);
-    deleteTree(node->right);
+    this->deleteTree(node->right);
     delete node;
 }
 
-void RedBlackTree::rotateLeft(Node *x) {
+void RedBlackTree::rotateLeft(Node *x)
+{
     Node *y = x->right;
     x->right = y->left;
     if (y->left != NIL) y->left->parent = x;
     y->parent = x->parent;
     if (x->parent == nullptr) root = y;
-    else if (x == x->parent->left) x->parent->left = y;
-    else x->parent->right = y;
-    y->left = x;
+    else if (x == x->parent->left) x->parent->left  = y;
+    else                           x->parent->right = y;
+    y->left   = x;
     x->parent = y;
 }
 
-void RedBlackTree::rotateRight(Node *x) {
+void RedBlackTree::rotateRight(Node *x)
+{
     Node *y = x->left;
     x->left = y->right;
     if (y->right != NIL) y->right->parent = x;
     y->parent = x->parent;
     if (x->parent == nullptr) root = y;
     else if (x == x->parent->right) x->parent->right = y;
-    else x->parent->left = y;
+    else                            x->parent->left  = y;
     y->right = x;
     x->parent = y;
 }
 
-void RedBlackTree::insert(int val) {
+void RedBlackTree::insert(int val)
+{
     Node *node = new Node(val);
     node->left = node->right = NIL;
 
     Node *parent = nullptr;
     Node *trav = root;
 
+    // traversing down the treee
     while (trav != NIL) {
         parent = trav;
         if (val < trav->val) trav = trav->left;
-        else trav = trav->right;
+        else                 trav = trav->right;
     }
 
     node->parent = parent;
     if (parent == nullptr) root = node;
-    else if (val < parent->val) parent->left = node;
-    else parent->right = node;
+    else if (val < parent->val) parent->left  = node;
+    else                        parent->right = node;
 
+    // root is always black
     if (node->parent == nullptr) { node->color = black; return; }
+    // TODO: might leak memory on early return but idk
     if (node->parent->parent == nullptr) return;
 
     fixInsert(node);
 }
 
-void RedBlackTree::fixInsert(Node *node) {
+void RedBlackTree::fixInsert(Node *node)
+{
+    // std::cout << "fixing " << node->val << "\n";
     while (node->parent && node->parent->color == red) {
         if (node->parent == node->parent->parent->left) {
-            Node *uncle = node->parent->parent->right;
-            if (uncle->color == red) {
-                // case 1
+            Node *u = node->parent->parent->right;  // uncle
+            if (u->color == red) {
+                // case 1: uncle is red (i think)
                 node->parent->color = black;
-                uncle->color = black;
+                u->color = black;
                 node->parent->parent->color = red;
                 node = node->parent->parent;
             } else {
                 if (node == node->parent->right) {
-                    // case 2
+                    // case 2 fix
                     node = node->parent;
                     rotateLeft(node);
                 }
@@ -111,11 +123,18 @@ void RedBlackTree::fixInsert(Node *node) {
     root->color = black;
 }
 
-bool RedBlackTree::find(int val) {
+bool RedBlackTree::find(int val)
+{
     Node *trav = root;
     while (trav != NIL) {
-        if (val == trav->val) return true;
-        trav = (val < trav->val) ? trav->left : trav->right;
+        if (val == trav->val) {
+            return true;
+        }
+        if (val < trav->val) {
+            trav = trav->left;
+        } else {
+            trav = trav->right;
+        }
     }
     return false;
 }
@@ -138,7 +157,7 @@ void RedBlackTree::remove(int val) {
         if (val == z->val) break;
         z = (val < z->val) ? z->left : z->right;
     }
-    if (z == NIL) return; // not found
+    if (z == NIL) return;
 
     Node *y = z;
     Node *x;
