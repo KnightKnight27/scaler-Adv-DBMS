@@ -1,0 +1,78 @@
+# B-Tree Implementation in C++
+
+## Overview
+
+This project implements a B-Tree data structure in C++. A B-Tree is a self-balancing search tree commonly used in databases and file systems. It supports efficient insertion, searching, and traversal operations.
+
+## Features
+
+* Create a B-Tree with a specified minimum degree.
+* Insert keys into the B-Tree.
+* Search for keys in the B-Tree.
+* Traverse and display all keys in sorted order.
+
+## Files
+
+* `btree.cpp` – Source code for the B-Tree implementation.
+
+## Compilation
+
+Using g++:
+
+```bash
+g++ btree.cpp -o btree
+```
+
+For Windows (PowerShell):
+
+```powershell
+g++ btree.cpp -o btree.exe
+```
+
+## Execution
+
+Linux/macOS:
+
+```bash
+./btree
+```
+
+Windows (PowerShell):
+
+```powershell
+.\btree.exe
+```
+
+## Sample Output
+
+```text
+Traversal of B-Tree:
+5 6 7 10 12 17 20 30
+Key 12 found
+```
+
+## Operations Supported
+
+### Insert
+
+Adds a new key while maintaining B-Tree properties.
+
+### Search
+
+Checks whether a key exists in the tree.
+
+### Traverse
+
+Prints all keys in sorted order.
+
+## Time Complexity
+
+| Operation | Complexity |
+| --------- | ---------- |
+| Search    | O(log n)   |
+| Insert    | O(log n)   |
+| Traverse  | O(n)       |
+
+## Author
+
+Harshada
