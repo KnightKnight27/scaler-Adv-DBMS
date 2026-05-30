@@ -1,155 +1,168 @@
 #include <iostream>
 #include <vector>
 
-template <typename K, typename V>
+template <typename Key, typename Row>
 class DB {
-public:
-    struct Record {
-        K key;
-        V value;
-    };
-
 private:
-    struct Node {
-        bool leaf;
-        std::vector<Record> records;
-        std::vector<Node*> childPtrs;
-
-        explicit Node(bool isLeafNode) : leaf(isLeafNode) {}
+    struct Entry {
+        Key key;
+        Row row;
     };
 
-    size_t degree;
-    Node* rootNode;
+    struct BTree {
+        bool leaf;
+        std::vector<Entry> keys;
+        std::vector<BTree*> children;
 
-    void splitNode(Node* parent, size_t childIndex, Node* child) {
-        Node* rightNode = new Node(child->leaf);
-        size_t t = degree;
+        BTree(bool isLeaf = true) : leaf(isLeaf) {}
+    };
 
-        for (size_t i = 0; i < t - 1; ++i) {
-            rightNode->records.push_back(child->records[t + i]);
+    BTree* root;
+    size_t minDegree;
+
+    Entry searchRecursive(BTree* node, Key key) {
+        size_t i = 0;
+
+        while (i < node->keys.size() &&
+               key > node->keys[i].key) {
+            i++;
         }
 
-        if (!child->leaf) {
-            for (size_t i = 0; i < t; ++i) {
-                rightNode->childPtrs.push_back(child->childPtrs[t + i]);
-            }
+        if (i < node->keys.size() &&
+            key == node->keys[i].key) {
+            return node->keys[i];
         }
 
-        Record promoted = child->records[t - 1];
-
-        child->records.resize(t - 1);
-
-        if (!child->leaf) {
-            child->childPtrs.resize(t);
+        if (node->leaf) {
+            return Entry{Key(), Row()};
         }
 
-        parent->childPtrs.insert(
-            parent->childPtrs.begin() + childIndex + 1,
-            rightNode
-        );
-
-        parent->records.insert(
-            parent->records.begin() + childIndex,
-            promoted
-        );
+        return searchRecursive(node->children[i], key);
     }
 
-    void insertIntoNonFull(Node* current, const K& key, const V& value) {
-        int pos = static_cast<int>(current->records.size()) - 1;
+    void splitChild(BTree* parent,
+                    size_t index,
+                    BTree* child) {
 
-        if (current->leaf) {
-            current->records.push_back({key, value});
+        BTree* newNode = new BTree(child->leaf);
 
-            while (pos >= 0 && current->records[pos].key > key) {
-                current->records[pos + 1] = current->records[pos];
-                --pos;
+        size_t t = minDegree;
+
+        Entry middle = child->keys[t - 1];
+
+        for (size_t i = t; i < child->keys.size(); i++) {
+            newNode->keys.push_back(child->keys[i]);
+        }
+
+        if (!child->leaf) {
+            for (size_t i = t; i < child->children.size(); i++) {
+                newNode->children.push_back(child->children[i]);
+            }
+        }
+
+        child->keys.resize(t - 1);
+
+        if (!child->leaf) {
+            child->children.resize(t);
+        }
+
+        parent->children.insert(
+            parent->children.begin() + index + 1,
+            newNode);
+
+        parent->keys.insert(
+            parent->keys.begin() + index,
+            middle);
+    }
+
+    void insertNonFull(BTree* node,
+                       Key key,
+                       Row row) {
+
+        int i = static_cast<int>(node->keys.size()) - 1;
+
+        if (node->leaf) {
+
+            node->keys.push_back({key, row});
+
+            while (i >= 0 &&
+                   node->keys[i].key > key) {
+                node->keys[i + 1] = node->keys[i];
+                i--;
             }
 
-            current->records[pos + 1] = {key, value};
-        } else {
-            while (pos >= 0 && current->records[pos].key > key) {
-                --pos;
+            node->keys[i + 1] = {key, row};
+        }
+        else {
+
+            while (i >= 0 &&
+                   node->keys[i].key > key) {
+                i--;
             }
 
-            ++pos;
+            i++;
 
-            if (current->childPtrs[pos]->records.size() ==
-                (2 * degree - 1)) {
+            if (node->children[i]->keys.size()
+                == (2 * minDegree - 1)) {
 
-                splitNode(current, pos, current->childPtrs[pos]);
+                splitChild(node,
+                           i,
+                           node->children[i]);
 
-                if (key > current->records[pos].key) {
-                    ++pos;
+                if (key > node->keys[i].key) {
+                    i++;
                 }
             }
 
-            insertIntoNonFull(current->childPtrs[pos], key, value);
+            insertNonFull(
+                node->children[i],
+                key,
+                row);
         }
     }
 
 public:
-    explicit DB(size_t minDegree)
-        : degree(minDegree), rootNode(new Node(true)) {}
-
-    Record Search(const K& key) {
-        Node* node = rootNode;
-
-        while (node != nullptr) {
-            size_t idx = 0;
-
-            while (idx < node->records.size() &&
-                   key > node->records[idx].key) {
-                ++idx;
-            }
-
-            if (idx < node->records.size() &&
-                node->records[idx].key == key) {
-                return node->records[idx];
-            }
-
-            if (node->leaf) {
-                break;
-            }
-
-            node = node->childPtrs[idx];
-        }
-
-        return Record{K(), V()};
+    DB(size_t degree) {
+        minDegree = degree;
+        root = new BTree(true);
     }
 
-    void Insert(const K& key, const V& value) {
-        Node* currentRoot = rootNode;
+    Entry Search(Key key) {
+        return searchRecursive(root, key);
+    }
 
-        if (currentRoot->records.size() ==
-            (2 * degree - 1)) {
+    void Insert(Key key, Row row) {
 
-            Node* newRoot = new Node(false);
-            rootNode = newRoot;
+        if (root->keys.size()
+            == (2 * minDegree - 1)) {
 
-            newRoot->childPtrs.push_back(currentRoot);
+            BTree* newRoot =
+                new BTree(false);
 
-            splitNode(newRoot, 0, currentRoot);
-            insertIntoNonFull(newRoot, key, value);
-        } else {
-            insertIntoNonFull(currentRoot, key, value);
+            newRoot->children.push_back(root);
+
+            splitChild(newRoot, 0, root);
+
+            root = newRoot;
         }
+
+        insertNonFull(root, key, row);
     }
 };
 
 int main() {
-    DB<int, std::string> database(3);
 
-    database.Insert(7, "Canada");
-    database.Insert(19, "Russia");
-    database.Insert(21, "America");
+    DB<int, std::string> db(3);
 
-    auto result1 = database.Search(7);
-    auto result2 = database.Search(19);
-    auto result3 = database.Search(21);
+    db.Insert(10, "Row10");
+    db.Insert(20, "Row20");
+    db.Insert(5, "Row5");
+    db.Insert(30, "Row30");
+    db.Insert(40, "Row40");
 
-    std::cout << result1.value << std::endl;
-    std::cout << result2.value << std::endl;
-    std::cout << result3.value << std::endl;
+    auto result = db.Search(20);
+
+    std::cout << result.row << std::endl;
 
     return 0;
 }
