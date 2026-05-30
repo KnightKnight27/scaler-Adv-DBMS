@@ -1,93 +1,171 @@
+#include <algorithm>
 #include <iostream>
-
-// [  [] 10|ROW_OF_10 [] 20|ROW_OF_20  [] 40|ROW_OF_40 []]
-//    /
-#include <climits>
 #include <vector>
-template <typename Key, typename Row> class DB {
-private:
-  struct Entry {
-    Key key;
-    Row row;
-  };
-  struct BTree {
-    std::vector<Entry> keys;
-    std::vector<BTree *> children;
-  };
 
-  BTree *root;
-  size_t minDegree; // CHILDREN IN A HALF NODE
-  size_t maxDegree; // CHILDREN IN A FULL NODE
-  size_t minKeys;
-  size_t maxKeys;
-
-
-  bool isFull(BTree *root) {
-    return root->children.size() == maxKeys;
-  }
+template <typename T>
+class BTreeNode {
 public:
-  DB(size_t degree) {
-    minDegree = degree;
-    root = new BTree(minDegree);
-  }
+  std::vector<T> keys;
+  std::vector<BTreeNode *> children;
+  bool leaf;
+  int t;
 
-  Entry Search(Key key) {
-    BTree* rootPtr = root;
-    return SearchRecusive(key,root);
-  }
-  Entry SearchRecusive(Key key, BTree *rootPtr) {
+  BTreeNode(int degree, bool isLeaf) : leaf(isLeaf), t(degree) {}
 
-    // BASE CONDITIPN
-    if (rootPtr == nullptr)
-      return Entry(-1);
+  void traverse() {
+    int i = 0;
 
-
-    BTree* dummy = nullptr;
-    for (size_t i=0;i<rootPtr->children.size();i++) {
-      if (i < rootPtr->children.size()-1) {
-        if (rootPtr->keys[i] == key) {
-          return TRUE;
-        }
+    for (; i < static_cast<int>(keys.size()); i++) {
+      if (!leaf) {
+        children[i]->traverse();
       }
-      int LRange, RRange;
-      if (i == 0) {
-        LRange = 0;
-      }
-      else {
-        LRange = rootPtr->keys[i-1];
-      }
-      if (i == rootPtr->children.size()-1) {
-        RRange = INT_MAX;
-      }
-      else {
-        RRange = rootPtr->keys[i];
-      }
-      if (LRange <= key and RRange>=key) {
-        dummy = rootPtr->children[i] ;
-        break;
-      }
+      std::cout << keys[i] << ' ';
     }
-    // recursion
-    SearchRecuesive(key, dummy);
-  }
-  void Insert(Key key, Row row) {
-    BTree* rootPtr = root;
 
-    if (isFull(rootPtr)) {
-      /// SPLITTING AND STUFF
-    }
-    else {
-
-      // SEARCH THE INDEX TO INSERT A KEY
-      // NOW HOW TO SEARCH ???
-
-      // 10 15 20 30
-      // 15
-      //keys.insert(1,15)
+    if (!leaf) {
+      children[i]->traverse();
     }
   }
-  
 
+  BTreeNode *search(T key) {
+    int i = 0;
+
+    while (i < static_cast<int>(keys.size()) && key > keys[i]) {
+      i++;
+    }
+
+    if (i < static_cast<int>(keys.size()) && keys[i] == key) {
+      return this;
+    }
+
+    if (leaf) {
+      return nullptr;
+    }
+
+    return children[i]->search(key);
+  }
 };
 
-int main() {}
+template <typename T>
+class BTree {
+private:
+  BTreeNode<T> *root;
+  int t;
+
+  void splitChild(BTreeNode<T> *parent, int index) {
+    BTreeNode<T> *fullChild = parent->children[index];
+    BTreeNode<T> *newNode = new BTreeNode<T>(t, fullChild->leaf);
+
+    T middleKey = fullChild->keys[t - 1];
+
+    for (int i = t; i < static_cast<int>(fullChild->keys.size()); i++) {
+      newNode->keys.push_back(fullChild->keys[i]);
+    }
+
+    if (!fullChild->leaf) {
+      for (int i = t; i < static_cast<int>(fullChild->children.size()); i++) {
+        newNode->children.push_back(fullChild->children[i]);
+      }
+      fullChild->children.resize(t);
+    }
+
+    fullChild->keys.resize(t - 1);
+
+    parent->children.insert(parent->children.begin() + index + 1, newNode);
+    parent->keys.insert(parent->keys.begin() + index, middleKey);
+  }
+
+  void insertNonFull(BTreeNode<T> *node, T key) {
+    int i = static_cast<int>(node->keys.size()) - 1;
+
+    if (node->leaf) {
+      node->keys.push_back(key);
+
+      while (i >= 0 && node->keys[i] > key) {
+        node->keys[i + 1] = node->keys[i];
+        i--;
+      }
+
+      node->keys[i + 1] = key;
+      return;
+    }
+
+    while (i >= 0 && key < node->keys[i]) {
+      i--;
+    }
+
+    i++;
+
+    if (node->children[i]->keys.size() == static_cast<size_t>(2 * t - 1)) {
+      splitChild(node, i);
+
+      if (key > node->keys[i]) {
+        i++;
+      }
+    }
+
+    insertNonFull(node->children[i], key);
+  }
+
+public:
+  explicit BTree(int degree) : root(nullptr), t(degree) {}
+
+  void insert(T key) {
+    if (root == nullptr) {
+      root = new BTreeNode<T>(t, true);
+      root->keys.push_back(key);
+      return;
+    }
+
+    if (root->keys.size() == static_cast<size_t>(2 * t - 1)) {
+      BTreeNode<T> *newRoot = new BTreeNode<T>(t, false);
+      newRoot->children.push_back(root);
+      splitChild(newRoot, 0);
+
+      int i = 0;
+      if (key > newRoot->keys[0]) {
+        i++;
+      }
+
+      insertNonFull(newRoot->children[i], key);
+      root = newRoot;
+      return;
+    }
+
+    insertNonFull(root, key);
+  }
+
+  bool contains(T key) {
+    if (root == nullptr) {
+      return false;
+    }
+
+    return root->search(key) != nullptr;
+  }
+
+  void printInorder() {
+    if (root != nullptr) {
+      root->traverse();
+    }
+
+    std::cout << '\n';
+  }
+};
+
+int main() {
+  BTree<int> tree(3);
+
+  std::vector<int> values = {10, 20, 5, 6, 12, 30, 7, 17, 25, 40};
+
+  for (int value : values) {
+    tree.insert(value);
+  }
+
+  std::cout << "Inorder Traversal:\n";
+  tree.printInorder();
+
+  std::cout << "Search 12: " << (tree.contains(12) ? "Found" : "Not Found") << '\n';
+  std::cout << "Search 50: " << (tree.contains(50) ? "Found" : "Not Found") << '\n';
+
+  return 0;
+}
