@@ -74,24 +74,15 @@ public:
     BTree* rootPtr = root;
 
     if (isFull(rootPtr)) {
+      /// SPLITTING AND STUFF
     }
     else {
-      Entry newEntry{key, row};
+      // SEARCH THE INDEX TO INSERT A KEY
+      // NOW HOW TO SEARCH ???
 
-        // Find sorted position
-        auto it = rootPtr->keys.begin();
-
-        while (it != rootPtr->keys.end() && it->key < key) {
-            ++it;
-        }
-
-        // Optional: prevent duplicate keys
-        if (it != rootPtr->keys.end() && it->key == key) {
-            return;
-        }
-
-        // Insert at correct position
-        rootPtr->keys.insert(it, newEntry);
+      // 10 15 20 30
+      // 15
+      //keys.insert(1,15)
     }
   }
   
