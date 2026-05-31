@@ -1,279 +1,328 @@
+/*
+ * Written by Ojas Maheshwari
+ * CC 2026 - Present
+ *
+ * Theory
+ * 
+ * Case 0 - Parent of node is BLACK. No collisions or black height imbalance so direct insert
+ * Case 1 - Parent is RED and uncle is RED. Re-color parent and uncle to be BLACK and grandparent to be RED. Continue fixing with grandparent.
+ * Case 2 - Parent is RED and uncle is BLACK and inner node configuration:
+ *      2.1 - LR configuration. Perform left rotation at P and use Case 3.
+ *      2.2 - RL configuration. Perform right rotation at P and use Case 3.
+ * Case 3 - Parent is RED and uncle is BLACK and outer node configuration:
+ *      3.1 - LL configuration. Perform right rotation at grandparent and re-color parent to BLACK and grandparent to RED.
+ *      3.2 - RR configuration. Perform left rotation at grandparent anr re-color parent to BLACK and grandparent to RED.
+*/
+
 #include "RedBlackTree.h"
 #include <cassert>
-#include <cstddef>
-#include <iostream>
 #include <vector>
 #include <queue>
 
-#define DEBUG
-
-#ifdef DEBUG
-	#define LOG(x) std::cout << x << '\n';
-#else
-	#define LOG(x) ;
-#endif
-
-
-/* Theory
- *
- * "insert" node -> node to be inserted
- * 
- * Case 0 - Parent of insert node is black
- * Case 1 - Parent of insert node is red and insert node is right of parent and uncle of insert node (sibling of parent) is also red
- * Case 2 - Parent of insert node is red and insert node is right of parent and uncle of insert node is black
- * Case 3 - Parent of insert node is red and insert node is left of parent
- *
- * Solutions to each case:
- *
- * Case 0 - Directly insert the node since it doesn't violate any rules
- * Case 1 - Switch colors of grandparent with parent and uncle nodes. Propagate this further with the grandparent as the grandparent might now be red and violate the "no two adjacent reds" rule
- * Case 2 - Perform a "left rotation" and transform situation to case 3
- * Case 3 - Perform a "right rotation"
-*/
-
 RedBlackTree::RedBlackTree()
-	: NIL(new Node(0))
+    : m_Root(nullptr)
 {
-	m_Root = NIL;
 }
 
 RedBlackTree::~RedBlackTree()
 {
-	// TODO: Iterate and delete all nodes
+    delete m_Root;
 }
 
-bool RedBlackTree::find(int val)
-{
-	Node *node = m_Root;
 
-	while (node != NIL) {
-		if (val == node->val) {
-			return true;
-		} else if (val < node->val) {
-			node = node->left;
-		} else {
-			node = node->right;
-		}
-	}
+bool RedBlackTree::find(int val) {
+    Node *trav = m_Root;
 
-	return false;
+    while (trav != nullptr) {
+        if (trav->val == val) {
+            return true;
+        } else if (val < trav->val) {
+            trav = trav->left;
+        } else {
+            trav = trav->right;
+        }
+    }
+
+    return false;
 }
 
 void RedBlackTree::insert(int val)
 {
-	Node *trav = m_Root;
-	Node *parent = nullptr;
+    Node *node = new Node(val);
 
-	bool isLeftChild = false;
+    if (m_Root == nullptr) {
+        m_Root = node;
+        m_Root->color = BLACK;
+        return;
+    }
 
-	while (trav != NIL) {
-		parent = trav;
-		if (val <= trav->val) {
-			trav = trav->left;
-			isLeftChild = true;
-		} else {
-			trav = trav->right;
-			isLeftChild = false;
-		}
-	}
+    Node *trav = m_Root;
+    Node *parent = m_Root;
+    bool lastMoveLeft = false;
 
-	if (trav == m_Root) {
-		m_Root = new Node(val);
-		m_Root->color = Color::black;
-		m_Root->left = NIL;
-		m_Root->right = NIL;
-	} else {
-		Node *node = new Node(val);
-		node->left = NIL;
-		node->right = NIL;
-		node->parent = parent;
-		if (isLeftChild) {
-			parent->left = node;
-		} else {
-			parent->right = node;
-		}
+    while (trav != nullptr) {
+        parent = trav;
 
-		fixTree(node);
-	}
+        if (val <= trav->val) {
+            trav = trav->left;
+            lastMoveLeft = true;
+        } else {
+            trav = trav->right;
+            lastMoveLeft = false;
+        }
+    }
+
+    if (lastMoveLeft) {
+        parent->left = node;
+    } else {
+        parent->right = node;
+    }
+    node->parent = parent;
+
+    fixTree(node);
 }
 
-void RedBlackTree::remove(int val)
+RedBlackTree::Node* RedBlackTree::getGrandParent(Node *node)
 {
-	// TO BE IMPLEMENTED
+    if (node && node->parent) {
+        return node->parent->parent;
+    } else {
+        return nullptr;
+    }
+}
+
+RedBlackTree::Node* RedBlackTree::getUncle(Node *node)
+{
+    Node *grandparent = getGrandParent(node);
+    if (!node || !grandparent) {
+        return nullptr;
+    }
+    return (grandparent->left == node->parent) ? grandparent->right : grandparent->left;
+}
+
+void RedBlackTree::leftRotate(Node *node)
+{
+    assert(node && node->right != nullptr);
+
+    Node *X = node;
+    Node *P = X->parent;
+    bool isXLeftChildOfP = false;
+    if (P) {
+        isXLeftChildOfP = (P->left == X);
+    }
+    Node *Y = X->right;
+    Node *Z = X->left;
+    Node *M = Y->left;
+    Node *N = Y->right;
+
+    Y->parent = nullptr;
+    Y->left = X;
+    X->parent = Y;
+    X->left = Z;
+    X->right = M;
+    if (Z) {
+        Z->parent = X;
+    }
+    if (M) {
+        M->parent = X;
+    }
+    Y->right = N;
+    if (N) {
+        N->parent = Y;
+    }
+
+    Y->parent = P;
+    if (P) {
+        if (isXLeftChildOfP) {
+            P->left = Y;
+        } else {
+            P->right = Y;
+        }
+    } else {
+        m_Root = Y;
+    }
+}
+
+void RedBlackTree::rightRotate(Node *node)
+{
+    assert(node && node->left != nullptr);
+
+    Node *X = node;
+    Node *P = X->parent;
+    bool isXLeftChildOfP = false;
+    if (P) {
+        isXLeftChildOfP = (P->left == X);
+    }
+    Node *Y = X->left;
+    Node *Z = X->right;
+    Node *M = Y->left;
+    Node *N = Y->right;
+
+    Y->right = X;
+    X->parent = Y;
+    Y->left = M;
+    if (M) {
+        M->parent = Y;
+    }
+    X->left = N;
+    if (N) {
+        N->parent = X;
+    }
+    X->right = Z;
+    if (Z) {
+        Z->parent = X;
+    }
+
+    Y->parent = P;
+    if (P) {
+        if (isXLeftChildOfP) {
+            P->left = Y;
+        } else {
+            P->right = Y;
+        }
+    } else {
+        m_Root = Y;
+    }
+}
+
+bool RedBlackTree::isLRConfiguration(Node *node)
+{
+    assert(node && node->parent && node->parent->parent);
+
+    Node *grandparent = getGrandParent(node);
+    Node *parent = node->parent;
+
+    return (grandparent->left == parent && parent->right == node);
+}
+
+bool RedBlackTree::isRLConfiguration(Node *node)
+{
+    assert(node && node->parent && node->parent->parent);
+
+    Node *grandparent = getGrandParent(node);
+    Node *parent = node->parent;
+
+    return (grandparent->right == parent && parent->left == node);
+}
+
+bool RedBlackTree::isLLConfiguration(Node *node)
+{
+    assert(node && node->parent && node->parent->parent);
+
+    Node *grandparent = getGrandParent(node);
+    Node *parent = node->parent;
+
+    return (grandparent->left == parent && parent->left == node);
+}
+
+bool RedBlackTree::isRRConfiguration(Node *node)
+{
+    assert(node && node->parent && node->parent->parent);
+
+    Node *grandparent = getGrandParent(node);
+    Node *parent = node->parent;
+
+    return (grandparent->right == parent && parent->right == node);
 }
 
 void RedBlackTree::fixTree(Node *node)
 {
-	if (isCase0(node)) {
-		handleCase0(node);
-	} else if (isCase3(node)) {
-		handleCase3(node);
-	} else if (isCase1(node)) {
-		handleCase1(node);
-	} else if (isCase2(node)) {
-		handleCase2(node);
-	} else {
-		LOG("Unknown case");
-		LOG("node: " << node->val << " L " << (node->left ? node->left->val : -1) << " R " << (node->right ? node->right->val : -1) << '\n');
-	}
-}
+    Node *parent = node->parent;
+    Node *grandparent = getGrandParent(node);
 
-bool RedBlackTree::isCase0(Node *node)
-{
-	return (node->parent && node->parent->color == Color::black);
-}
-bool RedBlackTree::isCase1(Node *node)
-{
-	Node *uncle = getUncle(node);
+    if (!parent) {
+        node->color = BLACK;
+        return;
+    }
+    
+    if (parent->color == BLACK) {
+        // Case 0
+        return;
+    }
 
-	return (node->parent && node->parent->color == Color::red && uncle && uncle->color == Color::red);
-}
-bool RedBlackTree::isCase2(Node *node)
-{
-	Node *uncle = getUncle(node);
+    Node *uncle = getUncle(node);
 
-	return (node->parent && node->parent->color == Color::red && uncle && uncle->color == Color::black);
-}
-bool RedBlackTree::isCase3(Node *node)
-{
-	Node *parent = node->parent;
-	Node *grandparent = getGrandParent(node);
+    if (uncle && uncle->color == RED) {
+        // Case 1
+        parent->color = BLACK;
+        uncle->color = BLACK;
+        grandparent->color = RED;
 
-	bool leftLeaning = (parent && parent->left == node && grandparent && grandparent->left == parent && parent->color == Color::red);
-	bool rightLeaning = (parent && parent->right == node && grandparent && grandparent->right == parent && parent->color == Color::red);
-
-	return (leftLeaning || rightLeaning);
-}
-
-RedBlackTree::Node* RedBlackTree::getGrandParent(Node *node) {
-	if (node->parent && node->parent->parent) {
-		return node->parent->parent;
-	} else {
-		return NIL;
-	}
-}
-RedBlackTree::Node* RedBlackTree::getUncle(Node *node) {
-	Node *grandparent = getGrandParent(node);
-
-	if (!node->parent || !grandparent) {
-		return NIL;
-	}
-
-	bool isParentLeftOfGrandparent = (grandparent->left == node->parent);
-
-	if (isParentLeftOfGrandparent) {
-		return grandparent->right;
-	} else {
-		return grandparent->left;
-	}
-}
-
-void RedBlackTree::handleCase0(Node *node)
-{
-		LOG("case0");
-		if (node->left == nullptr) {
-			node->left = NIL;
-		}
-		if (node->right == nullptr) {
-			node->right = NIL;
-		}
-}
-
-
-void RedBlackTree::handleCase1(Node *node)
-{
-		LOG("case1");
-		Node *grandparent = getGrandParent(node);
-		Node *uncle = getUncle(node);
-		Node *parent = node->parent;
-
-		parent->color = Color::black;
-		uncle->color = Color::black;
-		if (grandparent == m_Root) {
-			grandparent->color = Color::black;
-		} else {
-			grandparent->color = Color::red;
-			fixTree(grandparent);
-		}
-}
-
-void RedBlackTree::handleCase2(Node *node)
-{
-
-		LOG("case2");
-		Node *parent = node->parent;
-		Node *grandparent = getGrandParent(node);
-
-		grandparent->left = node;
-		node->parent = grandparent;
-		node->left = parent;
-		parent->parent = node;
-
-		fixTree(parent);
-}
-
-
-void RedBlackTree::handleCase3(Node *node)
-{
-		LOG("case3");
-		Node *parent = node->parent;
-		Node *grandparent = getGrandParent(node);
-
-		parent->left = node;
-		parent->right = grandparent;
-		parent->parent = grandparent->parent;
-		grandparent->parent = parent;
-
-		node->left = NIL;
-		node->right = NIL;
-
-		grandparent->left = NIL;
-		grandparent->right = NIL;
-
-		m_Root = parent;
+        fixTree(grandparent);
+    } else {
+        if (isLRConfiguration(node)) {
+            // Case 2.1
+            leftRotate(parent);
+            fixTree(parent);
+        } else if (isRLConfiguration(node)) {
+            // Case 2.2
+            rightRotate(parent);
+            fixTree(parent);
+        } else if (isLLConfiguration(node)) {
+            // Case 3.1
+            rightRotate(grandparent);
+            parent->color = BLACK;
+            grandparent->color = RED;
+        } else {
+            // Case 3.2
+            leftRotate(grandparent);
+            parent->color = BLACK;
+            grandparent->color = RED;
+        }
+    }
 }
 
 void RedBlackTree::print()
 {
-	if (m_Root == NIL) {
-		std::cout << "[]\n";
-		return;
-	}
+    if (m_Root == nullptr) {
+        std::cout << "[]\n";
+        return;
+    }
 
-	std::vector<std::string> result;
-	std::queue<Node*> q;
+    std::vector<std::string> result;
+    std::vector<Node*> nodes;
+    std::queue<Node*> q;
 
-	q.push(m_Root);
+    q.push(m_Root);
 
-	while (!q.empty()) {
-		Node *node = q.front();
-		q.pop();
+    while (!q.empty()) {
+        Node* node = q.front();
+        q.pop();
 
-		if (node == NIL) {
-			result.emplace_back("null");
-		} else {
-			result.emplace_back(std::to_string(node->val));
+        if (node == nullptr) {
+            result.emplace_back("null");
+        } else {
+            result.emplace_back(std::to_string(node->val));
+            nodes.push_back(node);
 
-			// Push children even if NIL so structure is preserved
-			q.push(node->left);
-			q.push(node->right);
-		}
-	}
+            q.push(node->left);
+            q.push(node->right);
+        }
+    }
 
-	// Remove trailing nulls (same style as LeetCode)
-	while (!result.empty() && result.back() == "null") {
-		result.pop_back();
-	}
+    while (!result.empty() && result.back() == "null") {
+        result.pop_back();
+    }
 
-	std::cout << "[";
+    std::cout << "[";
 
-	for (size_t i = 0; i < result.size(); i++) {
-		std::cout << result[i];
+    for (size_t i = 0; i < result.size(); ++i) {
+        std::cout << result[i];
 
-		if (i + 1 < result.size()) {
-			std::cout << ", ";
-		}
-	}
+        if (i + 1 < result.size()) {
+            std::cout << ", ";
+        }
+    }
 
-	std::cout << "]\n";
+    std::cout << "]\n\n";
+
+    std::cout << "Colors:\n";
+
+    for (Node* node : nodes) {
+        std::cout
+            << node->val
+            << " = "
+            << (node->color == RED ? "RED" : "BLACK")
+            << '\n';
+    }
 }

@@ -1,12 +1,13 @@
 #ifndef REDBLACKTREE_H
 #define REDBLACKTREE_H
 
+#include <iostream>
 #include <vector>
 class RedBlackTree {
 public:
 	enum Color {
-		black = 0,
-		red = 1
+		BLACK = 0,
+		RED = 1
 	};
 
 	struct Node {
@@ -16,22 +17,25 @@ public:
 		Node *parent;
 		Color color;
 
-		Node(int valA)
-			: val(valA), left(nullptr), right(nullptr), parent(nullptr), color(Color::red)
+		Node(const int valA)
+			: val(valA), left(nullptr), right(nullptr), parent(nullptr), color(RED)
 		{}
+
+        ~Node()
+        {
+            delete left;
+            delete right;
+        }
 
 	};
 
 	void print();
 
 	RedBlackTree();
-	~RedBlackTree();
+    ~RedBlackTree();
 
 	bool find(int val);
 	void insert(int val);
-	void remove(int val);
-
-	Node *NIL;
 
 private:
 
@@ -39,19 +43,16 @@ private:
 
 	void fixTree(Node *node);
 
-	// Case checks
-	bool isCase0(Node *node);
-	bool isCase1(Node *node);
-	bool isCase2(Node *node);
-	bool isCase3(Node *node);
-
-	void handleCase0(Node *node);
-	void handleCase1(Node *node);
-	void handleCase2(Node *node);
-	void handleCase3(Node *node);
-
 	Node* getGrandParent(Node *node);
 	Node* getUncle(Node *node);
+
+    bool isLRConfiguration(Node *node);
+    bool isRLConfiguration(Node *node);
+    bool isLLConfiguration(Node *node);
+    bool isRRConfiguration(Node *node);
+
+    void leftRotate(Node *node);
+    void rightRotate(Node *node);
 };
 
 #endif
