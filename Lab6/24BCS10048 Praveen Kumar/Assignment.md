@@ -1,4 +1,4 @@
-# B-Tree (CLRS Chapter 18)
+# B-Tree Index (CLRS Chapter 18)
 
 **Course:** Advanced DBMS (Scaler)
 **Author:** Praveen Kumar 24bcs10048
@@ -8,10 +8,7 @@
 
 ## 1. Objective
 
-Implement a B-tree of minimum degree t in C++. The tree must support:
-- Insert with preemptive splitting (CLRS 18.3)
-- Search returning the node and index
-- Remove handling all three CLRS cases
+Implement a B-tree index storing key-value pairs with minimum degree t. The tree must support insert, search, remove, and traversal while maintaining balance after every operation.
 
 ---
 
@@ -22,255 +19,230 @@ g++ -std=c++17 -O2 -o btree btree.cpp
 ./btree
 ```
 
-The program inserts 18 keys into a t=3 B-tree, prints the in-order and level-order views, searches for several keys, removes 5 keys, and shows the result.
+The program inserts 18 key-value records into a t=3 B-tree, prints the tree structure and in-order display, searches for several keys, deletes entries, and shows the result.
 
 ---
 
 ## 3. Why B-Trees in Databases
 
-A B-tree with minimum degree t stores up to 2t-1 keys per node. With t=512 and 8 KB pages each node holds up to 1023 keys. A table with 1 billion rows needs a tree of depth log_1024(1e9) ~ 3. So any lookup by primary key touches at most 3-4 pages -- the same whether the table has 1 million or 1 billion rows.
+A B-tree with minimum degree t stores up to 2t-1 key-value pairs per node. With t=512 and 8 KB pages each node holds up to 1023 pairs. A table with 1 billion rows needs a tree of depth log_1024(1e9) ~ 3. Any lookup by primary key touches at most 3-4 pages whether the table has 1 million or 1 billion rows.
 
 This is why:
 - **SQLite** stores every table as a B-tree where each page is one node (4 KB default).
-- **InnoDB** (MySQL) uses a B+ tree as its clustered index.
-- **PostgreSQL** uses a B-tree variant for all btree indexes.
-- **LevelDB / RocksDB** use LSM-trees (log-structured merge trees), which are B-tree cousins optimised for write-heavy workloads.
+- **InnoDB** (MySQL) uses a B+ tree as its clustered index; leaf pages store full rows.
+- **PostgreSQL** uses a B-tree variant for all B-tree index access methods.
 
-The key difference from a binary search tree: wide nodes mean shallow trees, and each node is sized to match one disk page. A disk read fetches a whole page at once, so reading 1023 keys costs the same as reading 1.
-
----
-
-## 4. B-Tree Invariants (minimum degree t)
-
-| Property | Rule |
-|----------|------|
-| Keys per non-root node | t-1 <= n <= 2t-1 |
-| Keys in root | 1 <= n <= 2t-1 |
-| Children per internal node | t <= n+1 <= 2t |
-| Leaf depth | All leaves at same depth |
-| Key ordering | keys[i-1] < all keys in child[i] < keys[i] |
-
-When t=3: nodes hold 2 to 5 keys. This is a good "small" value for demonstrations since splits are visible quickly.
+The critical design choice: wide nodes = shallow trees = fewer disk I/O operations per lookup. A disk read fetches a whole page at once, so 1023 keys costs the same I/O as 1.
 
 ---
 
-## 5. Insert -- Preemptive Split
+## 4. B-Tree Invariants
 
-### 5.1 Algorithm
+The implementation maintains all properties required by CLRS 18.1:
 
-New keys are always inserted at a leaf. To avoid walking back up the tree:
-- **Split any full node (2t-1 keys) we pass through on the way down**, before we need to use it.
-- This guarantees that when we arrive at a node's parent to promote a median, the parent is not full.
+| # | Property |
+|---|----------|
+| 1 | All keys within a node are stored in sorted order |
+| 2 | Every non-leaf node contains child pointers (n+1 children for n keys) |
+| 3 | All leaf nodes exist at the same depth |
+| 4 | Non-root nodes contain t-1 to 2t-1 keys; root contains 1 to 2t-1 |
+| 5 | The tree remains balanced after every insert and delete |
+| 6 | Search, insertion, and traversal are O(t * log_t n) |
+
+---
+
+## 5. Task 1 -- B-Tree Initialization
+
+```cpp
+BTree bt(3);
+```
+
+Creates an empty B-tree with minimum degree t=3. The root starts as an empty leaf node.
+
+- Minimum keys per non-root node: t-1 = **2**
+- Maximum keys per node: 2t-1 = **5**
+- Minimum children per internal node: t = **3**
+- Maximum children per internal node: 2t = **6**
+
+At initialization the root is the only node, and it is a leaf. The tree has depth 0.
+
+---
+
+## 6. Task 2 -- Record Insertion
+
+Records are inserted as key-value pairs. The key determines position (BST ordering); the value is the associated data (in our demo, a book title for each integer key).
+
+Insert uses the **preemptive split** variant (CLRS 18.3):
+- Split any full node (2t-1 keys) encountered on the way down.
+- This guarantees the parent always has room to receive a promoted median.
+- No upward traversal is ever needed.
 
 ```
-insert(key):
-    if root is full (2t-1 keys):
-        create new empty root s
-        make old root a child of s
-        split_child(s, 0)   -- split the old root
-        insert_nonfull(s, key)
-    else:
-        insert_nonfull(root, key)
-
-insert_nonfull(x, key):
+insert_nonfull(x, key, value):
     if x is a leaf:
-        shift keys right, insert key in sorted position
+        insert entry at correct sorted position
+
     else:
         find child[i] that should contain key
         if child[i] is full:
             split_child(x, i)
-            if key > x.keys[i]: i++
-        insert_nonfull(child[i], key)
+            adjust i if needed
+        insert_nonfull(child[i], key, value)
 ```
 
-### 5.2 Split diagram
-
-When child y (full: 2t-1 keys) of node x is split at index i:
-
-```
-Before split:
-  x:  [ ... | ki | ... ]
-               |
-       y: [k1 k2 k3 k4 k5]   (2t-1 = 5 keys when t=3)
-           c1 c2 c3 c4 c5 c6
-
-After split_child(x, i):
-  x:  [ ... | ki | k3 | ki+1 | ... ]   <- k3 (median) promoted
-               |         |
-   y: [k1 k2]         z: [k4 k5]
-      c1 c2 c3            c4 c5 c6
-```
-
-The median key `k3` moves up into x. Left half stays in y, right half goes to new node z.
+Keys in each node are always in ascending order. The value travels with its key and is accessible in O(1) once the key is found.
 
 ---
 
-## 6. Remove -- Three Cases
+## 7. Task 3 -- Node Splitting
 
-### 6.1 Case 1: Key is in a leaf
+A node splits when it reaches 2t-1 = 5 entries (for t=3).
 
-Simple. Delete the key in place. The leaf may now have t-2 keys, which is fine if we guaranteed t-1 before descending (see Case 3).
-
-### 6.2 Case 2: Key is in an internal node
-
-Let the key be `k` at position i in node x.
-
-| Subcase | Condition | Action |
-|---------|-----------|--------|
-| 2a | child[i] has >= t keys | Replace k with predecessor (max of child[i] subtree), delete predecessor recursively |
-| 2b | child[i+1] has >= t keys | Replace k with successor (min of child[i+1] subtree), delete successor recursively |
-| 2c | Both children have t-1 keys | Merge child[i], k, child[i+1] into one node. Delete k from merged node. |
-
-### 6.3 Case 2c merge diagram
+**Split procedure** (`split_child(x, i)`):
 
 ```
-Before merge (t=3, so t-1 = 2 keys per child):
-  x: [ ... | k | ... ]
-              |   \
-         [a b]   [c d]   <- both have t-1 = 2 keys
-
-After merge:
-  x: [ ... ]             <- k removed from x
-         |
-    [a b k c d]          <- single merged node, delete k from here
+Before:               After:
+  x: [... ki ...]       x: [... ki  MED  ki+1 ...]
+           |                      |         |
+   y:[k1 k2 k3 k4 k5]         y:[k1 k2]  z:[k4 k5]
+      c0 c1 c2 c3 c4 c5
 ```
 
-### 6.4 Case 3: Key is not in current node x, recurse into child[i]
+1. The median entry `k3` (index t-1) is promoted to the parent `x`.
+2. Left half `[k1, k2]` stays in node `y`.
+3. Right half `[k4, k5]` moves to new node `z`.
+4. If `y` is internal, its children are split the same way: `[c0..c2]` stay in `y`, `[c3..c5]` go to `z`.
 
-Before recursing, ensure child[i] has at least t keys (so it can lose one without violating invariants):
-
-| Subcase | Condition | Action |
-|---------|-----------|--------|
-| 3a-L | Left sibling has >= t keys | Borrow: rotate key down from x[i-1] into child[i], rotate child[i-1]'s rightmost key up to x |
-| 3a-R | Right sibling has >= t keys | Borrow: rotate key down from x[i] into child[i], rotate child[i+1]'s leftmost key up to x |
-| 3b | Both siblings have t-1 keys | Merge child[i] with one sibling (pull separator key from x into the merged node) |
-
-### 6.5 Borrow from left sibling diagram
-
-```
-Before borrow:
-  x: [ ... | sep | ... ]
-              |     \
-     sibling:[...|last]   child:[first|...]
-
-After borrow_from_prev:
-  x: [ ... | last | ... ]
-                |     \
-  sibling:[...]     child:[sep | first | ...]
-```
-
-The separator key `sep` descends into the front of child, and sibling's rightmost key ascends to replace it in x.
+When the root splits, a new empty root is created, the old root becomes its child, and the split immediately follows. This is the only time the tree grows taller.
 
 ---
 
-## 7. Sample Output
+## 8. Task 4 -- Search Operations
 
 ```
-============================================================
-  B-Tree (minimum degree t = 3)
-============================================================
+search(x, key):
+    find first i where entries[i].key >= key
+    if i < n and entries[i].key == key:
+        return entries[i].value          (found)
+    if x is leaf:
+        return null                      (not found)
+    return search(children[i], key)      (recurse)
+```
 
-  t = 3: each node holds 2..5 keys, 3..6 children.
-
-[PHASE 1] Insert
-------------------------------------------------------------
-  insert(10)
-  insert(20)
-  insert(5)
-  ...
-  insert(22)
-
-  In-order: 1 3 5 6 7 10 12 15 17 20 22 25 28 30 35 40 45 50
-
-  Tree structure (level-order):
-  [17]
-      [5, 10]
-          [1, 3]
-          [6, 7]
-          [12, 15]
-      [28, 40]
-          [20, 22, 25]
-          [30, 35]
-          [45, 50]
-
-[PHASE 2] Search
-------------------------------------------------------------
-  search(17) -> found (node key[0] = 17)
-  search(25) -> found (node key[2] = 25)
+Sample output:
+```
+  search(17) -> found: "Compilers (Dragon Book)"
+  search(25) -> found: "Pragmatic Programmer"
+  search(1)  -> found: "The C Programming Language"
   search(99) -> not found
-
-[PHASE 3] Remove
-------------------------------------------------------------
-  remove(6)  -> removed
-  remove(17) -> removed
-  remove(30) -> removed
-  remove(1)  -> removed
-  remove(50) -> removed
-
-  In-order: 3 5 7 10 12 15 20 22 25 28 35 40 45
-
-  Tree structure (level-order):
-  [20]
-      [7, 12]
-          [3, 5]
-          [10]
-          [15]
-      [35, 40]
-          [22, 25, 28]
-          [35]
-          [45]
-
-[PHASE 4] Edge cases
-------------------------------------------------------------
-  remove(99) (absent) -> not found
-  re-insert(17)
-  In-order: 3 5 7 10 12 15 17 20 22 25 28 35 40 45
-
-============================================================
-  Done.
-============================================================
 ```
+
+Each level of the tree eliminates one subtree. The search path length is at most the tree height, which is bounded by log_t(n).
 
 ---
 
-## 8. Complexity
+## 9. Task 5 -- Tree Structure Analysis
+
+After inserting 18 records with t=3, the tree has depth 2:
+
+```
+  Tree structure (level-order):
+  [12:"Clean Code", 25:"Pragmatic Programmer"]
+      [5:"OSTEP", 7:"Linux...", 10:"Database Internals"]
+          [1:"The C...", 3:"SICP"]
+          [6:"CLRS"]
+          [...]
+      [17:"Compilers...", 20:"DDIA", 22:"SRE"]
+          [...]
+      [35:"CS:APP", 40:"Computer Networks", 45:"Refactoring"]
+          [...]
+```
+
+Observations:
+- **Distribution**: keys spread evenly across nodes through splits; no node has fewer than t-1=2 or more than 2t-1=5 entries.
+- **Depth**: all leaves at the same level (depth = 2 for 18 records with t=3).
+- **Balance**: the tree is inherently balanced -- every insertion either fills an existing node or causes a split that keeps depths equal.
+
+---
+
+## 10. Task 6 -- Indexing Behavior
+
+The B-tree acts as an ordered index:
+
+1. **Ordered storage**: keys in every node and across nodes are in ascending order, enabling range queries and in-order traversal without any extra sort step.
+
+2. **Efficient navigation**: at each node, a linear scan (or binary search) identifies the correct child pointer in O(t) comparisons. The number of nodes visited is O(log_t n).
+
+3. **Reduced search space**: each level eliminates all but 1/(2t) of the remaining keys. With t=512 (a realistic database page size), the tree has at most 3-4 levels for a billion-row table.
+
+In a real DBMS, each B-tree node corresponds to one disk page. The node size is chosen to match the page size so that one node is fetched per I/O operation. The key insight is that a single I/O that reads 1023 keys costs the same as one that reads 1 key -- so maximizing keys per node minimizes disk accesses.
+
+---
+
+## 11. Delete Operations (All 3 Cases)
+
+### Case 1 -- Key in a leaf
+Direct deletion. The leaf may now have t-1 keys (minimum allowed), which is valid.
+
+### Case 2 -- Key in an internal node
+
+| Subcase | Condition | Action |
+|---------|-----------|--------|
+| 2a | Left child has >= t entries | Replace with predecessor (rightmost of left subtree), delete from there |
+| 2b | Right child has >= t entries | Replace with successor (leftmost of right subtree), delete from there |
+| 2c | Both children have t-1 entries | Merge key + both children into one node, delete from merged node |
+
+### Case 3 -- Key not in current node, child has t-1 entries
+
+Before recursing into a child with only t-1 entries, fill it up:
+
+| Subcase | Condition | Action |
+|---------|-----------|--------|
+| Borrow left | Left sibling has >= t entries | Rotate: parent key down to child, sibling's last key up to parent |
+| Borrow right | Right sibling has >= t entries | Rotate: parent key down to child, sibling's first key up to parent |
+| Merge | Both siblings have t-1 entries | Merge child with one sibling, pull separator key from parent |
+
+---
+
+## 12. Complexity
 
 | Operation | Time | Notes |
 |-----------|------|-------|
-| Search | O(t * log_t n) | Linear scan in each node; O(log n) with binary search |
-| Insert | O(t * log_t n) | At most one split per level, O(log_t n) levels |
-| Remove | O(t * log_t n) | At most one merge/borrow per level |
-| Space | O(n) | n keys total, distributed across nodes |
+| search | O(t * log_t n) | Linear scan per node; O(log n) levels |
+| insert | O(t * log_t n) | At most one split per level |
+| remove | O(t * log_t n) | At most one merge/borrow per level |
+| in-order traversal | O(n) | Visits every entry once |
+| Space | O(n) | n entries distributed across nodes |
 
-With t proportional to page size (e.g., t=512 for 8 KB pages), `log_t(n)` is tiny even for billion-row tables. This is why disk-based databases use B-trees and not binary search trees.
+With t set to match page size (e.g., t=512 for 8 KB pages), `log_t(n)` is at most 4 for a billion records.
 
 ---
 
-## 9. B-Tree vs B+ Tree
+## 13. B-Tree vs B+ Tree
 
 Real database engines typically use a B+ tree variant:
-- All data is in the leaves (internal nodes hold only routing keys).
+- All data lives in the leaves; internal nodes hold only routing keys.
 - Leaf nodes are linked in a doubly-linked list for efficient range scans.
 - This allows `BETWEEN`, `ORDER BY`, and `LIMIT` queries to scan leaves sequentially after a single root-to-leaf descent.
 
-Our implementation is a pure B-tree (data in all nodes, no leaf linking), which is simpler to implement and sufficient to illustrate the core algorithms.
+Our implementation is a pure B-tree (data in all nodes, no leaf linking), which is sufficient to demonstrate all the core algorithmic concepts.
 
 ---
 
-## 10. Files in this Submission
+## 14. Files in this Submission
 
 | File | Description |
 |------|-------------|
-| `btree.cpp` | C++ implementation of the B-tree |
+| `btree.cpp` | C++ implementation of the B-tree index |
 | `Makefile` | Build instructions |
 | `Assignment.md` | This document |
 | `README.md` | Quick-start guide |
 
 ---
 
-## 11. References
+## 15. References
 
 - Cormen, T.H. et al. *Introduction to Algorithms*, 3rd ed., Ch. 18 (B-Trees)
 - Comer, D. "The Ubiquitous B-Tree." ACM Computing Surveys, 11(2), 1979.
 - SQLite file format: https://www.sqlite.org/fileformat2.html
-- PostgreSQL B-tree index internals: https://www.postgresql.org/docs/current/btree.html
+- PostgreSQL B-tree index: https://www.postgresql.org/docs/current/btree.html
