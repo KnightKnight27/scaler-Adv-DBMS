@@ -7,7 +7,6 @@
 
 using namespace std;
 
-// 1. Enum and Structures for Lexer
 enum class TokenType {
   KEYWORD,
   IDENTIFIER,
@@ -25,9 +24,8 @@ struct Token {
   string value;
 };
 
-// 2. Abstract Syntax Structures
 struct Expression {
-  vector<Token> postfix; // Shunting Yard output
+  vector<Token> postfix;
 };
 
 struct SQLQuery {
@@ -36,7 +34,6 @@ struct SQLQuery {
   Expression whereClause;
 };
 
-// 3. Lexer: Tokenize the query string
 vector<Token> tokenize(const string &query) {
   vector<Token> tokens;
   int n = query.length();
@@ -62,9 +59,8 @@ vector<Token> tokenize(const string &query) {
       tokens.push_back({TokenType::COMMA, ","});
       i++;
     } else if (query[i] == ';') {
-      i++; // Ignore semicolon for now
+      i++;
     } else if (query[i] == '\'') {
-      // String literal
       string val = "";
       i++;
       while (i < n && query[i] != '\'') {
@@ -72,7 +68,7 @@ vector<Token> tokenize(const string &query) {
         i++;
       }
       if (i < n)
-        i++; // skip closing quote
+        i++;
       tokens.push_back({TokenType::STRING, "'" + val + "'"});
     } else if (isdigit(query[i])) {
       string val = "";
@@ -98,7 +94,6 @@ vector<Token> tokenize(const string &query) {
         i++;
       }
 
-      // Check if keyword or operator 'and', 'or'
       string upperVal = val;
       for (char &c : upperVal)
         c = toupper(c);
@@ -112,14 +107,12 @@ vector<Token> tokenize(const string &query) {
         tokens.push_back({TokenType::IDENTIFIER, val});
       }
     } else {
-      // Unknown char
       i++;
     }
   }
   return tokens;
 }
 
-// 4. Shunting Yard Algorithm Helper
 int getPrecedence(const string &op) {
   if (op == "OR")
     return 1;
@@ -131,7 +124,6 @@ int getPrecedence(const string &op) {
   return 0;
 }
 
-// Implement Dijkstra's Shunting Yard
 Expression parseWhereClause(const vector<Token> &tokens) {
   Expression expr;
   stack<Token> opStack;
@@ -148,7 +140,7 @@ Expression parseWhereClause(const vector<Token> &tokens) {
         opStack.pop();
       }
       if (!opStack.empty())
-        opStack.pop(); // Pop '('
+        opStack.pop();
     } else if (token.type == TokenType::OPERATOR) {
       while (!opStack.empty() && opStack.top().type != TokenType::LPAREN &&
              getPrecedence(opStack.top().value) >= getPrecedence(token.value)) {
@@ -167,7 +159,6 @@ Expression parseWhereClause(const vector<Token> &tokens) {
   return expr;
 }
 
-// 5. Main Parser Logic
 SQLQuery parseQuery(const string &queryString) {
   SQLQuery query;
   vector<Token> tokens = tokenize(queryString);
@@ -176,35 +167,30 @@ SQLQuery parseQuery(const string &queryString) {
     return query;
 
   int i = 0;
-  // Expected: SELECT
   if (i < tokens.size() && tokens[i].type == TokenType::KEYWORD &&
       tokens[i].value == "SELECT") {
     i++;
   }
 
-  // Read columns until FROM
   while (i < tokens.size() &&
          !(tokens[i].type == TokenType::KEYWORD && tokens[i].value == "FROM")) {
     if (tokens[i].type == TokenType::IDENTIFIER ||
         (tokens[i].type == TokenType::IDENTIFIER && tokens[i].value == "*")) {
       query.columns.push_back(tokens[i].value);
     }
-    i++; // skip identifiers and commas
+    i++;
   }
 
-  // Expected: FROM
   if (i < tokens.size() && tokens[i].type == TokenType::KEYWORD &&
       tokens[i].value == "FROM") {
     i++;
   }
 
-  // Read table
   if (i < tokens.size() && tokens[i].type == TokenType::IDENTIFIER) {
     query.tableName = tokens[i].value;
     i++;
   }
 
-  // Expected: WHERE
   if (i < tokens.size() && tokens[i].type == TokenType::KEYWORD &&
       tokens[i].value == "WHERE") {
     i++;
@@ -219,7 +205,6 @@ SQLQuery parseQuery(const string &queryString) {
   return query;
 }
 
-// Helper to print token type mapping for debugging
 string tokenTypeToString(TokenType type) {
   switch (type) {
   case TokenType::KEYWORD:
@@ -243,7 +228,6 @@ string tokenTypeToString(TokenType type) {
   }
 }
 
-// Helper to print the parsed query
 void printQuery(const SQLQuery &q) {
   cout << "Table: " << (q.tableName.empty() ? "<none>" : q.tableName) << "\n";
   cout << "Columns: ";
