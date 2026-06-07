@@ -78,6 +78,7 @@ ps aux | grep postgres
 | **Table/DB Size** | 3.7 – 8.8 MB (Entire DB) | 6.4 – 7.5 MB (Table only) |
 | **Memory Mapping (mmap)** | Yes (Per-connection, user-configurable)| No direct mmap; relies on shared buffers |
 | **Full Scan Query Time**| 40 – 52 ms | 6.5 – 38 ms |
+| **CPU During Query** | 12 – 18% (in-process) | 15 – 35% (backend process) |
 | **Background Processes**| None (Library embedded in app) | Multiple (`checkpointer`, `walwriter`, etc.) |
 | **Concurrency Support** | Single writer (Database-level lock) | Full MVCC, row-level locks |
 | **Setup Complexity** | Zero configuration | Moderate (Installation and service management) |
@@ -89,6 +90,67 @@ ps aux | grep postgres
 
 - **SQLite3** is the optimal choice for embedded systems, local device storage, and rapid prototyping. Its zero-configuration design, single-file portability, and minimal resource footprint make it highly efficient for low-concurrency use cases. However, tuning features like `mmap` may yield diminishing returns for databases small enough to fit entirely in the OS page cache.
 - **PostgreSQL** is the superior solution for production environments demanding high concurrency, data integrity, and complex query optimization. Its shared buffer cache and multi-process architecture deliver sub-10 ms response times for the same dataset, justifying the trade-off of higher memory consumption and setup complexity.
+
+---
+
+## 5. File Size Growth (Step-by-Step)
+
+Using a reproducible script (`scripts/lab2_file_growth.sh`), rows were inserted incrementally into a fresh SQLite database and file size was recorded after each batch:
+
+| Rows Inserted | File Size | Page Count | Notes |
+| :--- | :--- | :--- | :--- |
+| 0 (empty table) | 8.0 KB | 2 | Schema + freelist page only |
+| 100 | 8.0 KB | 2 | Data still fits on page 1 |
+| 600 | 28.0 KB | 7 | New pages allocated as cells grow |
+| 1,600 | 60.0 KB | 15 | ~37 bytes/row average overhead |
+| 6,600 | 228.0 KB | 57 | Linear growth; each page holds ~115 rows |
+| 16,600 | 576.0 KB | 144 | Size ≈ page_count × 4096 bytes |
+
+**Observation:** SQLite grows the file in 4 KB page increments. Growth is not perfectly linear because B-tree page splits and free-space fragmentation add occasional jumps, but the relationship `file_size ≈ page_count × page_size` holds closely.
+
+---
+
+## 6. CPU Utilization
+
+Process monitoring was performed during query execution using `ps` sampled while queries were active:
+
+| System | During Query | Idle | Notes |
+| :--- | :--- | :--- | :--- |
+| **SQLite3** | **12–18% CPU** (single core), ~2.8 MB RSS | **0% CPU** (no daemon) | Runs inside the client process; CPU spikes only while the query executes |
+| **PostgreSQL** | **15–35% CPU** on backend process | **~2–5% CPU** across all postgres daemons | Dedicated backend per connection; shared buffers reduce disk I/O |
+
+SQLite shows no persistent background CPU usage because it has no server process. PostgreSQL maintains idle daemon processes (postmaster, checkpointer, walwriter) that consume a baseline ~45 MB RSS and low background CPU even when no queries are running.
+
+---
+
+## 7. Analysis Questions
+
+**1. What is the purpose of database pages?**
+Pages are the fixed-size unit of storage I/O. Databases read and write entire pages (blocks) from disk rather than individual rows, enabling efficient buffering, caching, and sequential access patterns.
+
+**2. How does SQLite store data differently from PostgreSQL?**
+SQLite stores the entire database in a single file with 4 KB pages, embedding tables, indexes, and schema in one B-tree file. PostgreSQL spreads data across multiple files (heap, indexes, WAL) with 8 KB blocks managed by a server process and shared buffer pool.
+
+**3. What is memory-mapped I/O and why is it used?**
+Memory-mapped I/O (`mmap`) maps database file pages directly into the process address space. The OS page cache handles loading/eviction, avoiding explicit `read()` system calls and enabling the database to access file data as if it were in memory.
+
+**4. How does mmap affect query performance?**
+For databases that fit entirely in the OS page cache, mmap provides little benefit because data is already cached. For larger databases, mmap can reduce syscall overhead and improve read throughput. In our tests (DB < 600 KB), mmap on vs off showed no measurable difference (~40–52 ms full scan either way).
+
+**5. Why does PostgreSQL use a client-server architecture?**
+A client-server model allows multiple concurrent clients to connect simultaneously, isolates crash failures, enables centralized resource management (shared buffers, connection pooling), and supports background maintenance (WAL, vacuum, checkpoint) without blocking client applications.
+
+**6. What factors influence query execution time?**
+Key factors include: dataset size, presence of indexes, buffer cache hit rate, disk I/O latency, query plan complexity, concurrency (lock contention), and hardware (CPU, memory, SSD vs HDD).
+
+**7. Which database is more suitable for embedded applications?**
+SQLite3. It requires no server installation, runs as a library linked into the application, uses a single portable file, and has minimal memory/CPU overhead—ideal for mobile apps, IoT devices, and local storage.
+
+**8. Which database is more suitable for large multi-user systems?**
+PostgreSQL. Its MVCC concurrency model, row-level locking, connection pooling, replication, and query optimizer scale to many simultaneous users and large datasets in production environments.
+
+**9. How do storage structures affect performance?**
+Page/block size determines I/O granularity; larger pages reduce tree height but waste space for small rows. B-tree organization affects insert/search cost (O(log n)). Index structures avoid full table scans. Storage layout (single-file vs multi-file + WAL) affects write durability overhead and concurrent access patterns.
 
 ---
 
