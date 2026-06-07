@@ -1,7 +1,6 @@
 #include <iostream>
 #include <vector>
 #include <unordered_map>
-#include <thread>
 
 template <typename T>
 struct Frame {
@@ -15,16 +14,16 @@ class ClockSweep {
 public:
     ClockSweep(int maxNumber = 4): maxCacheSize(maxNumber), frames(maxNumber) {};
 
-    T getKey(T key) {
+    bool getKey(T key) {
         auto it = page_to_index.find(key);
         if (it != page_to_index.end()) {
             frames[it->second].ref = true;   // second chance
             std::cout << "Hit:   key=" << key << " frame=" << it->second << "\n";
             print_state();
-            return key;
+            return true;
         }
         std::cout << "Miss:  key=" << key << "\n";
-        return T{};
+        return false;
     }
 
     void putKey(T key) {
@@ -56,6 +55,7 @@ public:
                 hand = (hand + 1) % maxCacheSize;
                 break;
             } else {
+                std::cout << "  Ref-bit cleared: key=" << curr.key << " frame=" << hand << "\n";
                 curr.ref = false;
                 hand = (hand + 1) % maxCacheSize;
             }
@@ -68,7 +68,6 @@ private:
     std::vector<Frame<T>> frames;
     std::unordered_map<T, uint> page_to_index;
     uint hand{0};
-    std::thread bgClockThread;
 
     void load_into_frame(uint idx, T key) {
         frames[idx].key      = key;
@@ -87,13 +86,27 @@ private:
     }
 };
 
-int main(){
+int main() {
     ClockSweep<int> clockSweep(4);
 
+    // Phase 1: classic reference string — interleave getKey (access) and putKey (load)
+    std::cout << "=== Phase 1: Reference string (cache size 4) ===\n\n";
     std::vector<int> refs = {7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2};
     for (int page : refs) {
-        clockSweep.putKey(page);
+        if (!clockSweep.getKey(page)) {
+            clockSweep.putKey(page);
+        }
     }
-    
+
+    // Phase 2: skewed access — hot pages 0 and 3 accessed frequently
+    std::cout << "\n=== Phase 2: Skewed access (hot keys 0, 3) ===\n\n";
+    ClockSweep<int> hotCache(4);
+    std::vector<int> skewed = {0, 1, 2, 3, 0, 0, 3, 3, 4, 5, 0, 3, 6, 0, 3};
+    for (int page : skewed) {
+        if (!hotCache.getKey(page)) {
+            hotCache.putKey(page);
+        }
+    }
+
     return 0;
 }
