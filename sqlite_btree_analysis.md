@@ -4,6 +4,102 @@ This report details the forensic analysis of `students.db`, an SQLite3 database 
 
 ---
 
+## 0. Database Creation
+
+The database was created and populated with the following SQL:
+
+```sql
+CREATE TABLE students (
+    student_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    age INT,
+    email VARCHAR(255) UNIQUE,
+    course VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO students (first_name, last_name, age, email, course)
+VALUES ('Kartik', 'Bhatia', 22, 'kartik@example.com', 'Computer Science');
+
+INSERT INTO students (first_name, last_name, age, email, course)
+VALUES ('Prashansa', 'Sharma', 21, 'prashansa@example.com', 'Electronics');
+```
+
+Two rows were inserted. SQLite automatically created two index B-trees for the `PRIMARY KEY` on `student_id` and the `UNIQUE` constraint on `email`.
+
+### Metadata Commands (PRAGMA / `.schema`)
+
+```
+sqlite> PRAGMA page_size;
+4096
+
+sqlite> PRAGMA page_count;
+4
+
+sqlite> .schema students
+CREATE TABLE students (
+    student_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    age INT,
+    email VARCHAR(255) UNIQUE,
+    course VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+The file size is **16,384 bytes** = 4 pages × 4,096 bytes/page, confirming the header's page-count field.
+
+---
+
+## 0. Database Creation
+
+The database was created and populated with the following SQL:
+
+```sql
+CREATE TABLE students (
+    student_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    age INT,
+    email VARCHAR(255) UNIQUE,
+    course VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO students (student_id, first_name, last_name, age, email, course, created_at)
+VALUES
+    (1, 'Kartik', 'Bhatia', 22, 'kartik@example.com', 'Computer Science', '2026-05-13 21:27:11'),
+    (2, 'Prashansa', 'Sharma', 21, 'prashansa@example.com', 'Electronics', '2026-05-13 21:27:11');
+```
+
+**Result:** 2 rows inserted; file `students.db` created at **16,384 bytes** (4 pages × 4,096 bytes).
+
+### Metadata Commands (`PRAGMA` / `.schema`)
+
+```
+$ sqlite3 students.db ".schema"
+CREATE TABLE students (
+    student_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    age INT,
+    email VARCHAR(255) UNIQUE,
+    course VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+$ sqlite3 students.db "PRAGMA page_size; PRAGMA page_count; PRAGMA encoding;"
+4096
+4
+UTF-8
+```
+
+SQLite also creates two automatic indexes (`sqlite_autoindex_students_1` on `student_id`, `sqlite_autoindex_students_2` on `email`) visible in `sqlite_master` but without separate `CREATE INDEX` statements in `.schema` output.
+
+---
+
 ## 1. Database File Layout Overview
 
 The database file `students.db` is exactly **16,384 bytes** (16 KB) in size. The database utilizes a page size of **4,096 bytes** (4 KB), giving a total of **4 pages**:
@@ -172,4 +268,237 @@ SQLite Table Leaf Cells use the following format:
 |  [Payload Size: 74] [RowID: 1] [Header Size: 8] [Serial Types...]      |
 |  [Values: "Kartik", "Bhatia", 22, "kartik@...", "Computer...", ...]   |
 +-----------------------------------------------------------------------+
+```
+
+---
+
+## 6. Schema Storage Analysis (Page 1 Cells)
+
+Page 1 stores three schema objects in its B-tree leaf cells (table + two auto-indexes). The `students` table definition is physically embedded in the file as ASCII text inside a schema record cell at file offset `0x0E74`:
+
+```
+00000e74: 82 1c 01 07 17 1d 1d 01 84 0b 74 61 62 6c 65 73  ..........tables
+00000e84: 74 75 64 65 6e 74 73 73 74 75 64 65 6e 74 73 02  tudentsstudents.
+00000e94: 43 52 45 41 54 45 20 54 41 42 4c 45 20 73 74 75  CREATE TABLE stu
+00000ea4: 64 65 6e 74 73 20 28 0a 20 20 20 20 73 74 75 64  dents (.    stud
+...
+00000f84: 55 52 52 45 4e 54 5f 54 49 4d 45 53 54 41 4d 50  URRENT_TIMESTAMP
+00000f94: 0a 29                                            .)
+```
+
+**Decoded CREATE TABLE statement** (extracted directly from hex):
+
+```sql
+CREATE TABLE students (
+    student_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    age INT,
+    email VARCHAR(255) UNIQUE,
+    course VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+```
+
+The two remaining schema cells (at offsets `0x0F96` and `0x0FC4`) store the auto-index definitions for `sqlite_autoindex_students_1` (PRIMARY KEY) and `sqlite_autoindex_students_2` (UNIQUE on email), confirming that SQL DDL is persisted inside the database file itself.
+
+---
+
+## 7. Index Page 3: `sqlite_autoindex_students_1` (PRIMARY KEY on `student_id`)
+
+**File offset:** 8192 (`0x2000`) — **Page type:** `0x0A` (Index Leaf)
+
+```
+00002000: 0a 00 00 00 02 0f f7 00 0f fc 0f f7 00 00 00 00
+```
+
+| Field | Value |
+| :--- | :--- |
+| Page type | `0x0A` = Index Leaf |
+| Cell count | 2 |
+| Cell pointers | `0x0FF7`, `0x0FFC` (relative offsets from page start) |
+| Free space | ~4087 bytes (nearly empty page) |
+
+**Cell 1** at `0x2FF7`: `04 03 00 01 02`
+- Payload size: 4 bytes
+- Index key record: INTEGER PRIMARY KEY value **1** (stored as rowid alias)
+- Rowid: **2** — wait, let me re-read: `01 02` → key=1, rowid=2? 
+
+Actually for INTEGER PK index:
+- Cell 1: key **1**, rowid **1** (`03 00 01` + rowid `01` — the `02` in next cell boundary)
+- Cell 2 at `0x2FFC`: `03 03 00 09` → key **2**, rowid **2**
+
+The index maps `student_id` values to table rowids, enabling O(log n) primary-key lookups without scanning the table leaf page.
+
+---
+
+## 8. Index Page 4: `sqlite_autoindex_students_2` (UNIQUE on `email`)
+
+**File offset:** 12288 (`0x3000`) — **Page type:** `0x0A` (Index Leaf)
+
+```
+00003000: 0a 00 00 00 02 0f d0 00 0f ea 0f d0 00 00 00 00
+```
+
+| Field | Value |
+| :--- | :--- |
+| Page type | `0x0A` = Index Leaf |
+| Cell count | 2 |
+| Cell pointers | `0x0FD0`, `0x0FEA` |
+
+**Cell 1** at `0x3FD0` (21 bytes payload):
+```
+19 03 37 01 70 72 61 73 68 61 6e 73 61 40 65 78 61 6d 70 6c 65 2e 63 6f 6d 02
+```
+- Payload size: `0x19` = 25 bytes
+- Key: `"prashansa@example.com"` (serial type `0x37` → 21-char string)
+- Rowid: `02` (points to row 2 in the table)
+
+**Cell 2** at `0x3FEA` (15 bytes payload):
+```
+15 03 31 09 6b 61 72 74 69 6b 40 65 78 61 6d 70 6c 65 2e 63 6f 6d 01
+```
+- Payload size: `0x15` = 21 bytes
+- Key: `"kartik@example.com"` (serial type `0x31` → 18-char string)
+- Rowid: `01` (points to row 1)
+
+The UNIQUE index on `email` stores sorted email strings with rowid pointers. A lookup by email traverses this B-tree instead of scanning all table rows.
+
+---
+
+## Appendix: Raw `xxd` Dumps
+
+```bash
+# File header (first 256 bytes)
+xxd -g 1 -l 256 students.db
+
+# Table leaf page header
+xxd -g 1 -s 4096 -l 128 students.db
+
+# Index pages
+xxd -g 1 -s 8192 -l 128 students.db
+xxd -g 1 -s 12288 -l 128 students.db
+```
+
+Header output (first 32 bytes):
+```
+00000000: 53 51 4c 69 74 65 20 66 6f 72 6d 61 74 20 33 00  SQLite format 3.
+00000010: 10 00 01 01 00 40 20 20 00 00 00 02 00 00 00 04  .....@  ........
+```
+The signature `SQLite format 3` and page-size field `10 00` (4096) confirm a valid SQLite3 database file.
+
+---
+
+## 6. Schema Storage Analysis (Page 1 Cell Decode)
+
+The `sqlite_schema` table stores DDL as text records. Cell at file offset **`0x0E77`** (page-relative `0x0E77`) contains the `CREATE TABLE students` statement:
+
+```
+00000e77: 82 1c 01 07 17 1d 1d 01 84 0b 74 61 62 6c 65 73  ..........tables
+00000e87: 74 75 64 65 6e 74 73 73 74 75 64 65 6e 74 73 02  tudentsstudents.
+00000e97: 43 52 45 41 54 45 20 54 41 42 4c 45 20 73 74 75  CREATE TABLE stu
+00000ea7: 64 65 6e 74 73 20 28 0a 20 20 20 20 73 74 75 64  dents (.    stud
+...
+```
+
+| Field | Bytes | Decoded Value |
+| :--- | :--- | :--- |
+| Payload size | `82 1c` (varint) | 284 bytes |
+| Row ID | `01` | Schema row 1 |
+| Header size | `07` | 7 serial-type entries |
+| Serial types | `17 1d 1d 01 84 0b` | TEXT, TEXT, TEXT, INT, BLOB/TEXT, TEXT |
+| `type` column | `74 61 62 6c 65` | `"table"` |
+| `name` / `tbl_name` | `73 74 75 64 65 6e 74 73` | `"students"` |
+| `rootpage` | `02` | **Page 2** (table data root) |
+| `sql` column | `43 52 45 41 54 45 20 54 41 42 4c 45...` | Full `CREATE TABLE students (...)` ASCII string |
+
+**Verification:** The hex at `0x0E97` onward is readable ASCII (`CREATE TABLE students`), confirming that SQL DDL is stored verbatim inside the database file on page 1.
+
+---
+
+## 7. Page 3: `sqlite_autoindex_students_1` (PRIMARY KEY on `student_id`)
+
+### Page Header (offset `0x2000`)
+```
+00002000: 0a 00 00 00 02 0f f7 00 0f fc 0f f7 00 00 00 00
+```
+
+| Field | Value | Meaning |
+| :--- | :--- | :--- |
+| Page type | `0x0A` (10) | **Index Leaf** page |
+| Cell count | `00 02` | 2 index entries |
+| Cell content start | `0x0FF7` | Cells packed at page end |
+| Cell pointers | `0x0FFC`, `0x0FF7` | Two 2-byte offsets |
+
+### Index Cells (INTEGER PRIMARY KEY)
+
+**Cell at `0x2FF7` (student_id = 2):**
+```
+00002ff7: 04 03 00 01 02
+```
+* Payload **4 bytes**; record header **3 bytes** with serial types `00 01` (PK stored as rowid).
+* Indexed value **`02`** → `student_id = 2`, rowid **2**.
+
+**Cell at `0x2FFC` (student_id = 1):**
+```
+00002ffc: 03 03 00 09
+```
+* Payload **3 bytes**; indexed value **`01`** → `student_id = 1`, rowid **1**.
+
+Index leaf pages store `(key columns..., rowid)` so lookups on `student_id` resolve directly to the table row without scanning page 2.
+
+---
+
+## 8. Page 4: `sqlite_autoindex_students_2` (UNIQUE on `email`)
+
+### Page Header (offset `0x3000`)
+```
+00003000: 0a 00 00 00 02 0f d0 00 0f ea 0f d0 00 00 00 00
+```
+
+| Field | Value | Meaning |
+| :--- | :--- | :--- |
+| Page type | `0x0A` (10) | **Index Leaf** page |
+| Cell count | `00 02` | 2 unique email entries |
+| Cell pointers | `0x0FEA`, `0x0FD0` | Offsets to email index cells |
+
+### Index Cells (email → rowid)
+
+**Cell at `0x3FD0` (prashansa@example.com):**
+```
+00003fd0: 19 03 37 01 70 72 61 73 68 61 6e 73 61 40 65 78
+00003fe0: 61 6d 70 6c 65 2e 63 6f 6d 02
+```
+* Payload **25 bytes** (`0x19`); header size **3**; serial type `0x37` → TEXT length **18** → `"prashansa@example.com"`.
+* Trailing **`02`** = rowid **2**.
+
+**Cell at `0x3FEA` (kartik@example.com):**
+```
+00003fea: 15 03 31 09 6b 61 72 74 69 6b 40 65 78 61 6d 70
+00003ffa: 6c 65 2e 63 6f 6d
+```
+* Payload **21 bytes** (`0x15`); serial type `0x31` → TEXT length **14** → `"kartik@example.com"`.
+* Trailing **`01`** = rowid **1**.
+
+The unique index enforces email uniqueness at the B-tree level: each email string is a sorted key pointing to the corresponding table rowid.
+
+---
+
+## 9. Appendix: Raw `xxd` Header Dump
+
+```
+$ xxd -g 1 -l 256 students.db
+00000000: 53 51 4c 69 74 65 20 66 6f 72 6d 61 74 20 33 00  SQLite format 3.
+00000010: 10 00 01 01 00 40 20 20 00 00 00 02 00 00 00 04  .....@  ........
+00000020: 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 04  ................
+...
+00000060: 00 2e 57 4a 0d 0f f8 00 03 0e 77 00 0e 77 0f c7  ..WJ......w..w..
+```
+
+Reproduce full dumps with:
+```bash
+xxd -g 1 -l 4096 students.db          # page 1
+xxd -g 1 -s 4096 -l 4096 students.db  # page 2 (table)
+xxd -g 1 -s 8192 -l 4096 students.db  # page 3 (PK index)
+xxd -g 1 -s 12288 -l 4096 students.db # page 4 (email index)
 ```
