@@ -25,8 +25,8 @@ public:
     BPlusTree(const BPlusTree&) = delete;
     BPlusTree& operator=(const BPlusTree&) = delete;
 
-    std::optional<Value> search(Key key) const {
-        Node* leaf = find_leaf(key);
+    std::optional<Value> search(Key key, size_t* nodes_visited = nullptr) const {
+        Node* leaf = find_leaf(key, nodes_visited);
         if (!leaf) return std::nullopt;
 
         auto* leaf_node = static_cast<LeafNode*>(leaf);
@@ -86,8 +86,9 @@ public:
 
     bool validate() const {
         if (!root_) return true;
+        int expected_leaf_depth = -1;
         LeafNode* leftmost = nullptr;
-        return validate_node(root_, nullptr, nullptr, &leftmost);
+        return validate_node(root_, nullptr, nullptr, 0, &expected_leaf_depth, &leftmost);
     }
 
     size_t size() const {
@@ -120,15 +121,23 @@ private:
     size_t min_keys_;
     Node* root_;
 
-    Node* find_leaf(Key key) const {
+    Node* find_leaf(Key key, size_t* nodes_visited = nullptr) const {
         Node* current = root_;
+        size_t visited = 0;
         while (current && !current->is_leaf) {
+            ++visited;
             auto* internal = static_cast<InternalNode*>(current);
             size_t i = 0;
             while (i < internal->keys.size() && key >= internal->keys[i]) {
                 ++i;
             }
             current = internal->children[i];
+        }
+        if (current) {
+            ++visited;
+        }
+        if (nodes_visited) {
+            *nodes_visited = visited;
         }
         return current;
     }
@@ -245,12 +254,19 @@ private:
         }
     }
 
-    bool validate_node(Node* node, const Key* min_bound, const Key* max_bound, LeafNode** leftmost_leaf) const {
+    bool validate_node(Node* node, const Key* min_bound, const Key* max_bound,
+                       int depth, int* expected_leaf_depth, LeafNode** leftmost_leaf) const {
         if (!node) return true;
 
         if (node->is_leaf) {
             auto* leaf = static_cast<LeafNode*>(node);
             if (leaf->keys.size() != leaf->values.size()) return false;
+
+            if (*expected_leaf_depth < 0) {
+                *expected_leaf_depth = depth;
+            } else if (*expected_leaf_depth != depth) {
+                return false;
+            }
 
             for (size_t i = 1; i < leaf->keys.size(); ++i) {
                 if (leaf->keys[i - 1] >= leaf->keys[i]) return false;
@@ -276,7 +292,8 @@ private:
         for (size_t i = 0; i < internal->children.size(); ++i) {
             const Key* child_min = (i == 0) ? min_bound : &internal->keys[i - 1];
             const Key* child_max = (i == internal->keys.size()) ? max_bound : &internal->keys[i];
-            if (!validate_node(internal->children[i], child_min, child_max, leftmost_leaf)) {
+            if (!validate_node(internal->children[i], child_min, child_max,
+                               depth + 1, expected_leaf_depth, leftmost_leaf)) {
                 return false;
             }
         }
@@ -303,6 +320,7 @@ public:
         Key key;
         Row row;
         bool found = false;
+        size_t nodes_visited = 0;
     };
 
     explicit DB(size_t degree = 2) : tree_(degree) {}
@@ -310,7 +328,9 @@ public:
     Entry search(Key key) {
         Entry result{};
         result.key = key;
-        auto value = tree_.search(key);
+        size_t visited = 0;
+        auto value = tree_.search(key, &visited);
+        result.nodes_visited = visited;
         if (value.has_value()) {
             result.row = value.value();
             result.found = true;

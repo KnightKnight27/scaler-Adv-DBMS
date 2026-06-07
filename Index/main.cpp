@@ -143,9 +143,11 @@ int main(int argc, char* argv[]) {
             if (ss >> key) {
                 auto entry = db.search(key);
                 if (entry.found) {
-                    std::cout << "Found key " << key << " -> " << entry.row << "\n";
+                    std::cout << "Found key " << key << " -> " << entry.row
+                              << " (visited " << entry.nodes_visited << " nodes)\n";
                 } else {
-                    std::cout << "Key " << key << " not found.\n";
+                    std::cout << "Key " << key << " not found (visited "
+                              << entry.nodes_visited << " nodes).\n";
                 }
             } else {
                 std::cout << "Usage: search <key>\n";
