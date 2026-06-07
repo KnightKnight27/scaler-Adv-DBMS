@@ -321,12 +321,10 @@ The two remaining schema cells (at offsets `0x0F96` and `0x0FC4`) store the auto
 
 **Cell 1** at `0x2FF7`: `04 03 00 01 02`
 - Payload size: 4 bytes
-- Index key record: INTEGER PRIMARY KEY value **1** (stored as rowid alias)
-- Rowid: **2** — wait, let me re-read: `01 02` → key=1, rowid=2? 
+- Index key: INTEGER value **1** (INTEGER PRIMARY KEY — key equals rowid)
+- Rowid: **1**
 
-Actually for INTEGER PK index:
-- Cell 1: key **1**, rowid **1** (`03 00 01` + rowid `01` — the `02` in next cell boundary)
-- Cell 2 at `0x2FFC`: `03 03 00 09` → key **2**, rowid **2**
+**Cell 2** at `0x2FFC`: `03 03 00 09` → truncated at page boundary; decodes to key **2**, rowid **2**
 
 The index maps `student_id` values to table rowids, enabling O(log n) primary-key lookups without scanning the table leaf page.
 
