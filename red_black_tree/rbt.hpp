@@ -199,6 +199,7 @@ private:
     Node* NIL;
 
     void leftRotate(Node* x) {
+        std::cout << "  LEFT ROTATE at node " << x->key << "\n";
         Node* y = x->right;
         x->right = y->left;
         if (y->left != NIL) {
@@ -217,6 +218,7 @@ private:
     }
 
     void rightRotate(Node* y) {
+        std::cout << "  RIGHT ROTATE at node " << y->key << "\n";
         Node* x = y->left;
         y->left = x->right;
         if (x->right != NIL) {
