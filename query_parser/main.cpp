@@ -19,7 +19,7 @@ struct Token {
 
 class Lexer {
 public:
-    explicit Lexer(string sql) : input(move(sql)) {
+    explicit Lexer(string sql) : input(std::move(sql)) {
     }
 
     vector<Token> tokenize() {
@@ -88,7 +88,7 @@ struct Literal : Expression {
 struct ColumnRef : Expression {
     string name;
 
-    explicit ColumnRef(string n) : name(move(n)) {
+    explicit ColumnRef(string n) : name(std::move(n)) {
     }
 };
 
@@ -98,7 +98,7 @@ struct BinaryExpression : Expression {
     Expression *right;
 
     BinaryExpression(string o, Expression *l, Expression *r)
-        : op(move(o)), left(l), right(r) {
+        : op(std::move(o)), left(l), right(r) {
     }
 };
 
@@ -112,7 +112,7 @@ struct SelectStatement {
 // ------------------- Parser -------------------
 class DbParser {
 public:
-    explicit DbParser(vector<Token> toks) : tokens(move(toks)) {
+    explicit DbParser(vector<Token> toks) : tokens(std::move(toks)) {
     }
 
     SelectStatement parseSelect() {
