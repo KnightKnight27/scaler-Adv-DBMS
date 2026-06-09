@@ -1,4 +1,4 @@
-### ANALYSING SQLITE3 Database File Hex Dump with xxd Command Line Tool 
+# ANALYSING SQLITE3 Database File Hex Dump with xxd Command Line Tool 
 
 ## Database name: my_database ; 
 ## Table name: users ; 
@@ -15,7 +15,7 @@ id|name
 
 ## Command used in the terminal to get the hex dump:- 
 
-# xxd -g 1 -a my_database 
+### xxd -g 1 -a my_database 
 
 ## Hex Dump Output is:- 
 
@@ -46,14 +46,14 @@ id|name
 
 This document provides a comprehensive, structural breakdown of a SQLite3 database file using a raw hex dump obtained via xxd. It walks through the data layouts of Page 1 (The Header and Database Schema) and Page 2 (The Data B-Tree Node), translating specific hex offsets into physical internal database mechanisms. 
 
-# 🗺️ High-Level Page Mapping 
+### 🗺️ High-Level Page Mapping 
 
 Based on the provided hex dump, the database uses a standard 4096-byte (4KB) page size. The file contains exactly two pages: 
 Page,File Address Range (Hex),Node Type,Content
 Page 1,0x00000000 - 0x00000FFF,Table Leaf Node,SQLite Database Header + sqlite_schema system table
 Page 2,0x00001000 - 0x00001FFF,Table Leaf Node,User Data (users table records) 
 
-# 📄 Page 1 Breakdown: Database Header & Schema
+### 📄 Page 1 Breakdown: Database Header & Schema
 Page 1 is unique because the first 100 bytes are reserved for the SQLite Database Header. The B-Tree page header immediately follows it at offset 0x64.
 
 1. The 100-Byte Database Header
@@ -146,7 +146,7 @@ Cell 5,0F C3,0x1000 + 0x0FC3 = 0x00001FC3
 
 💡 Notice the Sorting Order: SQLite writes content cells from the bottom up (0x1FF6 down to 0x1FC3), meaning Cell 0 points to the last address space visually, while Cell 5 points to the earliest cell space.
 
-# 🔍 Payload Extraction & Record Lookup 
+### 🔍 Payload Extraction & Record Lookup 
 Let's unpack the raw records located between 0x00001FC0 and 0x00001FFF: 
 
 00001fc0: 00 00 00 09 06 03 00 19 53 61 6d 72 61 74 09 05  ........Samrat..
@@ -178,7 +178,7 @@ Starting at address 0x00001FC7: 09 06 03 00 19 53 61 6d 72 61 74
 19: Serial type for Column 2 (name). Text length value: $(25 - 13) / 2 = 6$ bytes. 
 53 61 6d 72 61 74: The 6-byte string data $\rightarrow$ "Samrat". 
 
-# 📊 Reconstructed Database Table
+### 📊 Reconstructed Database Table
 By navigating through all 6 cell pointers sequentially, we completely extract the underlying user dataset: 
 
 Pointer Address,Row ID (Key),Column: id,Column: name
