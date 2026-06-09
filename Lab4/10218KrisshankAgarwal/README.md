@@ -59,7 +59,6 @@ Page 1 is unique because the first 100 bytes are reserved for the SQLite Databas
 1. The 100-Byte Database Header
 Looking at the first few rows of your hex dump:
 
-Plaintext
 00000000: 53 51 4c 69 74 65 20 66 6f 72 6d 61 74 20 33 00  SQLite format 3.
 00000010: 10 00 01 01 00 40 20 20 00 00 00 04 00 00 00 02  .....@  ........
 53 51 4C 69 74 65 20 66 6F 72 6D 61 74 20 33 00 (Offsets 0–15): The magic string header text: "SQLite format 3\0".
@@ -75,7 +74,6 @@ Plaintext
 2. The B-Tree Page Header (Page 1)
 Because Page 1 contains both the database header and a B-Tree node, the B-Tree page header starts at offset 0x00000060 (specifically at index 0x64):
 
-Plaintext
 00000060: 00 2e 76 89 0d 00 00 00 01 0f b2 00 0f b2 00 00  ..v.............
                       ^^ B-Tree Page Header Starts Here
 0d (Offset 0x64): Page Type flag. 0x0D indicates a Table Leaf Node (contains keys and data payloads).
@@ -96,7 +94,6 @@ Directly following the B-Tree header at offset 0x6C is the Cell Pointer Array:
 4. Schema Cell Payload Analysis
 Navigating down to offset 0x00000FB0, we locate the cell structure parsing the schema details:
 
-Plaintext
 00000fb0: 00 00 4c 01 06 17 17 17 01 79 74 61 62 6c 65 75  ..L......ytableu
 00000fc0: 73 65 72 73 75 73 65 72 73 02 43 52 45 41 54 45  sersusers.CREATE
 00000fd0: 20 54 41 42 4c 45 20 75 73 65 72 73 28 69 64 20   TABLE users(id 
@@ -120,8 +117,7 @@ CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT): The SQL generation statem
 🌲 Page 2 Breakdown: The Data B-Tree Node
 Page 2 begins at offset 0x00001000. It is a pure B-Tree data leaf node, meaning its header begins immediately at byte 0 of the page.
 
-1. B-Tree Page Header (Page 2)
-Plaintext
+1. B-Tree Page Header (Page 2) 
 00001000: 0d 00 00 00 06 0f c3 00 0f f6 0f ee 0f e4 0f d9  ................
           ^^
 0d (0x1000): Page Type (Table Leaf Node).
