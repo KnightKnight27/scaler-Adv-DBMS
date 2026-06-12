@@ -1,18 +1,20 @@
 # Lab 7 — 24BCS10335 Swaim Sahay
 
-> Stub PR. Implementation will be added in a follow-up commit.
+Two implementations of a SQL `WHERE`-clause evaluator, both written in C++17:
 
-## Build
+- `DSY/` — Dijkstra's Shunting-Yard: infix → postfix → one-pass stack evaluator
+- `queryParsing/` — Lexer + recursive-descent parser → AST → tree-walk evaluator
+
+See each subfolder for its own README and `main.cpp`.
+
+## Build & run
 
 ```bash
-cd lab7
-cmake -B build -S .
-cmake --build build
-./build/lab7
+# DSY
+cd DSY
+g++ -std=c++17 -Wall -Wextra main.cpp -o main && ./main
+
+# queryParsing
+cd ../queryParsing
+g++ -std=c++17 -Wall -Wextra main.cpp -o main && ./main
 ```
-
-## Submission
-
-- Roll Number: **24BCS10335**
-- Name: **Swaim Sahay**
-- Lab: **Lab 7**
