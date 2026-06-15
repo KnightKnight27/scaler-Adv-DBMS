@@ -313,7 +313,12 @@ std::vector<Row> execute(const SelectQuery& q, const std::vector<Row>& table) {
         std::stable_sort(rows.begin(), rows.end(), [&](const Row& a, const Row& b) {
             auto ia = a.cols.find(key);
             auto ib = b.cols.find(key);
-            if (ia == a.cols.end() || ib == b.cols.end()) return false;
+            bool has_a = ia != a.cols.end();
+            bool has_b = ib != b.cols.end();
+            // Rows that have the column always sort before rows that lack it, and
+            // two rows that both lack it are treated as equal. Keeping the order
+            // total here is what makes the comparator a valid strict weak ordering.
+            if (!has_a || !has_b) return has_a && !has_b;
             return asc ? value_less(ia->second, ib->second)
                        : value_less(ib->second, ia->second);
         });
