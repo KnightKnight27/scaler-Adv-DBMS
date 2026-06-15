@@ -1,144 +1,128 @@
-# Lab 6: B-Tree Indexing Structure Implementation
+<div align="center">
 
-**Author:** Siddhant Prasad  
-**Roll Number:** 24BCS10255
+# 🔒 Lab Session 6: Transaction Manager — MVCC + Two-Phase Locking in C++
+### Implementing Relational Concurrency Controls, Snapshot Isolation & Strict 2PL
 
----
+[![C++](https://img.shields.io/badge/C++-00599C?style=for-the-badge&logo=cplusplus&logoColor=white)](https://isocpp.org/)
+[![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://www.kernel.org/)
 
-## 🎯 Aim
-To study, implement, and analyze a **B-Tree Indexing Structure** in C++, demonstrating node insertion, leaf splitting, median-key promotions, hierarchical traversals, and logarithmic search operations.
-
----
-
-## 📚 B-Tree Core Concepts & Properties
-A B-Tree is a self-balancing search tree designed to optimize read and write operations on block storage devices (such as SSDs/HDDs). Unlike Binary Search Trees, a B-Tree node can contain **multiple keys** and **multiple child pointers**.
-
-A B-Tree of minimum degree **$t$** preserves the following invariants:
-1. **Sorted Keys**: Keys inside any node are arranged in ascending order.
-2. **Child Boundaries**: A non-leaf node with $k$ keys contains exactly $k+1$ child pointers.
-3. **Capacity Constraints**:
-   - Every node (except the root) must contain at least $t - 1$ keys.
-   - Every node can contain at most $2t - 1$ keys.
-   - If a node is full ($2t - 1$ keys) and a new key is added, it is split into two nodes of size $t - 1$, and its middle (median) key is promoted to the parent.
-4. **Identical Leaf Depth**: All leaf nodes reside at the exact same depth level.
-5. **Balanced Height**: Splitting causes the tree to grow upward from the root, guaranteeing flat logarithmic search complexity $O(\log n)$.
+</div>
 
 ---
 
-## ⚙️ Splitting and Insertion Mechanics
-
-When inserting key $K$:
-- We traverse from the root down to the appropriate leaf.
-- If we encounter a node along the path that is **full** (contains $2t - 1$ keys), we split it proactively. This ensures that when we arrive at the target leaf, it is guaranteed to have space, avoiding recursive upward backtracks.
-- During a **split**:
-  - The middle/median key (at index $t-1$) is popped out.
-  - The remaining keys are split into two sibling nodes.
-  - The median key is inserted into the parent node, and child pointers are adjusted.
+## 👨‍🎓 Student Details
+- **Name:** Siddhant Prasad
+- **Roll Number:** 24BCS10255
 
 ---
 
-## 🛠️ Compilation and Execution
+## 🎯 Objective
+Build a C++ Transaction Manager that combines:
+1. **Multi-Version Concurrency Control (MVCC)**: Every write creates a new row version; readers see a consistent snapshot without blocking concurrent writers.
+2. **Two-Phase Locking (2PL)**: Bounds lock acquisition to a growing phase and lock releases to a shrinking phase. Specifically, **Strict 2PL** holds all locks until the transaction commits or aborts.
+3. **Deadlock Detection**: Monitors dependencies using a waits-for graph and runs cycle detection to abort conflicting transactions.
 
-### Compilation
-Compile the code using a standard C++17 compiler:
+This combination mirrors the core concurrency architecture found in enterprise relational databases like PostgreSQL.
+
+---
+
+## 📚 Core Concepts
+
+### 1. MVCC Version Visibility Rule
+Each write operation inserts a new `RowVersion` tagged with `xmin` (creator transaction ID) and `xmax` (destructor transaction ID, initially `0`).
+A version is visible to a reader transaction `T` running with `snapshot_xid` if:
+*   `xmin` is committed **and** $\text{xmin} \le \text{T.snapshot\_xid}$ (or is `T`'s own write).
+*   `xmax` is `0` (not deleted) **or** $\text{xmax} > \text{T.snapshot\_xid}$ (deleted after snapshot was taken) **or** `xmax` has aborted.
+
+### 2. Two-Phase Locking (2PL)
+To guarantee serializability, lock operations must follow two phases:
+*   **Growing Phase**: The transaction acquires locks but cannot release any.
+*   **Shrinking Phase**: The transaction releases locks but cannot acquire any new ones.
+*   **Strict 2PL**: Simplifies 2PL by holding all locks until transaction termination (commit/abort), which prevents cascading aborts.
+
+### 3. Deadlock Cycle Detection
+When transaction A waits for a lock held by B, and B waits for A, a deadlock cycle forms. We track these dependencies using a **Waits-For Graph**. On every blocked request, a depth-first search (DFS) checks for cycles and throws an exception to abort the transaction if a deadlock is detected.
+
+---
+
+## 💻 Code Implementation
+
+The code is located in [txmgr.cpp](file:///c:/Users/Siddhant/OneDrive/Desktop/scaler-Adv-DBMS/Lab_6/txmgr.cpp).
+
+### Compile and Run
+Compile with thread support:
 ```bash
-g++ -std=c++17 btree_index.cpp -o btree_index
+g++ -std=c++17 -pthread txmgr.cpp -o txmgr
+./txmgr
 ```
 
-### Execution
-Run the compiled index binary:
-```bash
-./btree_index
-```
-
----
-
-## 📊 Sample Execution Log & Verification
-
-Here is the log generated by the demo code using a minimum degree $t = 2$ (maximum keys per node = $2t - 1 = 3$):
-
+### Expected Output
 ```text
-========================================================
-      Lab 6: B-Tree Indexing Structure Demo            
-========================================================
+=== Scenario 1: MVCC Snapshot Isolation ===
+[TX 3] COMMITTED
+[TX 4] COMMITTED
+  [TX 2] READ balance = 1000
 
-[INIT] B-Tree initialized with minimum degree (t) = 2
- -> Node capacity limits: Min keys = 1, Max keys = 3
+=== Scenario 2: Concurrent Shared Locks ===
+  [TX 4] READ balance = 3000
+  [TX 5] READ balance = 3000
+[TX 4] COMMITTED
+[TX 5] COMMITTED
 
+=== Scenario 3: Exclusive Lock + Waiting ===
+  [TX 7] waiting for shared lock on balance...
+[TX 6] COMMITTED
+  [TX 7] READ balance = 3000
+[TX 7] COMMITTED
 
------------------- TREE STRUCTURE ------------------
-Empty Tree
-----------------------------------------------------
+=== Scenario 4: Deadlock Detection ===
+  Deadlock detected, aborting tx 8
+[TX 8] ABORTED
+[TX 9] COMMITTED
 
-
-[INSERT START] Inserting Key-Value Pair (10 => Record_10)
- -> Allocated root node. Key 10 placed as initial key.
-
-[INSERT START] Inserting Key-Value Pair (20 => Record_20)
- -> Leaf insertion: Key 20 placed in sorted position.
-
-[INSERT START] Inserting Key-Value Pair (30 => Record_30)
- -> Leaf insertion: Key 30 placed in sorted position.
-
------------------- TREE STRUCTURE ------------------
-Level 0: 10:Record_10 20:Record_20 30:Record_30 
-----------------------------------------------------
-
-
-[INSERT START] Inserting Key-Value Pair (40 => Record_40)
-[ROOT FULL] Splitting old root, tree depth increases.
-[SPLIT] Node is full. Splitting Child Node (at index 0 of parent).
- -> Median key selected for promotion: 20
- -> Promotion complete. Node height adjusted, records redistributed.
- -> Leaf insertion: Key 40 placed in sorted position.
-
------------------- TREE STRUCTURE ------------------
-Level 0: 20:Record_20 
-Level 1: 10:Record_10 
-Level 1: 30:Record_30 40:Record_40 
-----------------------------------------------------
-
-
-[INSERT START] Inserting Key-Value Pair (50 => Record_50)
- -> Leaf insertion: Key 50 placed in sorted position.
-
-[INSERT START] Inserting Key-Value Pair (60 => Record_60)
-[SPLIT] Node is full. Splitting Child Node (at index 1 of parent).
- -> Median key selected for promotion: 40
- -> Promotion complete. Node height adjusted, records redistributed.
- -> Leaf insertion: Key 60 placed in sorted position.
-
------------------- TREE STRUCTURE ------------------
-Level 0: 20:Record_20 40:Record_40 
-Level 1: 10:Record_10 
-Level 1: 30:Record_30 
-Level 1: 50:Record_50 60:Record_60 
-----------------------------------------------------
-
-
-[SEARCH] Searching for Key: 30
- Analyzing Node [Keys: 20 40 ] -> descending to child index 1
-Analyzing Node [Keys: 30 ] -> KEY FOUND!
- -> Key: 30 has Value: Record_30
-
-[SEARCH] Searching for Key: 95
- Analyzing Node [Keys: 20 40 ] -> descending to child index 2
-Analyzing Node [Keys: 50 60 ] -> reached leaf, KEY NOT FOUND.
- -> Key not found.
-
-[TRAVERSAL] Inorder Traversal:
- [10 => Record_10] [20 => Record_20] [30 => Record_30] [40 => Record_40] [50 => Record_50] [60 => Record_60] 
-
-========================================================
-      Lab 6 execution completed successfully!          
-========================================================
+All scenarios complete.
 ```
 
 ---
 
-## 🏁 Conclusion
-The B-Tree Index implementation has been successfully validated. The output traces demonstrate that:
-1. **Sorted Keys**: Inside each node, keys are sorted sequentially during binary leaf insertion.
-2. **Splitting Mechanics**: Nodes are correctly split, and their median keys are promoted when the key count exceeds the maximum limit of $2t-1$.
-3. **Balanced Height**: All leaf nodes remain at the same level, proving that tree growth happens upwards.
-4. **Optimized Searches**: Search paths show that the search space is divided by $k+1$ at each level, ensuring optimal execution times for database indices.
+## 🏛️ Concurrency Architecture Diagram
+
+```mermaid
+graph TD
+    A[Application Transactions] --> B["TransactionManager API (read, insert, update, commit, abort)"]
+    subgraph Concurrency Controls
+        B --> C["LockManager (Strict 2PL)"]
+        B --> D[MVCC Heap]
+    end
+    subgraph LockManager Details
+        C --> C1[Growing Phase: Acquire S/X Locks]
+        C --> C2["Shrinking Phase (Commit/Abort): Release Locks"]
+        C --> C3[Deadlock Detection: Waits-For Graph Cycle DFS]
+    end
+    subgraph MVCC Details
+        D --> D1["Insert: Push new version {xmin=xid, xmax=0}"]
+        D --> D2["Update: Mark old version xmax=xid, Push new version"]
+        D --> D3["Delete: Mark version xmax=xid"]
+        D --> D4["Read: Walk chain, check visibility against snapshot_xid"]
+    end
+```
+
+---
+
+## ⚖️ Concurrency Control Models Comparison
+
+| Dimension | MVCC Alone | 2PL Alone | MVCC + Strict 2PL |
+| :--- | :--- | :--- | :--- |
+| **Read-Write Contention** | None. Readers bypass write locks using snapshots. | High. Readers block writers, and writers block readers. | None. Readers use snapshot visibilities. |
+| **Write-Write Contention** | Low. Requires conflict resolution (first-committer-wins). | High. Blocked by exclusive locks. | Controlled. Resolved via exclusive row locks. |
+| **Isolation Level** | Snapshot Isolation (SI) — vulnerable to write skew. | Full Serializability. | Full Serializability. |
+| **Deadlock Potential** | N/A. | High. Requires cycle checks. | Possible. Resolved via Waits-For cycle aborts. |
+| **Storage Garbage** | High. Requires background Vacuum/Garbage Collection. | None. Updates are overwritten in-place. | High. Requires background Vacuum. |
+
+---
+
+## 🏁 Key Takeaways
+- **Visibility snap**: MVCC isolates read queries by walking version chains and matching them against transaction IDs. Readers never block writers.
+- **Strict 2PL**: Holding all exclusive locks until transaction commit/abort simplifies lock management and prevents cascading aborts.
+- **Waits-For cycle DFS**: Deadlock checks run in $O(V+E)$ time using graph cycle searches. PostgreSQL optimizes this by running the check periodically on a background timer rather than blocking on every lock request.
+- **Rollback Operations**: Aborting a transaction requires restoring previous visibilities. The manager sets the aborted transaction's writes (`xmin`) to invisible and reverses its deletions (`xmax = 0`).
