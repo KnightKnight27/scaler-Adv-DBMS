@@ -1,7 +1,7 @@
 <div align="center">
 
-# 🗄️ SQLite3 vs PostgreSQL
-### A Performance & Architecture Exploration
+# 🗄️ Lab Session 2: SQLite3 Internals — mmap, Page Size, PRAGMA & Library Architecture
+### Exploring Embedded Storage Systems & PostgreSQL vs. SQLite3 System Design
 
 [![SQLite](https://img.shields.io/badge/SQLite-07405E?style=for-the-badge&logo=sqlite&logoColor=white)](https://sqlite.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
@@ -17,201 +17,150 @@
 ---
 
 ## 🎯 Objective
-The objective of this lab experiment is to conduct a detailed comparative analysis between **SQLite3** and **PostgreSQL** by exploring their internal storage, page structures, process models, and memory mechanisms.
-
-We aim to:
-- Analyze database page architectures, including **page size**, **block size**, and **page counts**.
-- Track database file sizes and storage requirements as rows are added.
-- Investigate the impact of **Memory-Mapped I/O (mmap)** on SQLite3 read performance.
-- Observe process behaviors, thread structures, and CPU/Memory resource utilization differences between an embedded library (SQLite) and a client-server daemon (PostgreSQL).
+Install SQLite3, inspect its storage internals via PRAGMA commands, understand why SQLite is an in-process library (not a server), and document findings as part of System Design Assignment 1 (PostgreSQL vs. SQLite3).
 
 ---
 
-## 🔍 SQLite3 Exploration
+## 💻 Part 1: Installation & Verification
 
-### ⚙️ Installation & Setup
-Initialize a sample database named `sample.db` and create a table populated with synthetic data:
+To install SQLite3 and the development libraries on a Linux environment (or WSL/Ubuntu):
 ```bash
-sqlite3 sample.db
+sudo apt update
+sudo apt install sqlite3 libsqlite3-dev
 ```
 
-Within the SQLite prompt:
-```sql
-CREATE TABLE users(
-    id INTEGER PRIMARY KEY,
-    name TEXT,
-    email TEXT
-);
-
--- Bulk insert of 100,000 rows for realistic timing observation
-WITH RECURSIVE cnt(x) AS (
-   SELECT 1
-   UNION ALL
-   SELECT x+1 FROM cnt WHERE x<100000
-)
-INSERT INTO users (name, email)
-SELECT 'User_' || x, 'user' || x || '@example.com' FROM cnt;
-```
-
-### 📁 File Size & Record Storage Analysis
-To observe how the single-file database size changes on disk:
+### Verify Installation
+Check the installed version to ensure a successful setup:
 ```bash
-# Before inserting data
-ls -lh sample.db  -- (approx. 8.0K or size of schema page)
-
-# After inserting 100,000 rows
-ls -lh sample.db  -- (approx. 3.2MB to 4.5MB depending on encoding and page headers)
+sqlite3 --version
+# e.g.: 3.45.1 2024-01-30 ...
 ```
-- **Observations:** SQLite uses a single disk file where all schema tables, indices, and data are packed. The record storage requirements scale linearly with the row counts and column sizes.
 
-### 🧠 Page Information
-Retrieve database page statistics using SQLite PRAGMA commands:
-```sql
-PRAGMA page_size;   -- Default: 4096 bytes (4KB)
-PRAGMA page_count;  -- Total number of pages allocated
-```
-- **Formula:** $\text{Database File Size} = \text{page\_size} \times \text{page\_count}$. 
-- Changing page size (e.g. `PRAGMA page_size = 8192; VACUUM;`) updates how many bytes the filesystem reads in a single chunk.
+---
 
-### 🚀 Memory-Mapped I/O (`mmap_size`) Experiment
-Check and set memory-mapping configuration:
-```sql
-PRAGMA mmap_size;            -- Default: 0 (Disabled or set by compile options)
-PRAGMA mmap_size = 268435456; -- Set mmap size to 256MB
-```
-By mapping the database file directly into the application process's address space, we bypass traditional read/write system calls and OS kernel buffer copying.
+## 🔍 Part 2: Storage Internals via PRAGMA
 
-### ⏱️ SQLite Query Performance Measurement
-Evaluate full table scan execution times with and without `mmap` enabled:
+We initialize/open a database file named `students.db` and use PRAGMA statements to inspect and configure the engine.
 ```bash
-# Query execution time measurements
-time sqlite3 sample.db "SELECT * FROM users;" > /dev/null
+sqlite3 students.db
 ```
 
-| Mode | Average Execution Time |
+### Page Size
+```sql
+PRAGMA page_size;
+-- default: 4096 bytes (matches OS page size)
+```
+SQLite stores the entire database as a single file divided into fixed-size pages. The page size is set at database creation and cannot be changed afterwards without executing a `VACUUM INTO` command.
+
+### Page Count
+```sql
+PRAGMA page_count;
+-- number of pages currently allocated in the database file
+```
+**Formula:** $\text{Total File Size} = \text{page\_size} \times \text{page\_count}$
+
+### mmap Size
+```sql
+PRAGMA mmap_size;
+-- 0 by default; set to enable memory-mapped I/O
+```
+
+We can configure a memory-mapping threshold to allow the engine to bypass standard read system calls for sequential access:
+```sql
+PRAGMA mmap_size = 268435456;  -- 256 MB
+PRAGMA mmap_size;              -- confirms configuration
+```
+
+With memory-mapping enabled, SQLite maps the database file directly into the process's virtual address space using `mmap()`. Reads are serviced directly from memory accesses in the page cache instead of invoking overhead-heavy `read()` system calls.
+
+#### Trace Verification via `strace`
+```bash
+strace -e trace=mmap,open,read sqlite3 students.db "SELECT count(*) FROM students;"
+```
+*   **With `mmap_size = 0`**: Many `read()` system calls are triggered.
+*   **With `mmap_size > 0`**: A single `mmap()` call is made, followed by direct memory operations with few or no subsequent `read()` calls.
+
+### Other Useful PRAGMAs
+| Command | Description |
 | :--- | :--- |
-| 🔴 **Without mmap (Standard I/O)** | `0.015s` (depends on OS page cache state) |
-| 🟢 **With mmap (Memory-Mapped I/O)** | `0.008s` (reduced data copy overhead) |
-
-### 🕵️ Process and Resource Monitoring
-- Command: `ps aux | grep sqlite3` or Task Manager (Windows).
-- **Observation:** SQLite runs completely *in-process*. No separate database server process exists. During active query execution, CPU usage spikes briefly inside the host process, and memory consumption remains small (around 2-5 MB).
+| `PRAGMA journal_mode;` | Displays/sets transaction journal mode (e.g., `WAL`, `DELETE`, `MEMORY`). |
+| `PRAGMA cache_size;` | Configures the number of database pages held in memory. |
+| `PRAGMA integrity_check;` | Validates all pages and index structures for corruption. |
+| `PRAGMA database_list;` | Lists all attached databases. |
 
 ---
 
-## 🐘 PostgreSQL Exploration
+## 🏛️ Part 3: SQLite3 is a Library, Not a Process
 
-### ⚙️ Installation & Database Setup
-Connect to PostgreSQL and create a database:
+The most architecturally significant design difference between SQLite3 and client-server databases is that SQLite is a library.
+
+```mermaid
+graph TD
+    subgraph Application Process Address Space
+        A[Your Application Binary] -- Direct Calls --> B[libsqlite3]
+    end
+    B -- Direct System Calls --> C[(students.db file)]
+```
+
+- **In-Process**: There is no background server daemon, no TCP socket listener, and no network authentication handshake.
+- **Library Integration**: The SQLite engine runs inside the same process and memory address space as your application.
+- **Concurrency**: Handled purely via filesystem-level locks (Write-Ahead Logging significantly improves read-write concurrency).
+
+### Process Verification
+We can verify that there is no sqlite process daemon running in the background:
 ```bash
-sudo -u postgres psql
-```
-```sql
-CREATE DATABASE lab_db;
-\c lab_db
-
-CREATE TABLE users(
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100),
-    email VARCHAR(100)
-);
-
--- Insert 100,000 records
-INSERT INTO users (name, email)
-SELECT 'User_' || g, 'user' || g || '@example.com'
-FROM generate_series(1, 100000) g;
+ps aux | grep sqlite
+# Nothing appears except the grep command itself or active interactive shells.
 ```
 
-### 🧠 Database Storage & Block Size
-Retrieve page sizes and page estimates from PostgreSQL:
-```sql
-SHOW block_size;  -- Output: 8192 (8KB)
+### Shared Library Linkage Check
+Confirm that the executable is linked to the shared library:
+```bash
+ldd $(which sqlite3)
+# Output shows: libsqlite3.so.0 => /lib/x86_64-linux-gnu/libsqlite3.so.0
 ```
-```sql
--- Query estimated page count and size of relation
-SELECT relpages, reltuples FROM pg_class WHERE relname = 'users';
-SELECT pg_size_pretty(pg_relation_size('users'));
-```
-- **Observations:** PostgreSQL uses a fixed 8KB block size. Instead of a single file, it splits tables, indexes, and internal stats into multiple directories and physical files (segmented at 1GB boundaries).
 
-### ⏱️ Query Performance & Plan Execution
-Measure execution times and inspect query plans:
-```sql
-\timing on
-EXPLAIN ANALYZE SELECT * FROM users;
+### Direct C++ Application Integration
+From C++, calls are directly linked functions:
+```cpp
+#include <sqlite3.h>
+// sqlite3_open(), sqlite3_exec(), and sqlite3_close() are all in-process function calls.
 ```
-- **Output Sample:**
-  ```text
-  Seq Scan on users  (cost=0.00..1833.00 rows=100000 width=33) (actual time=0.011..12.450 ms rows=100000 loops=1)
-  Planning Time: 0.081 ms
-  Execution Time: 15.620 ms
-  ```
-
-### 🕵️ Process and Background Service Monitoring
-- Command: `ps aux | grep postgres` (or Windows Services / Process Explorer).
-- **Observation:** PostgreSQL spawns multiple daemon processes, including a **Postmaster** (parent/coordinator process), and several background workers:
-  - `checkpointer` (flushes dirty pages to disk)
-  - `writer` (writes shared buffers to OS cache)
-  - `walwriter` (writes Write-Ahead Logging logs)
-  - `autovacuum launcher` (manages space recovery and statistics updates)
-  - Separate connection backend processes for each active client session.
 
 ---
 
-## ⚖️ Comparison Study
+## 📊 System Design Assignment 1: PostgreSQL vs. SQLite3
 
-| Feature | 🗄️ SQLite3 | 🐘 PostgreSQL |
+### Architectural Comparison Matrix
+
+| Dimension | 🗄️ SQLite3 | 🐘 PostgreSQL |
 | :--- | :--- | :--- |
-| **Architecture** | Embedded, serverless, single-file library. | Client-server, multi-process daemon. |
-| **Storage Layout** | Single database file (`sample.db`). | Segmented system files inside a data directory. |
-| **Page/Block Size** | Configurable (default `4KB`). | Fixed at compilation (usually `8KB`). |
-| **Memory Mapping** | Native `mmap` mapping via `PRAGMA`. | Managed internally via Shared Buffers. |
-| **Concurrency** | Single-writer lock (limited concurrent writes). | Multi-Version Concurrency Control (MVCC). |
-| **Resource Usage** | Incredibly low CPU/Memory footprint. | High baseline memory (shared buffers) and CPU. |
-| **Installation Setup** | Zero setup; copy-paste library. | Requires setup, user privileges, network configuration. |
-| **Best Suited For** | IoT, mobile applications, local file formats. | Distributed backends, high-write SaaS applications. |
+| **Process Model** | Library — runs inside the application process. | Client-server — separate `postgres` daemon coordinator. |
+| **Communication** | Direct function calls / local file I/O. | TCP socket (default port 5432) or local Unix socket. |
+| **Concurrency** | File locks; one writer at a time (WAL improves). | MVCC — concurrent readers + writers simultaneously. |
+| **Authentication** | None (relies on underlying filesystem permissions). | Robust host-based, role, password, and SSL systems. |
+| **Storage** | Single `.db` file containing all tables and metadata. | Data directory containing segmented tables (1GB limits) + WAL. |
+| **Transactions** | Full ACID (serialized writes). | Full ACID with adjustable MVCC isolation levels. |
+
+### When to Use SQLite3
+- **Embedded Applications**: Mobile applications (Android/iOS), desktop software, and command-line interfaces.
+- **Testing & Local Dev**: Fast, lightweight test suites and local development environments without setup overhead.
+- **Single-User Workloads**: Applications with minimal concurrent writes and isolated operations.
+- **Zero Administration**: Scenarios where zero configuration, zero setups, and low memory footprints are required.
+- **Read-Heavy / Cache Workloads**: Excellent for read-heavy operations with occasional writes.
+
+### When to Use PostgreSQL
+- **Multi-User Environments**: Web servers, APIs, and microservices dealing with high-concurrency client pools.
+- **Concurrent Writes**: High-frequency concurrent read and write operations.
+- **Advanced Querying**: Complex joins, JSON indexing, geographic extensions (PostGIS), and full-text search engines.
+- **Fine-Grained Locking**: Systems requiring row-level locks and high-level transaction isolation (e.g., `SERIALIZABLE`).
+- **Security & Auditing**: Strict environments requiring user roles, SSL-encrypted transport, and auditing.
+
+### How Memory Mapping (`mmap`) Fits In
+*   **SQLite3**: Maps the entire `.db` file into the process virtual memory space. This eliminates context-switching and buffer-copying overheads between user-space and kernel caches.
+*   **PostgreSQL**: Manages its own dedicated shared buffer pool (`shared_buffers`) inside memory allocated to the server daemon process, utilizing its own eviction algorithms and not relying primarily on OS-level `mmap()` for data I/O.
 
 ---
 
-## ❓ Analysis & Discussion
-
-### 1. What is the purpose of database pages?
-Database pages represent the fundamental block-level units of data transfer between persistent disk storage and volatile RAM. Instead of performing slow byte-by-byte disk reads and writes, the database processes data in fixed-size blocks (e.g., 4KB or 8KB). This optimizes alignment with hardware sectors and OS page files, minimizing physical disk I/O operations.
-
-### 2. How does SQLite store data differently from PostgreSQL?
-- **SQLite** stores the entire database (schema, tables, indices, metadata) inside a **single cross-platform file** on the host file system.
-- **PostgreSQL** uses a directory structure (`base/`, `pg_wal/`, etc.) containing separated system catalogs, variable-length table files (which are split automatically once they reach 1GB in size), and active configuration files.
-
-### 3. What is memory-mapped I/O and why is it used?
-Memory-mapped I/O (`mmap`) is an operating system mechanism that maps file content directly to the virtual memory space of a process. It is used to bypass the traditional overhead of standard system calls (`read`/`write`). With `mmap`, page faults trigger the operating system to transparently load the requested file blocks into memory, allowing the program to read or write database content as if it were a native memory array.
-
-### 4. How does mmap affect query performance?
-`mmap` dramatically reduces query execution times for read-heavy operations. It eliminates the CPU and memory cycles required to copy data blocks from kernel space cache to the user space application buffers. However, for write-heavy databases, excessive `mmap` writes can trigger slow kernel page flushes and crash vulnerability.
-
-### 5. Why does PostgreSQL use a client-server architecture?
-PostgreSQL uses a client-server architecture to manage high volumes of concurrent read/write queries safely. Spawning dedicated backend processes for each connection allows it to implement **Multi-Version Concurrency Control (MVCC)**, connection pooling, complex access control lists, network query dispatching, and distributed setups.
-
-### 6. What factors influence query execution time?
-Query execution times are primarily driven by:
-- **Disk I/O latency** (SSD vs HDD, page caching, sequential vs random reads).
-- **Index usage** (Index scans vs costly full-table sequential scans).
-- **Query complexity** (Number of joins, sorting overhead, subqueries).
-- **Memory allocations** (Shared buffer size, work memory constraints).
-- **Lock contention** (Concurrency conflicts on the table/row levels).
-
-### 7. Which database is more suitable for embedded applications?
-**SQLite3** is highly suited for embedded applications because of its zero-dependency single-file format, serverless architecture, small memory footprint, and low execution overhead on edge devices like mobile phones, IoT nodes, and desktop software.
-
-### 8. Which database is more suitable for large multi-user systems?
-**PostgreSQL** is the standard for large multi-user systems because it handles simultaneous connections gracefully, supports transaction isolation levels, offers advanced replication options, scales horizontally, and processes massive concurrent writes without locking database files.
-
-### 9. How do storage structures affect performance?
-Storage structures dictate how data is arranged on disk blocks, which directly impacts physical disk navigation. For instance:
-- **B-Trees/B+ Trees** organize tables and indexes to locate data in logarithmic time.
-- **Fixed-size page headers and slot arrays** allow fast, direct address calculations.
-- Larger page sizes minimize disk reads for wide sequential rows but increase resource wastage when reading small, isolated records.
-
----
-
-## 🏁 Conclusion
-This performance exploration highlighted the core architectural philosophies behind SQLite3 and PostgreSQL. SQLite excels as a fast, single-file embedded solution that utilizes OS-level memory mapping to bypass traditional system call overheads. PostgreSQL showcases a robust, multi-process daemon model that relies on shared buffers, background writers, and advanced query planning, making it the industry standard for high-concurrency enterprise workloads.
+## 🏁 Key Insight
+SQLite's single-file, in-process design makes it nearly unbeatable for portability, zero-configuration setups, and embedded software. PostgreSQL's client-server, MVCC design makes it the industry standard for high-concurrency, multi-user web backends. The right choice depends entirely on the concurrency requirements, write volumes, and operational environment of the database.
