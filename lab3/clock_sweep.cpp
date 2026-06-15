@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -28,7 +29,10 @@ struct Frame {
 
 class BufferPool {
 public:
-    explicit BufferPool(int capacity) : frames_(capacity), capacity_(capacity) {}
+    explicit BufferPool(int capacity) : frames_(capacity), capacity_(capacity) {
+        if (capacity <= 0)
+            throw std::invalid_argument("buffer pool capacity must be positive");
+    }
 
     // Bring a page into the pool, loading it if it is not already resident.
     // Returns the frame index, or -1 if every frame is currently pinned.
