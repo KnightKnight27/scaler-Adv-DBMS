@@ -1,0 +1,3 @@
+Sample input for Lab 1 for Roll No. 24BCS10451
+This file will be copied using raw system calls.
+Line 3: Advanced DBMS
