@@ -1,0 +1,2 @@
+Hello from raw system calls.
+This line was written via write().
