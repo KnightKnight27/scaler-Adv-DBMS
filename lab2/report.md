@@ -149,16 +149,17 @@ This is the architectural difference that matters most.
 
 ```
 $ pgrep -l sqlited
-no 'sqlited' or any sqlite daemon (sqlite has no server)
+$              # prints nothing: there is no such process
 ```
 
-Nothing listens on a socket and no daemon is running. The SQLite engine executes
-inside whatever process opened the database.
+`pgrep` finds no match because SQLite has no server process. Nothing listens on a
+socket and no daemon runs; the engine executes inside whatever process opened the
+database.
 
-### The engine is compiled into the binary
+### How the engine is linked
 
-On macOS the `sqlite3` command links only general purpose libraries; the database
-engine itself is statically built into the executable:
+On this machine the `sqlite3` command links only general purpose libraries, with
+no separate SQLite library in the list:
 
 ```
 $ otool -L /usr/bin/sqlite3
@@ -169,11 +170,12 @@ $ otool -L /usr/bin/sqlite3
         /usr/lib/libSystem.B.dylib
 ```
 
-There is no `libsqlite3` in that list, the engine is part of the binary. On a
-typical Linux box the same check (`ldd $(which sqlite3)`) instead shows
-`libsqlite3.so.0`, meaning the engine is loaded as a shared library at startup.
-Either way the result is the same: the engine runs in your process and talks to
-the `.db` file directly through OS syscalls, with no network hop in between.
+Since there is no `libsqlite3` entry, this build has the engine compiled directly
+into the binary. Other builds link it dynamically instead: on a typical Linux box
+`ldd $(which sqlite3)` shows `libsqlite3.so.0`, the same engine loaded as a shared
+library at startup. The linking choice varies by build, but the architecture does
+not. Either way the engine runs inside your process and talks to the `.db` file
+directly through OS syscalls, with no separate server and no network hop.
 
 From C++ this is just function calls into the linked library:
 
