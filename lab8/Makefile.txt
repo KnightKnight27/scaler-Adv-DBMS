@@ -1,0 +1,26 @@
+# Concurrency Engine Build File
+CXX := g++
+CXX_FLAGS := -std=c++17 -Wall -Werror -pthread -O3
+BIN_NAME := db_engine
+SOURCES := main.cpp
+OBJECTS := $(SOURCES:.cpp=.o)
+
+.PHONY: all clean test
+
+all: $(BIN_NAME)
+
+$(BIN_NAME): $(OBJECTS)
+	@echo "Linking $(BIN_NAME)..."
+	$(CXX) $(CXX_FLAGS) $^ -o $@
+
+%.o: %.cpp
+	@echo "Compiling $<..."
+	$(CXX) $(CXX_FLAGS) -c $< -o $@
+
+test: $(BIN_NAME)
+	@echo "Running tests..."
+	./$(BIN_NAME)
+
+clean:
+	@echo "Cleaning up build artifacts..."
+	rm -f $(OBJECTS) $(BIN_NAME)
