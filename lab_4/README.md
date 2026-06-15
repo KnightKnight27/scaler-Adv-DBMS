@@ -1,8 +1,5 @@
 # Lab 4 — Walking a SQLite Database Byte-by-Byte
-
-**Name:** Kushal Talati
-**Roll Number:** 24BCS10123
-**Course:** Advanced DBMS — Scaler School of Technology
+ .
 
 This write-up takes a small but non-trivial SQLite 3 database (`recipes.db`) and reads it the way the engine does — byte by byte, page by page. Everything below was decoded directly out of `hexdump.txt` in this folder; nothing was paraphrased from documentation. Where I do quote a number that came from `dbstat`, I say so and then re-derive it from the raw bytes to make sure the math closes.
 
