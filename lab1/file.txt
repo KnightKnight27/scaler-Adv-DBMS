@@ -1,0 +1,3 @@
+Hello, this is a sample file for Lab 1.
+It demonstrates file I/O using Linux system calls.
+This line was appended using the write() system call.
