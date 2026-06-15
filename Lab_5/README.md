@@ -1,160 +1,86 @@
-# Lab 5: Red-Black Tree Implementation
+<div align="center">
 
-**Author:** Siddhant Prasad  
-**Roll Number:** 24BCS10255
+# 🧮 Lab Session 5: Shunting-Yard Algorithm + Minimal SQL SELECT Parser over `vector<Row>`
+### Implementing Infix Expression Evaluators & In-Memory Relational Query Engines
 
----
+[![C++](https://img.shields.io/badge/C++-00599C?style=for-the-badge&logo=cplusplus&logoColor=white)](https://isocpp.org/)
+[![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://www.kernel.org/)
 
-## 🎯 Aim
-To implement and analyze a Red-Black Tree, a self-balancing binary search tree, and study the balancing mechanisms (rotations and recoloring) that preserve the tree's depth properties after node updates.
-
----
-
-## 📚 Red-Black Tree Properties
-A Red-Black Tree is a binary search tree where each node has a color attribute (either `RED` or `BLACK`). To ensure the tree remains approximately balanced (height is bounded by $2 \log_2(n + 1)$), the structure must satisfy the following **five invariants**:
-
-1. **Node Color**: Every node is colored either red or black.
-2. **Root Rule**: The root of the tree is always black.
-3. **Leaf Rule**: All leaf nodes (represented by the sentinel node `TNULL` or `NIL`) are black.
-4. **Red Node Constraint**: If a node is red, both of its children must be black. (No two consecutive red nodes are allowed on any path).
-5. **Black Height Rule**: For each node, all simple paths from the node to descendant leaves contain the same number of black nodes.
+</div>
 
 ---
 
-## ⚙️ Balancing Scenarios (Fixing Double-Red Conflicts)
-
-When inserting a new node `K`:
-- `K` is inserted as a standard BST leaf and initially colored **RED**.
-- If `K`'s parent is **RED**, it violates Rule 4 (Consecutive Red Nodes). We look at the color of `K`'s **Uncle** (`U`):
-
-### Case 1: Uncle `U` is RED
-- **Action**: Recolor parent and uncle to `BLACK`, and grandparent to `RED`.
-- Set `K` to grandparent and repeat properties check upward.
-- *No rotations are required in this phase.*
-
-### Case 2: Uncle `U` is BLACK (Triangle Configuration)
-- **Action**: If `K` is an inner child (e.g. right child of left parent), perform a rotation about `K`'s parent to align them into a line (converting it into Case 3).
-
-### Case 3: Uncle `U` is BLACK (Line Configuration)
-- **Action**: Recolor parent to `BLACK`, grandparent to `RED`, and perform a single rotation about the grandparent to restore black height balance.
+## 👨‍🎓 Student Details
+- **Name:** Siddhant Prasad
+- **Roll Number:** 24BCS10255
 
 ---
 
-## 💻 Class Design & Method Loggers
-- **`leftRotate(x)` & `rightRotate(y)`**: Rotates subtrees about designated nodes, adjusting pointers and printing rotation logs to show structural corrections.
-- **`fixInsert(k)`**: Evaluates Cases 1, 2, and 3, resetting parent-child connections and recoloring nodes.
-- **`insert(key)`**: Places nodes using classic BST insertion rules, sets color to `RED`, and fires balancing steps if parent is `RED`.
-- **`search(key)`**: Traverses from root to target, printing each node visited to display search paths and logging comparison performance.
-- **`inorder()`**: Recursively prints keys and node colors in ascending order.
+## 🎯 Objective
+1. Implement Dijkstra's Shunting-Yard algorithm to parse and evaluate infix arithmetic and boolean expressions (essential for SQL WHERE clause evaluation).
+2. Build a minimal SQL parser that processes `SELECT` queries (including columns, `WHERE`, `ORDER BY`, and `LIMIT` clauses) and executes them against an in-memory `vector<Row>` dataset.
 
 ---
 
-## 🛠️ Compilation and Execution
+## 📚 Part 1: Shunting-Yard Expression Evaluator
 
-### Compilation
-Build using a standard C++ compiler supporting standard features:
+SQL WHERE clauses contain infix boolean expressions such as:
+$$\text{age} \times 2 + \text{salary} / 1000 > 100$$
+To evaluate this efficiently, Dijkstra's **Shunting-Yard algorithm** converts the expression from infix notation (operator between operands) to postfix notation (Reverse Polish Notation or RPN, operator after operands). Postfix expressions can then be evaluated in linear time $O(n)$ using a single value stack without needing recursive descent.
+
+### Operator Precedence Rules
+Precedence levels dictate the parsing order:
+- High precedence: exponentiation (`^`), multiplication/division (`*`, `/`).
+- Mid precedence: addition/subtraction (`+`, `-`), comparison operators (`<`, `>`, `=`, `!=`).
+- Low precedence: logical operators (`&&`, `||`).
+
+---
+
+## 💻 Part 2: Minimal SQL SELECT Parser over `vector<Row>`
+
+We define a minimal relational engine in C++:
+1. **Row & Value Representation**: A row is modeled as a hash map mapping column names to dynamic `Value` variants (`std::variant<double, std::string>`).
+2. **Parser**: A case-insensitive tokenizer parses incoming SQL strings into an Abstract Syntax Tree structure (`SelectQuery`).
+3. **Execution Plan**:
+   - **Filter**: Iterate over the dataset and evaluate the parsed `WHERE` expression using the Shunting-Yard evaluator.
+   - **Project**: Select only the columns specified in the `SELECT` clause (or all if `*` is specified).
+   - **Sort**: Reorder matching rows based on the `ORDER BY` column (ascending or descending).
+   - **Truncate**: Restrict the number of returned rows based on the `LIMIT` value.
+
+### File Location
+The code is written to [sql_parser.cpp](file:///c:/Users/Siddhant/OneDrive/Desktop/scaler-Adv-DBMS/Lab_5/sql_parser.cpp).
+
+### Compile and Run
 ```bash
-g++ -std=c++17 red_black_tree.cpp -o red_black_tree
-```
-
-### Execution
-Run the compiled executable:
-```bash
-./red_black_tree
+g++ -std=c++17 sql_parser.cpp -o sql_parser
+./sql_parser
 ```
 
 ---
 
-## 📊 Sample Execution Log & Verification
+## 🗺️ How the Pieces Connect in a Real Database
 
-Below is the execution output representing initialization, insertion steps, balancing rotations, and sorted traversal verification:
-
-```text
-===================================================
-  Lab 5: Red-Black Tree Implementation & Balancing 
-===================================================
-[INIT] Empty Red-Black Tree initialized with black leaf sentinel (TNULL).
-
------------------- TREE STRUCTURE ------------------
-Empty Tree
-----------------------------------------------------
-
-
-[INSERT START] Request to insert Key: 10
- -> Key: 10 inserted as root node.
- -> Root node recolored to BLACK.
-
------------------- TREE STRUCTURE ------------------
-R----10(BLACK)
-----------------------------------------------------
-
-
-[INSERT START] Request to insert Key: 20
- -> Key: 20 placed as right child of Node (10).
-
------------------- TREE STRUCTURE ------------------
-R----10(BLACK)
-   R----20(RED)
-----------------------------------------------------
-
-
-[INSERT START] Request to insert Key: 30
- -> Key: 30 placed as right child of Node (20).
-[BALANCING] Case 3 (Line, Uncle BLACK): Outer child. Recoloring Parent (20) to BLACK, Grandparent (10) to RED.
-[ROTATION] Left rotating about Node (10)
-
------------------- TREE STRUCTURE ------------------
-R----20(BLACK)
-   L----10(RED)
-   R----30(RED)
-----------------------------------------------------
-
-
-[INSERT START] Request to insert Key: 15
- -> Key: 15 placed as left child of Node (20).
-[BALANCING] Case 1 (Uncle RED): Recoloring Node (10) and Node (30) to BLACK, and Grandparent (20) to RED
-
------------------- TREE STRUCTURE ------------------
-R----20(BLACK)
-   L----10(BLACK)
-      R----15(RED)
-   R----30(BLACK)
-----------------------------------------------------
-
-
-[INSERT START] Request to insert Key: 25
- -> Key: 25 placed as left child of Node (30).
-
------------------- TREE STRUCTURE ------------------
-R----20(BLACK)
-   L----10(BLACK)
-      R----15(RED)
-   R----30(BLACK)
-      L----25(RED)
-----------------------------------------------------
-
-
-[SEARCH] Searching for Key: 15
- Path: Node(20) -> Node(10) -> Node(15) -> FOUND!
- -> Searches took 3 comparison(s).
-
-[SEARCH] Searching for Key: 99
- Path: Node(20) -> Node(30) -> TNULL (NOT FOUND)
- -> Search failed after 3 comparison(s).
-
-[TRAVERSAL] Inorder Traversal:
- 10 (BLACK)  15 (RED)  20 (BLACK)  25 (RED)  30 (BLACK)  
-
-===================================================
-  Lab 5 execution completed successfully!          
-===================================================
+```mermaid
+graph TD
+    A["SQL Query String (SELECT id, name FROM students WHERE gpa > 3.0)"] --> B["Lexer / Tokenizer (Extracts words, identifiers, operators)"]
+    B --> C["Parser (Builds SelectQuery AST)"]
+    C --> D{Query Planner}
+    D -- Index Scan --> E[Index Access Path]
+    D -- Seq Scan --> F[Sequential Scan Access Path]
+    E --> G[Storage Engine (Reads pages from disk)]
+    F --> G
+    G --> H["Executor (Iterates rows, projects columns, filters via Shunting-Yard RPN)"]
+    H --> I[Result Set Output]
 ```
+
+- **Expression Trees**: In production systems (like PostgreSQL), the planner compiles WHERE clauses into optimized expression execution trees during planning, rather than re-parsing strings for every processed row. The Shunting-Yard algorithm operates similarly to build these expression trees.
+- **Buffer Pool Interaction**: The `vector<Row>` processed in this lab represents the records fetched from disk pages (analyzed in Labs 2 and 3).
+- **Sort nodes**: `ORDER BY` operations map to sorting nodes in the physical query execution plan.
 
 ---
 
-## 🏁 Conclusion
-The Red-Black Tree was successfully implemented and verified. The results demonstrate that:
-1. BST insertion rules successfully place keys in sorted relative order.
-2. Case 1, 2, and 3 triggers correctly rebalance the tree through localized recoloring and subtree rotations.
-3. Inorder traversal verifies the sorted BST sequencing.
-4. Red-Black trees maintain balanced structures (guaranteeing $O(\log n)$ search time) compared to skewed binary trees.
+## 🏁 Key Takeaways
+- **Stack-based Evaluation**: The Shunting-Yard algorithm parses infix expressions into RPN in $O(n)$ time using an operator stack, avoiding complex recursive parsing.
+- **Precedence & Associativity**: Operator precedence and associativity (e.g., right-associativity for exponentiation `^`) determine the exact ordering of RPN outputs.
+- **Relational Operations**: A minimal SQL executor consists of four pipeline stages: Filtering (`WHERE`), Projection (`SELECT` fields), Sorting (`ORDER BY`), and Truncation (`LIMIT`).
+- **Dynamic Typing**: Storing database values as `std::variant` allows C++ to handle numeric and string types safely in memory.
