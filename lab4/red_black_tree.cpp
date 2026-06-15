@@ -44,6 +44,13 @@ public:
         delete nil_;
     }
 
+    // The tree owns raw nodes, so copying it would shallow copy the pointers and
+    // double free them. Disable copy and move; callers pass the tree by reference.
+    RedBlackTree(const RedBlackTree&) = delete;
+    RedBlackTree& operator=(const RedBlackTree&) = delete;
+    RedBlackTree(RedBlackTree&&) = delete;
+    RedBlackTree& operator=(RedBlackTree&&) = delete;
+
     void insert(int key) {
         Node* node = new Node{key, Color::Red, nil_, nil_, nil_};
 
@@ -300,8 +307,9 @@ int main() {
 
     std::cout << "inorder (key + color): ";
     tree.print();
-    std::cout << "valid? " << (tree.validate() != -1 ? "yes" : "no")
-              << "  (black height = " << tree.validate() << ")\n\n";
+    int black_height = tree.validate();
+    std::cout << "valid? " << (black_height != -1 ? "yes" : "no")
+              << "  (black height = " << black_height << ")\n\n";
 
     for (int key : {20, 10, 35}) {
         tree.remove(key);

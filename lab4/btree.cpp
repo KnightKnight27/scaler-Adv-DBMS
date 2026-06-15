@@ -42,6 +42,13 @@ public:
     BTree() : root_(new BNode(true)) {}
     ~BTree() { destroy(root_); }
 
+    // The tree owns its nodes, so a shallow copy would double free them. Disable
+    // copy and move; the tree is meant to be used in place.
+    BTree(const BTree&) = delete;
+    BTree& operator=(const BTree&) = delete;
+    BTree(BTree&&) = delete;
+    BTree& operator=(BTree&&) = delete;
+
     void insert(int key) {
         if (root_->full()) {
             // Grow upward: a fresh root adopts the old one, then we split it.
