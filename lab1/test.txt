@@ -1,0 +1,3 @@
+hello from lab 1
+this file is read line by line
+tracing reveals the syscalls
