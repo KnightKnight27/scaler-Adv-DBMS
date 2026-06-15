@@ -1,0 +1,29 @@
+# C/C++
+*.o
+*.out
+*.exe
+
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven
+.mvn/
+dependency-reduced-pom.xml
+
+# IntelliJ
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
