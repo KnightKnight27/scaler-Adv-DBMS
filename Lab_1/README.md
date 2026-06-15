@@ -1,9 +1,9 @@
 <div align="center">
 
-# 📁 Linux File Handling Using System Calls
-### C Programming with Low-Level Kernel Interfaces
+# 📁 Lab Session 1: File I/O in C++ — Kernel Journey via strace
+### Deep Dive from C++ Streams to Linux Kernel System Calls
 
-[![C](https://img.shields.io/badge/C-00599C?style=for-the-badge&logo=c&logoColor=white)](https://en.cppreference.com/w/c)
+[![C++](https://img.shields.io/badge/C++-00599C?style=for-the-badge&logo=cplusplus&logoColor=white)](https://isocpp.org/)
 [![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://www.kernel.org/)
 
 </div>
@@ -16,61 +16,126 @@
 
 ---
 
-## 🎯 Aim
-To perform file input and output operations using low-level Linux system calls in C.
+## 🎯 Objective
+Understand what happens under the hood when a C++ program opens and reads a file: from the standard library stream layer down to the Virtual Filesystem (VFS), inodes, system call tracing, and kernel interactions.
 
 ---
 
-## 🔍 Description
-This experiment demonstrates the use of Linux system calls for file handling. Unlike standard C library functions such as `fopen()`, `fread()`, and `fwrite()`, system calls interact directly with the operating system kernel. This provides low-level control over file operations, memory allocation, and OS-specific performance tuning.
+## 🛠️ Step-by-Step Walkthrough
 
-### Program Workflow
-1. **Setup**: If `file.txt` does not exist, the program pre-creates it using `open()` with `O_CREAT` and writes some initial test data to it.
-2. **Open File (Read Mode)**: Opens `file.txt` in read-only mode (`O_RDONLY`), obtaining a unique non-negative integer known as a **File Descriptor (fd)** from the operating system.
-3. **Read File**: Reads up to `512` bytes from the file descriptor into a local memory buffer and displays the contents on the terminal alongside the count of bytes successfully read.
-4. **Close File**: Closes the file descriptor to free up kernel resources.
-5. **Open File (Append Mode)**: Reopens `file.txt` in write-only and append mode (`O_WRONLY | O_APPEND`), ensuring existing file contents are not overwritten.
-6. **Write File**: Appends a completion message to the file and displays the count of written bytes.
-7. **Close File**: Closes the file descriptor again for proper system cleanup.
-8. **Error Handling**: Monitors the return values of all system calls and reports errors using `perror()` if they occur (returning `-1` is typical of a system call failure).
+### 1. Write a simple C++ file reader
+We write a standard C++ reader utilizing `std::ifstream` to read content line by line.
+
+Code implementation in [reader.cpp](file:///c:/Users/Siddhant/OneDrive/Desktop/scaler-Adv-DBMS/Lab_1/reader.cpp):
+```cpp
+#include <iostream>
+#include <fstream>
+#include <string>
+
+int main() {
+    std::ifstream file("test.txt");
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file\n";
+        return 1;
+    }
+    std::string line;
+    while (std::getline(file, line)) {
+        std::cout << line << "\n";
+    }
+    return 0;
+}
+```
+
+#### Compile and Create a Test File
+Create the test file `test.txt` and compile the program:
+```bash
+echo "hello from lab 1" > test.txt
+g++ -std=c++17 -O2 reader.cpp -o reader
+```
 
 ---
 
-## ⚙️ System Calls Used
+### 2. Trace with `strace`
+To intercept the system call boundary between user-space and kernel-space, run `strace` filtering the critical file-related system calls:
+```bash
+strace -e trace=openat,read,close,fstat,mmap ./reader
+```
 
-| System Call | Purpose | Key Arguments | Return Value (Success / Fail) |
+#### Key System Calls Observed
+| Syscall | Purpose | Key Parameters | Return Value (Success / Fail) |
 | :--- | :--- | :--- | :--- |
-| `open()` | Opens/creates a file | `path`, `flags` (e.g., `O_RDONLY`, `O_WRONLY`, `O_APPEND`, `O_CREAT`), `mode` | File Descriptor `(>= 0)` / `-1` |
-| `read()` | Reads bytes from a file descriptor | `fd`, `buf`, `count` | Bytes read `(> 0)`, EOF `(0)` / `-1` |
-| `write()` | Writes bytes to a file descriptor | `fd`, `buf`, `count` | Bytes written `(>= 0)` / `-1` |
-| `close()` | Closes a file descriptor | `fd` | `0` / `-1` |
+| `openat()` | Opens the target file relative to a directory fd | `dirfd`, `pathname`, `flags` | File Descriptor `(>= 0)` / `-1` |
+| `fstat()` | Fetches inode metadata (size, permissions, links) | `fd`, `statbuf` | `0` / `-1` |
+| `read()` | Reads bytes from the fd into a user-space buffer | `fd`, `buf`, `count` | Bytes read `(> 0)`, EOF `(0)` / `-1` |
+| `mmap()` | Maps files/devices into process memory space | `addr`, `len`, `prot`, `flags`, `fd` | Mapped address / `MAP_FAILED` |
+| `close()` | Closes the file descriptor, decrementing inode ref count | `fd` | `0` / `-1` |
 
----
-
-## 🛠️ Compilation and Execution
-
-### Prerequisites
-A Linux environment (or Windows Subsystem for Linux - WSL) with `gcc` installed.
-
-### Build and Run
-Compile the code using `gcc`:
-```bash
-gcc -Wall file_syscalls.c -o file_syscalls
-```
-
-Execute the binary:
-```bash
-./file_syscalls
+#### Full Trace (Condensed Example)
+```text
+openat(AT_FDCWD, "test.txt", O_RDONLY) = 3
+fstat(3, {st_mode=S_IFREG|0644, st_size=18, ...}) = 0
+read(3, "hello from lab 1\n", 4096)    = 18
+read(3, "", 4096)                       = 0    # EOF
+close(3)                                = 0
 ```
 
 ---
 
-## 📝 Key Observations
-- **File Descriptors**: Every open file is tracked by the kernel with a unique integer index (e.g., `3` or `4`, since `0` is stdin, `1` is stdout, and `2` is stderr).
-- **Direct Kernel Mode**: File buffers are directly copied from disk block caches to user-space buffers without passing through standard I/O library caches (`stdio.h`'s internal buffering).
-- **Safety**: Robust check on system call returns (checking for `-1`) prevents program execution from continuing with stale or invalid file descriptors, which could crash the shell or cause memory leaks.
+### 3. The Inode Journey
+When `openat` is invoked, the kernel performs the following sequence:
+1. **Path Resolution**: Walks the directory tree component by component starting from the current working directory (`AT_FDCWD`).
+2. **Inode Lookup**: Each directory entry maps a filename to an **inode number**. The kernel fetches the inode from disk/memory structures via the Virtual Filesystem (VFS).
+3. **Permission Check**: Compares the process's effective UID/GID against the inode's permissions (`st_uid`, `st_gid`, `st_mode`).
+4. **File Descriptor Allocation**: Allocates an integer index (e.g., `3`) in the process's private open-file table pointing to a kernel-level `struct file`. This structure holds the current read/write offset and points to the inode.
+
+To query the inode number and status of a file:
+```bash
+ls -i test.txt
+# e.g.: 1234567 test.txt
+
+stat test.txt
+# Output details: Inode: 1234567, Links: 1, Size: 18, Blocks: 8
+```
 
 ---
 
-## 🏁 Conclusion
-Through this lab, we successfully demonstrated low-level file I/O operations using Linux system calls. We established a firm understanding of file descriptors, kernel-level file operations, robust error checking using `perror`, and the performance differences between low-level system calls (`open`, `read`, `write`, `close`) and their buffered standard library counterparts.
+### 4. Kernel Layers Involved
+
+```mermaid
+graph TD
+    A[C++ std::ifstream] --> B[fread / libc]
+    B --> C["read() / openat() syscall"]
+    subgraph Kernel Space
+        C --> D[VFS - Virtual Filesystem Switch]
+        D --> E[Filesystem Driver - ext4 / btrfs]
+        E --> F{Page Cache Hit?}
+        F -- Yes --> G[Return data from RAM]
+        F -- No --> H[Block Device Driver]
+        H --> I[Physical Disk SSD/HDD]
+    )
+```
+
+- **Page Cache**: Repeated reads of the same file avoid disk access entirely, serving data directly from RAM.
+- **Inode Cache (icache)**: Inode metadata lookups for `fstat` are extremely fast as the kernel caches hot inodes in memory.
+
+---
+
+### 5. Verification with `/proc`
+To inspect active file descriptors at runtime:
+1. Add a brief pause/sleep inside the program.
+2. Check the active directory of descriptors:
+   ```bash
+   ls -l /proc/<PID>/fd
+   ```
+3. Show the inode backing descriptor 3:
+   ```bash
+   stat /proc/<PID>/fd/3
+   ```
+
+---
+
+## 📝 Key Takeaways
+- Every `std::ifstream` open ultimately delegates to the low-level `openat` system call.
+- The **File Descriptor** is a process-specific integer handle, whereas the **Inode** is the kernel's persistent, canonical representation of the physical file.
+- Tools like `strace` expose the exact boundary between user-space libraries and kernel-space execution.
+- The **Page Cache** absorbs repeated reads, ensuring only cold reads or dirty write flushes hit physical storage.
