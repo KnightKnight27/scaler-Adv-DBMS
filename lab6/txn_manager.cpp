@@ -8,7 +8,10 @@
 //                 transaction that made it (xmin) and, once superseded, the
 //                 transaction that retired it (xmax). A reader walks the version
 //                 chain and keeps the first version visible to its snapshot, so
-//                 readers never block writers and never see uncommitted data.
+//                 it always sees a stable point in time view and never reads
+//                 uncommitted data. Note that pure MVCC would let reads run lock
+//                 free; here a read still takes a shared 2PL lock (see read()),
+//                 so a reader can still block a writer.
 //
 //   Strict 2PL    A transaction acquires shared or exclusive locks while it runs
 //                 (the growing phase) and releases them all at once on commit or
