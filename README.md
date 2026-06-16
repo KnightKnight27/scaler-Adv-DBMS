@@ -1,4 +1,4 @@
-# scaler-Adv-DBMS Lab
+# scaler-Adv-DBMS Lab Session 2
 
 ## 1. SQLite Exploration
 
