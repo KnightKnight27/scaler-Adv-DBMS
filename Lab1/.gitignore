@@ -1,0 +1,4 @@
+reader
+*.o
+*.out
+.DS_Store
