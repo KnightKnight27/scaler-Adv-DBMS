@@ -1,0 +1,5 @@
+build/
+*.o
+*.out
+txn_store_lab
+.DS_Store
