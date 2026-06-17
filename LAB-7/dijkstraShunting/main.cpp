@@ -78,31 +78,31 @@ std::vector<std::string> tokenize(const std::string &query) {
 
     // Identifier or logical operator
     if (std::isalpha(static_cast<unsigned char>(query[i]))) {
-      std::string current;
+      std::string lexeme;
       while (i < n && (std::isalnum(static_cast<unsigned char>(query[i])) ||
                        query[i] == '_')) {
-        current += query[i];
+        lexeme += query[i];
         i++;
       }
       // Check for logical operators in case-insensitive manner, converting to
       // uppercase
-      std::string upperStr = current;
-      std::transform(upperStr.begin(), upperStr.end(), upperStr.begin(),
+      std::string normalized = lexeme;
+      std::transform(normalized.begin(), normalized.end(), normalized.begin(),
                      [](unsigned char c) { return std::toupper(c); });
-      if (upperStr == "AND" || upperStr == "OR") {
-        tokens.push_back(upperStr);
+      if (normalized == "AND" || normalized == "OR") {
+        tokens.push_back(normalized);
       } else {
-        tokens.push_back(current);
+        tokens.push_back(lexeme);
       }
     }
     // Numeric literals
     else if (std::isdigit(static_cast<unsigned char>(query[i]))) {
-      std::string current;
+      std::string lexeme;
       while (i < n && std::isdigit(static_cast<unsigned char>(query[i]))) {
-        current += query[i];
+        lexeme += query[i];
         i++;
       }
-      tokens.push_back(current);
+      tokens.push_back(lexeme);
     }
     // Two-character operators: >=, <=
     else if ((query[i] == '>' || query[i] == '<') && i + 1 < n &&
@@ -130,43 +130,43 @@ std::vector<std::string> tokenize(const std::string &query) {
  * @return std::vector<std::string> Postfix tokens.
  */
 std::vector<std::string> toPostfix(const std::vector<std::string> &tokens) {
-  std::vector<std::string> postfix;
-  std::stack<std::string> operatorStack;
+  std::vector<std::string> rpnOutput;
+  std::stack<std::string> opStack;
 
   for (const auto &token : tokens) {
     if (token == "(") {
-      operatorStack.push(token);
+      opStack.push(token);
     } else if (token == ")") {
-      while (!operatorStack.empty() && operatorStack.top() != "(") {
-        postfix.push_back(operatorStack.top());
-        operatorStack.pop();
+      while (!opStack.empty() && opStack.top() != "(") {
+        rpnOutput.push_back(opStack.top());
+        opStack.pop();
       }
-      if (operatorStack.empty()) {
+      if (opStack.empty()) {
         throw std::runtime_error("Mismatched parentheses: missing '('");
       }
-      operatorStack.pop(); // Pop the '('
+      opStack.pop(); // Pop the '('
     } else if (getOperatorPrecedence(token) > 0) {
-      while (!operatorStack.empty() && operatorStack.top() != "(" &&
-             getOperatorPrecedence(operatorStack.top()) >=
+      while (!opStack.empty() && opStack.top() != "(" &&
+             getOperatorPrecedence(opStack.top()) >=
                  getOperatorPrecedence(token)) {
-        postfix.push_back(operatorStack.top());
-        operatorStack.pop();
+        rpnOutput.push_back(opStack.top());
+        opStack.pop();
       }
-      operatorStack.push(token);
+      opStack.push(token);
     } else {
-      postfix.push_back(token);
+      rpnOutput.push_back(token);
     }
   }
 
-  while (!operatorStack.empty()) {
-    if (operatorStack.top() == "(") {
+  while (!opStack.empty()) {
+    if (opStack.top() == "(") {
       throw std::runtime_error("Mismatched parentheses: missing ')'");
     }
-    postfix.push_back(operatorStack.top());
-    operatorStack.pop();
+    rpnOutput.push_back(opStack.top());
+    opStack.pop();
   }
 
-  return postfix;
+  return rpnOutput;
 }
 
 /**
@@ -193,54 +193,54 @@ int getFieldValue(const std::string &field, const Employee &employee) {
  */
 bool evaluatePostfix(const std::vector<std::string> &postfix,
                      const Employee &employee) {
-  std::stack<int> valStack;
+  std::stack<int> operandStack;
 
   for (const auto &token : postfix) {
     if (getOperatorPrecedence(token) == 0) {
       if (isNumber(token)) {
-        valStack.push(std::stoi(token));
+        operandStack.push(std::stoi(token));
       } else {
-        valStack.push(getFieldValue(token, employee));
+        operandStack.push(getFieldValue(token, employee));
       }
       continue;
     }
 
-    if (valStack.size() < 2) {
+    if (operandStack.size() < 2) {
       throw std::runtime_error(
           "Malformed postfix expression: insufficient operands for operator '" +
           token + "'");
     }
 
-    int operandB = valStack.top();
-    valStack.pop();
-    int operandA = valStack.top();
-    valStack.pop();
+    int rightVal = operandStack.top();
+    operandStack.pop();
+    int leftVal = operandStack.top();
+    operandStack.pop();
 
     if (token == ">") {
-      valStack.push(operandA > operandB);
+      operandStack.push(leftVal > rightVal);
     } else if (token == "<") {
-      valStack.push(operandA < operandB);
+      operandStack.push(leftVal < rightVal);
     } else if (token == ">=") {
-      valStack.push(operandA >= operandB);
+      operandStack.push(leftVal >= rightVal);
     } else if (token == "<=") {
-      valStack.push(operandA <= operandB);
+      operandStack.push(leftVal <= rightVal);
     } else if (token == "=") {
-      valStack.push(operandA == operandB);
+      operandStack.push(leftVal == rightVal);
     } else if (token == "AND") {
-      valStack.push(operandA && operandB);
+      operandStack.push(leftVal && rightVal);
     } else if (token == "OR") {
-      valStack.push(operandA || operandB);
+      operandStack.push(leftVal || rightVal);
     } else {
       throw std::runtime_error("Unsupported operator: '" + token + "'");
     }
   }
 
-  if (valStack.size() != 1) {
+  if (operandStack.size() != 1) {
     throw std::runtime_error(
         "Malformed postfix expression: extra operands left on stack");
   }
 
-  return valStack.top();
+  return operandStack.top();
 }
 
 int main() {

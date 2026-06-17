@@ -104,7 +104,7 @@ struct ParsedQuery {
  */
 struct Parser {
   std::vector<Token> tokens;
-  size_t position = 0;
+  size_t cursor = 0;
 
   explicit Parser(std::vector<Token> t) : tokens(std::move(t)) {}
 
@@ -119,20 +119,20 @@ struct Parser {
 
   /**
    * @brief Consumes and returns the current token, advancing the parser
-   * position.
+   * cursor.
    */
   std::string eat() {
-    if (position >= tokens.size()) {
+    if (cursor >= tokens.size()) {
       throw std::runtime_error("Unexpected end of tokens in query parser");
     }
-    return tokens[position++].text;
+    return tokens[cursor++].text;
   }
 
   /**
    * @brief Parses a base comparison condition (e.g., id >= 3).
    */
   std::unique_ptr<Node> parseCondition() {
-    if (position + 2 >= tokens.size()) {
+    if (cursor + 2 >= tokens.size()) {
       throw std::runtime_error("Malformed WHERE condition expression");
     }
     std::string col = eat();
@@ -151,47 +151,47 @@ struct Parser {
    * operators (OR).
    */
   std::unique_ptr<Node> parseExpression() {
-    std::unique_ptr<Node> cur;
+    std::unique_ptr<Node> curNode;
 
-    if (position >= tokens.size()) {
+    if (cursor >= tokens.size()) {
       throw std::runtime_error("Expected expression condition in WHERE clause");
     }
 
-    if (tokens[position].text == "(") {
+    if (tokens[cursor].text == "(") {
       eat(); // eat "("
-      cur = parseExpression();
-      if (position >= tokens.size() || tokens[position].text != ")") {
+      curNode = parseExpression();
+      if (cursor >= tokens.size() || tokens[cursor].text != ")") {
         throw std::runtime_error("Mismatched parenthesis: expected ')'");
       }
       eat(); // eat ")"
     } else {
-      cur = parseCondition();
+      curNode = parseCondition();
     }
 
-    while (position < tokens.size() &&
-           toUppercase(tokens[position].text) == "OR") {
+    while (cursor < tokens.size() &&
+           toUppercase(tokens[cursor].text) == "OR") {
       eat(); // eat "OR"
 
-      std::unique_ptr<Node> rhs;
-      if (position < tokens.size() && tokens[position].text == "(") {
+      std::unique_ptr<Node> rightExpr;
+      if (cursor < tokens.size() && tokens[cursor].text == "(") {
         eat(); // eat "("
-        rhs = parseExpression();
-        if (position >= tokens.size() || tokens[position].text != ")") {
+        rightExpr = parseExpression();
+        if (cursor >= tokens.size() || tokens[cursor].text != ")") {
           throw std::runtime_error("Mismatched parenthesis: expected ')'");
         }
         eat(); // eat ")"
       } else {
-        rhs = parseCondition();
+        rightExpr = parseCondition();
       }
 
-      auto parent = std::make_unique<Node>();
-      parent->op = "OR";
-      parent->l = std::move(cur);
-      parent->r = std::move(rhs);
-      cur = std::move(parent);
+      auto combinedNode = std::make_unique<Node>();
+      combinedNode->op = "OR";
+      combinedNode->l = std::move(curNode);
+      combinedNode->r = std::move(rightExpr);
+      curNode = std::move(combinedNode);
     }
 
-    return cur;
+    return curNode;
   }
 
   /**
@@ -237,26 +237,26 @@ bool evaluate(const Node *node, const Employee &employee) {
            evaluate(node->r.get(), employee);
   }
 
-  int fieldValue = 0;
+  int colValue = 0;
   if (node->col == "id") {
-    fieldValue = employee.id;
+    colValue = employee.id;
   } else if (node->col == "age") {
-    fieldValue = employee.age;
+    colValue = employee.age;
   } else {
     throw std::runtime_error("Unknown column in condition: '" + node->col +
                              "'");
   }
 
   if (node->op == ">")
-    return fieldValue > node->val;
+    return colValue > node->val;
   if (node->op == "<")
-    return fieldValue < node->val;
+    return colValue < node->val;
   if (node->op == ">=")
-    return fieldValue >= node->val;
+    return colValue >= node->val;
   if (node->op == "<=")
-    return fieldValue <= node->val;
+    return colValue <= node->val;
   if (node->op == "=")
-    return fieldValue == node->val;
+    return colValue == node->val;
 
   throw std::runtime_error("Unsupported comparison operator: '" + node->op +
                            "'");
@@ -272,10 +272,10 @@ int main() {
         {"Pushkar Desai", 1, 19}, {"Rama", 2, 20},   {"Karan", 3, 19},
         {"Sneha", 4, 21},         {"Vivaan", 5, 20}, {"Ishaan", 6, 31}};
 
-    std::string queryText =
+    std::string sqlQuery =
         "SELECT name FROM employees WHERE id >= 3 OR age < 20";
 
-    auto tokens = tokenize(queryText);
+    auto tokens = tokenize(sqlQuery);
     Parser parser(tokens);
     auto query = parser.parseQuery();
 
