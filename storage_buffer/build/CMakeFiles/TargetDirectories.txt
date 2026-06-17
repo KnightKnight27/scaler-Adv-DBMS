@@ -1,0 +1,3 @@
+/Users/tanmaymittal/scaler-Adv-DBMS/storage_buffer/build/CMakeFiles/db_engine.dir
+/Users/tanmaymittal/scaler-Adv-DBMS/storage_buffer/build/CMakeFiles/edit_cache.dir
+/Users/tanmaymittal/scaler-Adv-DBMS/storage_buffer/build/CMakeFiles/rebuild_cache.dir
