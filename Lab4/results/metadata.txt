@@ -1,0 +1,43 @@
+============================================================
+ TASK 2 — DATABASE METADATA
+============================================================
+
+--- sqlite3 .dbinfo ---
+error: no such table: sqlite_dbpage
+(.dbinfo unsupported on this SQLite build — using PRAGMAs below instead)
+
+--- PRAGMA encoding / schema_version / freelist_count / application_id ---
+UTF-8
+1
+0
+0
+
+--- PRAGMA page_size  ---
+4096
+
+--- PRAGMA page_count ---
+2
+
+--- Schema (.schema) ---
+CREATE TABLE students (
+    id    INTEGER PRIMARY KEY,
+    name  TEXT NOT NULL,
+    grade TEXT,
+    marks INTEGER
+);
+
+--- sqlite_master contents ---
+type   name      tbl_name  rootpage  sql                           
+-----  --------  --------  --------  ------------------------------
+table  students  students  2         CREATE TABLE students (       
+                                         id    INTEGER PRIMARY KEY,
+                                         name  TEXT NOT NULL,      
+                                         grade TEXT,               
+                                         marks INTEGER             
+                                     )                             
+
+--- Record count ---
+10
+
+--- File size on disk ---
+students.db  8192 bytes
