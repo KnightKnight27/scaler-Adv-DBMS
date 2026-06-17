@@ -98,6 +98,8 @@ Result of: SELECT name FROM students WHERE ...
   Meera
 ```
 
+![output](../output.png)
+
 Diya (id 2, marks 91) and Meera (id 4, marks 88) both clear the bar. Sneha
 has 95 marks but `id = 6` is excluded by `id < 6`, which is exactly the kind
 of thing the AND node is supposed to enforce.
