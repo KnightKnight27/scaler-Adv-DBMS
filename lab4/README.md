@@ -1,15 +1,15 @@
 <!-- ============================================================ -->
 <!-- SUBMISSION CHECKPOINT                                        -->
-<!--   Name     : Abdul Kalam Azad                               -->
-<!--   Roll No. : 24BCS10053  (folder id: 10053)                 -->
+<!--   Name     : Jinesh Gandhi                               -->
+<!--   Roll No. : 24BCS10072  (folder id: 10072)                 -->
 <!--   Lab      : Lab 4 - SQLite Hex Dump Exploration            -->
 <!-- ============================================================ -->
 
 # Lab 4: SQLite Hex Dump Exploration
 
-**Author:** Abdul Kalam Azad
-**Roll No.:** 24BCS10053
-**Folder:** `Lab4/10053-AbdulKalam/`
+**Author:** Jinesh Gandhi
+**Roll No.:** 24BCS10072
+**Folder:** `Lab4/`
 
 ## 1. Purpose of the Lab
 
@@ -20,14 +20,14 @@ The earlier labs gradually moved from normal file handling to database internals
 - The Clock Sweep lab showed how a DBMS manages pages in memory.
 - This lab connects those ideas by opening a real SQLite database as raw bytes and reading the page and B-tree layout directly.
 
-In this experiment I (Abdul Kalam Azad, 24BCS10053) created a small SQLite database, inserted real rows, dumped the first two pages with `xxd`, and manually followed the bytes for the database header, schema page, table page, cell pointers, and record payloads.
+In this experiment I (Jinesh Gandhi, 24BCS10072) created a small SQLite database, inserted real rows, dumped the first two pages with `xxd`, and manually followed the bytes for the database header, schema page, table page, cell pointers, and record payloads.
 
 ## 2. Files Submitted
 
 The work is in this folder:
 
 ```text
-Lab4/10053-AbdulKalam/
+Lab4/
 ```
 
 Files generated:
@@ -45,7 +45,7 @@ The database file size is 8192 bytes. Since the page size is 4096 bytes, the fil
 
 ## 3. Database Created
 
-I created one table named `students` and inserted five rows. My own row is the first one (roll `10053`, Abdul Kalam Azad).
+I created one table named `students` and inserted five rows. My own row is the first one (roll `10072`, Jinesh Gandhi).
 
 ```sql
 PRAGMA page_size = 4096;
@@ -59,7 +59,7 @@ CREATE TABLE students(
 );
 
 INSERT INTO students(roll_no, name, topic, score) VALUES
-('10053', 'Abdul Kalam Azad', 'SQLite hex navigation', 91),
+('10072', 'Jinesh Gandhi', 'SQLite hex navigation', 91),
 ('10045', 'Aarav Mehta', 'B-tree cells', 84),
 ('10046', 'Nisha Rao', 'Page headers', 88),
 ('10047', 'Kabir Shah', 'Record format', 79),
@@ -237,7 +237,7 @@ The pointers are in key order, so they point to rowid 1, 2, 3, 4, and 5. The act
 
 ## 8. Page 2: Actual Record Bytes
 
-The end of page 2 contains the five row cells. My own record (roll `10053`, Abdul Kalam Azad) is rowid 1 and sits closest to the end of the page:
+The end of page 2 contains the five row cells. My own record (roll `10072`, Jinesh Gandhi) is rowid 1 and sits closest to the end of the page:
 
 ```text
 00001f30: 00 00 00 00 2a 05 06 00 17 21 35 01 31 30 30 34  ....*....!5.1004
@@ -250,7 +250,7 @@ The end of page 2 contains the five row cells. My own record (roll `10053`, Abdu
 00001fa0: 68 65 61 64 65 72 73 58 23 02 06 00 17 23 25 01  headersX#....#%.
 00001fb0: 31 30 30 34 35 41 61 72 61 76 20 4d 65 68 74 61  10045Aarav Mehta
 00001fc0: 42 2d 74 72 65 65 20 63 65 6c 6c 73 54 31 01 06  B-tree cellsT1..
-00001fd0: 00 17 2d 37 01 31 30 30 35 33 41 62 64 75 6c 20  ..-7.10053Abdul 
+00001fd0: 00 17 2d 37 01 31 30 30 35 33 41 62 64 75 6c 20  ..-7.10072Jinesh 
 00001fe0: 4b 61 6c 61 6d 20 41 7a 61 64 53 51 4c 69 74 65  Kalam AzadSQLite
 00001ff0: 20 68 65 78 20 6e 61 76 69 67 61 74 69 6f 6e 5b   hex navigation[
 ```
@@ -273,8 +273,8 @@ Cell interpretation:
 | Rowid key | `01` | rowid = 1 |
 | Record header size | `06` | header is 6 bytes |
 | Serial type 1 | `00` | `id` is stored as NULL in payload because `INTEGER PRIMARY KEY` is the rowid |
-| Serial type 2 | `17` | text length `(0x17 - 13) / 2 = 5`, value `10053` |
-| Serial type 3 | `2d` | text length `(0x2d - 13) / 2 = 16`, value `Abdul Kalam Azad` |
+| Serial type 2 | `17` | text length `(0x17 - 13) / 2 = 5`, value `10072` |
+| Serial type 3 | `2d` | text length `(0x2d - 13) / 2 = 16`, value `Jinesh Gandhi` |
 | Serial type 4 | `37` | text length `(0x37 - 13) / 2 = 21`, value `SQLite hex navigation` |
 | Serial type 5 | `01` | 1-byte integer, value `5b` = 91 |
 
@@ -282,8 +282,8 @@ So the record reconstructed from bytes is:
 
 ```text
 id = 1
-roll_no = 10053
-name = Abdul Kalam Azad
+roll_no = 10072
+name = Jinesh Gandhi
 topic = SQLite hex navigation
 score = 91
 ```
@@ -300,7 +300,7 @@ The last byte of this row is:
 
 | Rowid | Cell file offset | Payload size byte | Visible text in dump | Score byte |
 |---:|---:|---:|---|---:|
-| 1 | `0x1fcd` | `31` | `10053 Abdul Kalam Azad SQLite hex navigation` | `5b` = 91 |
+| 1 | `0x1fcd` | `31` | `10072 Jinesh Gandhi SQLite hex navigation` | `5b` = 91 |
 | 2 | `0x1fa8` | `23` | `10045 Aarav Mehta B-tree cells` | `54` = 84 |
 | 3 | `0x1f85` | `21` | `10046 Nisha Rao Page headers` | `58` = 88 |
 | 4 | `0x1f60` | `23` | `10047 Kabir Shah Record format` | `4f` = 79 |
@@ -326,7 +326,7 @@ Database file
     +-- students table root page
     +-- page type: 0x0d, table leaf B-tree page
     +-- 5 cells
-        +-- rowid 1 at page offset 0x0fcd  (10053 Abdul Kalam Azad)
+        +-- rowid 1 at page offset 0x0fcd  (10072 Jinesh Gandhi)
         +-- rowid 2 at page offset 0x0fa8
         +-- rowid 3 at page offset 0x0f85
         +-- rowid 4 at page offset 0x0f60
@@ -344,9 +344,9 @@ The page header and cell pointer array are also important. They let SQLite find 
 This lab made the B-tree idea more concrete. Page 2 is not just "some data page"; it is a real B-tree node. Since it is a leaf node, it stores row records directly. The schema on page 1 tells SQLite that the `students` table starts at root page 2, and from there the table data can be navigated using the B-tree page header and cell pointers.
 
 <!-- ============================================================ -->
-<!-- END OF SUBMISSION - Abdul Kalam Azad (24BCS10053)           -->
+<!-- END OF SUBMISSION - Jinesh Gandhi (24BCS10072)           -->
 <!-- ============================================================ -->
 
 ---
 
-**Submitted by:** Abdul Kalam Azad &nbsp;|&nbsp; **Roll No.:** 24BCS10053 &nbsp;|&nbsp; **Lab 4 - SQLite Hex Dump Exploration**
+**Submitted by:** Jinesh Gandhi &nbsp;|&nbsp; **Roll No.:** 24BCS10072 &nbsp;|&nbsp; **Lab 4 - SQLite Hex Dump Exploration**
