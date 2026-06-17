@@ -1,0 +1,9 @@
+# build artifacts
+*.o
+*.out
+*.exe
+btree_demo
+sql_demo
+txmgr_demo
+build/
+.DS_Store
