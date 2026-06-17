@@ -1,0 +1,4 @@
+build/
+*.o
+sql_parser
+sql_parser.exe
