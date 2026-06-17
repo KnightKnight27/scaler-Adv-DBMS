@@ -1,0 +1,6 @@
+build/
+*.o
+*.out
+mini_sql_lab
+txmgr_lab
+.DS_Store
