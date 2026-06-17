@@ -1,0 +1,14 @@
+============================================================
+ ANALYSIS SUMMARY
+============================================================
+Page size  : 4096
+Page count : 2
+File size  : 8192 bytes
+
+Dumps written:
+results/full_dump.hex
+results/header.hex
+results/page1.hex
+results/page1_btree_header.hex
+results/page2.hex
+results/page2_btree_header.hex
