@@ -13,6 +13,10 @@ add_executable(doradb
     src/storage/page.cpp
     src/storage/buffer_pool.cpp
     src/storage/heap_file.cpp
+    src/index/bplus_tree.cpp
+    src/catalog/catalog.cpp
+    src/parser/tokenizer.cpp
+    src/parser/parser.cpp
 )
 
 target_include_directories(doradb PRIVATE src)

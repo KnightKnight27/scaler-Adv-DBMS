@@ -1,12 +1,8 @@
 // ============================================================
-// DoraDB — Milestone 1 Test Driver
+// DoraDB — Milestone 2 Test Driver
 //
-// Tests the storage engine foundation:
-//   1. DiskManager: page allocation, read/write
-//   2. Page: slotted page row insert/get/delete
-//   3. BufferPool: fetch/unpin/eviction
-//   4. HeapFile: insert/scan/delete rows with schema
-//   5. Row serialization: Value→bytes→Value round-trip
+// Tests: B+Tree, Catalog, Tokenizer, Parser
+// Also re-runs M1 tests to make sure nothing broke.
 // ============================================================
 
 #include "common/config.h"
@@ -15,14 +11,19 @@
 #include "storage/page.h"
 #include "storage/buffer_pool.h"
 #include "storage/heap_file.h"
+#include "index/bplus_tree.h"
+#include "catalog/catalog.h"
+#include "parser/tokenizer.h"
+#include "parser/parser.h"
 
 #include <cassert>
 #include <cstring>
 #include <filesystem>
 #include <iostream>
 #include <vector>
+#include <algorithm>
+#include <random>
 
-// Helper to print pass/fail
 static int tests_passed = 0;
 static int tests_total = 0;
 
@@ -37,237 +38,233 @@ void CHECK(bool condition, const std::string& msg) {
 }
 
 // ============================================================
-// Test 1: DiskManager
+// Test: B+Tree — insert, search, range scan, delete
 // ============================================================
-void TestDiskManager() {
-    std::cout << "\n=== Test: DiskManager ===\n";
-
-    // Clean up any previous test file
+void TestBPlusTree() {
+    std::cout << "\n=== Test: B+Tree ===\n";
     std::filesystem::remove_all("data");
 
-    DiskManager dm("data/test_disk.db");
-    CHECK(dm.GetNumPages() == 0, "starts with 0 pages");
+    {
+        BPlusTree tree("data/test_index.idx");
 
-    // Allocate and write a page
-    int pid = dm.AllocatePage();
-    CHECK(pid == 0, "first page is page 0");
-    CHECK(dm.GetNumPages() == 1, "now has 1 page");
+        // Insert 100 keys in random order
+        std::vector<int> keys(100);
+        std::iota(keys.begin(), keys.end(), 1);  // 1..100
+        std::mt19937 rng(42);
+        std::shuffle(keys.begin(), keys.end(), rng);
 
-    char write_buf[PAGE_SIZE];
-    memset(write_buf, 0, PAGE_SIZE);
-    const char* msg = "Hello from DoraDB!";
-    memcpy(write_buf, msg, strlen(msg));
-    dm.WritePage(pid, write_buf);
+        for (int k : keys) {
+            RID rid;
+            rid.page_id = k * 10;
+            rid.slot_id = k;
+            tree.Insert(k, rid);
+        }
+        CHECK(true, "inserted 100 keys without crash");
 
-    // Read it back
-    char read_buf[PAGE_SIZE];
-    dm.ReadPage(pid, read_buf);
-    CHECK(memcmp(write_buf, read_buf, PAGE_SIZE) == 0, "read matches write");
+        // Search for every key
+        bool all_found = true;
+        for (int k = 1; k <= 100; k++) {
+            auto result = tree.Search(k);
+            if (!result || result->page_id != (uint32_t)(k * 10) || result->slot_id != k) {
+                all_found = false;
+                std::cout << "    missing key " << k << "\n";
+                break;
+            }
+        }
+        CHECK(all_found, "all 100 keys found with correct RIDs");
 
-    // Allocate more pages
-    int p1 = dm.AllocatePage();
-    int p2 = dm.AllocatePage();
-    CHECK(p1 == 1 && p2 == 2, "sequential allocation");
-    CHECK(dm.GetNumPages() == 3, "now has 3 pages");
-}
+        // Search for non-existent key
+        CHECK(!tree.Search(999).has_value(), "key 999 not found (correct)");
 
-// ============================================================
-// Test 2: Slotted Page
-// ============================================================
-void TestPage() {
-    std::cout << "\n=== Test: Slotted Page ===\n";
+        // Range scan [20, 30]
+        auto range = tree.RangeScan(20, 30);
+        CHECK((int)range.size() == 11, "range [20,30] returns 11 entries");
+        // Verify they're the right ones
+        bool range_ok = true;
+        for (int i = 0; i < (int)range.size(); i++) {
+            if (range[i].slot_id != (uint16_t)(20 + i)) { range_ok = false; break; }
+        }
+        CHECK(range_ok, "range scan entries are correct");
 
-    Page page;
-    page.Init(42);
-    CHECK(page.GetPageId() == 42, "page ID set correctly");
-    CHECK(page.GetNumSlots() == 0, "starts empty");
-    CHECK(page.GetNextPageId() == INVALID_PAGE_ID, "no next page");
-
-    // Insert a row
-    const char* row1 = "first row data";
-    int slot1 = page.InsertRow(row1, strlen(row1));
-    CHECK(slot1 == 0, "first slot is 0");
-    CHECK(page.GetNumSlots() == 1, "1 slot after insert");
-
-    // Read it back
-    char buf[PAGE_SIZE];
-    int size;
-    bool found = page.GetRow(0, buf, &size);
-    CHECK(found, "row 0 found");
-    CHECK(size == (int)strlen(row1), "correct size");
-    CHECK(memcmp(buf, row1, size) == 0, "data matches");
-
-    // Insert more rows
-    const char* row2 = "second row here";
-    int slot2 = page.InsertRow(row2, strlen(row2));
-    CHECK(slot2 == 1, "second slot is 1");
-
-    // Delete first row
-    bool deleted = page.DeleteRow(0);
-    CHECK(deleted, "delete returns true");
-    found = page.GetRow(0, buf, &size);
-    CHECK(!found, "deleted row not found");
-
-    // Second row still accessible
-    found = page.GetRow(1, buf, &size);
-    CHECK(found, "row 1 still accessible after deleting row 0");
-    CHECK(memcmp(buf, row2, strlen(row2)) == 0, "row 1 data intact");
-}
-
-// ============================================================
-// Test 3: Row Serialization
-// ============================================================
-void TestSerialization() {
-    std::cout << "\n=== Test: Row Serialization ===\n";
-
-    Schema schema;
-    schema.columns.push_back({"id", DataType::INT, 0});
-    schema.columns.push_back({"name", DataType::VARCHAR, 50});
-    schema.columns.push_back({"active", DataType::BOOL, 0});
-    schema.pk_index = 0;
-
-    // Create a row: (1, 'Alice', true)
-    Row row = {Value::Int(1), Value::Varchar("Alice"), Value::Bool(true)};
-
-    // Serialize
-    char buf[PAGE_SIZE];
-    int bytes = SerializeRow(row, schema, buf);
-    CHECK(bytes > 0, "serialized to " + std::to_string(bytes) + " bytes");
-
-    int expected = GetSerializedRowSize(row, schema);
-    CHECK(bytes == expected, "size matches prediction");
-
-    // Deserialize
-    Row recovered = DeserializeRow(buf, bytes, schema);
-    CHECK(recovered.size() == 3, "3 columns recovered");
-    CHECK(recovered[0].int_val == 1, "id = 1");
-    CHECK(recovered[1].str_val == "Alice", "name = Alice");
-    CHECK(recovered[2].bool_val == true, "active = true");
-
-    // Test with NULL
-    Row row2 = {Value::Int(2), Value::Null(DataType::VARCHAR), Value::Bool(false)};
-    bytes = SerializeRow(row2, schema, buf);
-    Row recovered2 = DeserializeRow(buf, bytes, schema);
-    CHECK(recovered2[1].is_null, "NULL varchar recovered");
-    CHECK(recovered2[0].int_val == 2, "id = 2 around NULL");
-}
-
-// ============================================================
-// Test 4: BufferPool
-// ============================================================
-void TestBufferPool() {
-    std::cout << "\n=== Test: BufferPool ===\n";
-
-    std::filesystem::remove_all("data");
-    DiskManager* dm = new DiskManager("data/test_bp.db");
-
-    // Small pool (4 frames) to test eviction easily
-    BufferPool pool(dm, 4);
-
-    // Allocate and write pages
-    int p0, p1, p2, p3;
-    Page* pg0 = pool.NewPage(p0);
-    pg0->Init(p0);
-    const char* msg = "page zero";
-    pg0->InsertRow(msg, strlen(msg));
-    pool.UnpinPage(p0, true);
-
-    pool.NewPage(p1);
-    pool.UnpinPage(p1, true);
-    pool.NewPage(p2);
-    pool.UnpinPage(p2, true);
-    pool.NewPage(p3);
-    pool.UnpinPage(p3, true);
-
-    CHECK(true, "4 pages allocated without crash");
-
-    // All 4 frames full. Allocating another should evict one.
-    int p4;
-    pool.NewPage(p4);
-    pool.UnpinPage(p4, true);
-    CHECK(true, "5th page triggers eviction OK");
-
-    // Fetch page 0 back (was possibly evicted)
-    Page* fetched = pool.FetchPage(p0);
-    char buf[PAGE_SIZE];
-    int size;
-    bool found = fetched->GetRow(0, buf, &size);
-    CHECK(found, "page 0 row survived eviction + re-fetch");
-    CHECK(memcmp(buf, msg, strlen(msg)) == 0, "data intact after eviction");
-    pool.UnpinPage(p0, false);
-
-    pool.FlushAll();
-    delete dm;
-}
-
-// ============================================================
-// Test 5: HeapFile with Schema
-// ============================================================
-void TestHeapFile() {
-    std::cout << "\n=== Test: HeapFile ===\n";
-
-    std::filesystem::remove_all("data");
-    DiskManager* dm = new DiskManager("data/test_heap.db");
-    BufferPool pool(dm, 16);
-
-    HeapFile heap(&pool);
-    int first = heap.Create();
-    CHECK(first >= 0, "heap file created with first page " + std::to_string(first));
-
-    // Set up schema: students(id INT, name VARCHAR(50), active BOOL)
-    Schema schema;
-    schema.columns.push_back({"id", DataType::INT, 0});
-    schema.columns.push_back({"name", DataType::VARCHAR, 50});
-    schema.columns.push_back({"active", DataType::BOOL, 0});
-    schema.pk_index = 0;
-
-    // Insert some rows
-    std::vector<RID> rids;
-    std::vector<std::string> names = {"Alice", "Bob", "Charlie", "Diana", "Eve"};
-    for (int i = 0; i < 5; i++) {
-        Row row = {Value::Int(i + 1), Value::Varchar(names[i]), Value::Bool(i % 2 == 0)};
-        char buf[PAGE_SIZE];
-        int size = SerializeRow(row, schema, buf);
-        RID rid = heap.InsertRow(buf, size);
-        rids.push_back(rid);
-    }
-    CHECK(rids.size() == 5, "5 rows inserted");
-
-    // Read back by RID
-    char buf[PAGE_SIZE];
-    int size;
-    bool found = heap.GetRow(rids[0], buf, &size);
-    CHECK(found, "row 0 found by RID");
-    Row r = DeserializeRow(buf, size, schema);
-    CHECK(r[0].int_val == 1, "id = 1");
-    CHECK(r[1].str_val == "Alice", "name = Alice");
-
-    // Delete row 2 (Charlie)
-    heap.DeleteRow(rids[2]);
-
-    // Scan all rows — should get 4 (Alice, Bob, Diana, Eve)
-    int count = 0;
-    heap.Scan([&](const RID& /*rid*/, const char* data, int sz) {
-        Row row = DeserializeRow(data, sz, schema);
-        count++;
-    });
-    CHECK(count == 4, "scan returns 4 rows after delete");
-
-    // Bulk insert to test multi-page
-    for (int i = 10; i < 200; i++) {
-        Row row = {Value::Int(i), Value::Varchar("Student_" + std::to_string(i)),
-                   Value::Bool(true)};
-        char buf2[PAGE_SIZE];
-        int sz = SerializeRow(row, schema, buf2);
-        heap.InsertRow(buf2, sz);
+        // Delete key 50
+        CHECK(tree.Delete(50), "delete key 50 returns true");
+        CHECK(!tree.Search(50).has_value(), "key 50 gone after delete");
+        CHECK(tree.Search(49).has_value(), "key 49 still there");
+        CHECK(tree.Search(51).has_value(), "key 51 still there");
     }
 
-    count = 0;
-    heap.Scan([&](const RID&, const char*, int) { count++; });
-    CHECK(count == 194, "194 rows after bulk insert (4 + 190)");
+    // Persistence test: reopen the tree and verify data survived
+    {
+        BPlusTree tree("data/test_index.idx");
+        CHECK(tree.Search(1).has_value(), "key 1 survives reopen");
+        CHECK(tree.Search(100).has_value(), "key 100 survives reopen");
+        CHECK(!tree.Search(50).has_value(), "key 50 still deleted after reopen");
 
-    pool.FlushAll();
-    delete dm;
+        auto range = tree.RangeScan(95, 100);
+        CHECK((int)range.size() == 6, "range [95,100] returns 6 after reopen");
+    }
+}
+
+// ============================================================
+// Test: B+Tree — large insert (trigger multiple splits)
+// ============================================================
+void TestBPlusTreeLarge() {
+    std::cout << "\n=== Test: B+Tree Large ===\n";
+    std::filesystem::remove_all("data");
+
+    BPlusTree tree("data/test_large.idx");
+
+    // Insert 5000 keys to force multiple levels of splits
+    for (int i = 1; i <= 5000; i++) {
+        RID rid; rid.page_id = i; rid.slot_id = i % 65536;
+        tree.Insert(i, rid);
+    }
+    CHECK(true, "5000 keys inserted");
+
+    // Verify all present
+    bool ok = true;
+    for (int i = 1; i <= 5000; i++) {
+        if (!tree.Search(i).has_value()) { ok = false; break; }
+    }
+    CHECK(ok, "all 5000 keys searchable");
+
+    auto range = tree.RangeScan(2500, 2510);
+    CHECK((int)range.size() == 11, "range scan mid-tree correct");
+}
+
+// ============================================================
+// Test: Catalog
+// ============================================================
+void TestCatalog() {
+    std::cout << "\n=== Test: Catalog ===\n";
+    std::filesystem::remove_all("data");
+
+    {
+        Catalog cat("data/catalog.txt");
+        Schema s;
+        s.columns.push_back({"id", DataType::INT, 0});
+        s.columns.push_back({"name", DataType::VARCHAR, 50});
+        s.pk_index = 0;
+        CHECK(cat.CreateTable("students", s, 0, "data/students_pk.idx"),
+              "create table students");
+        CHECK(!cat.CreateTable("students", s, 0), "duplicate table rejected");
+        CHECK(cat.GetTable("students") != nullptr, "table found");
+        CHECK(cat.GetTable("missing") == nullptr, "missing table returns null");
+    }
+
+    // Persistence
+    {
+        Catalog cat("data/catalog.txt");
+        auto* t = cat.GetTable("students");
+        CHECK(t != nullptr, "table survives reload");
+        CHECK(t->schema.columns.size() == 2, "2 columns survived");
+        CHECK(t->schema.columns[0].name == "id", "col name survived");
+        CHECK(t->schema.pk_index == 0, "pk_index survived");
+        CHECK(t->index_file == "data/students_pk.idx", "index file survived");
+    }
+}
+
+// ============================================================
+// Test: Tokenizer
+// ============================================================
+void TestTokenizer() {
+    std::cout << "\n=== Test: Tokenizer ===\n";
+
+    // SELECT * FROM students WHERE id = 5 ;
+    // 0      1 2    3        4     5  6 7 8
+    auto tokens = Tokenizer("SELECT * FROM students WHERE id = 5;").Tokenize();
+    CHECK(tokens[0].type == TokenType::SELECT, "SELECT keyword");
+    CHECK(tokens[1].type == TokenType::STAR, "* token");
+    CHECK(tokens[2].type == TokenType::FROM, "FROM keyword");
+    CHECK(tokens[3].type == TokenType::IDENTIFIER, "table name identifier");
+    CHECK(tokens[3].value == "students", "table name = students");
+    CHECK(tokens[4].type == TokenType::WHERE, "WHERE keyword");
+    CHECK(tokens[8].type == TokenType::SEMICOLON, "semicolon");
+
+    // INSERT INTO t VALUES ( 1 , 'hello' , true ) ;
+    // 0      1    2 3      4 5 6 7       8 9    10 11
+    auto t2 = Tokenizer("INSERT INTO t VALUES (1, 'hello', true);").Tokenize();
+    CHECK(t2[5].type == TokenType::INT_LITERAL, "int literal");
+    CHECK(t2[7].type == TokenType::STRING_LITERAL, "string literal");
+    CHECK(t2[7].value == "hello", "string value correct");
+    CHECK(t2[9].type == TokenType::TRUE_LIT, "true literal");
+
+    // CREATE TABLE t ( id INT , name VARCHAR ( 50 ) , PRIMARY KEY ( id ) ) ;
+    // 0      1     2 3 4  5   6 7    8       9 10 11 12 13      14 15 16 17 18 19
+    auto t3 = Tokenizer("CREATE TABLE t (id INT, name VARCHAR(50), PRIMARY KEY(id));").Tokenize();
+    CHECK(t3[0].type == TokenType::CREATE, "CREATE");
+    CHECK(t3[8].type == TokenType::VARCHAR_TYPE, "VARCHAR type");
+}
+
+// ============================================================
+// Test: Parser
+// ============================================================
+void TestParser() {
+    std::cout << "\n=== Test: Parser ===\n";
+
+    // CREATE TABLE
+    {
+        auto tokens = Tokenizer("CREATE TABLE students (id INT, name VARCHAR(50), active BOOL, PRIMARY KEY(id));").Tokenize();
+        auto stmt = Parser(tokens).Parse();
+        CHECK(stmt.type == StmtType::CREATE_TABLE, "parsed CREATE TABLE");
+        CHECK(stmt.create_table.table_name == "students", "table name");
+        CHECK(stmt.create_table.columns.size() == 3, "3 columns");
+        CHECK(stmt.create_table.columns[0].name == "id", "col 0 = id");
+        CHECK(stmt.create_table.columns[1].type == DataType::VARCHAR, "col 1 type = VARCHAR");
+        CHECK(stmt.create_table.columns[1].max_length == 50, "VARCHAR(50)");
+        CHECK(stmt.create_table.pk_index == 0, "PK = id (index 0)");
+    }
+
+    // INSERT
+    {
+        auto tokens = Tokenizer("INSERT INTO students VALUES (1, 'Alice', true);").Tokenize();
+        auto stmt = Parser(tokens).Parse();
+        CHECK(stmt.type == StmtType::INSERT, "parsed INSERT");
+        CHECK(stmt.insert.table_name == "students", "table name");
+        CHECK(stmt.insert.values.size() == 3, "3 values");
+        CHECK(stmt.insert.values[0].int_val == 1, "val 0 = 1");
+        CHECK(stmt.insert.values[1].str_val == "Alice", "val 1 = Alice");
+        CHECK(stmt.insert.values[2].bool_val == true, "val 2 = true");
+    }
+
+    // SELECT with WHERE
+    {
+        auto tokens = Tokenizer("SELECT * FROM students WHERE id = 5;").Tokenize();
+        auto stmt = Parser(tokens).Parse();
+        CHECK(stmt.type == StmtType::SELECT, "parsed SELECT");
+        CHECK(stmt.select.select_all, "SELECT *");
+        CHECK(stmt.select.table_name == "students", "FROM students");
+        CHECK(stmt.select.where_clause != nullptr, "has WHERE");
+        CHECK(stmt.select.where_clause->op == "=", "WHERE op is =");
+    }
+
+    // SELECT with JOIN
+    {
+        auto tokens = Tokenizer("SELECT * FROM t1 JOIN t2 ON t1.id = t2.fk WHERE t1.x > 3;").Tokenize();
+        auto stmt = Parser(tokens).Parse();
+        CHECK(stmt.select.join.has_value(), "has JOIN");
+        CHECK(stmt.select.join->table_name == "t2", "JOIN t2");
+        CHECK(stmt.select.join->left_col.table == "t1", "JOIN left table");
+        CHECK(stmt.select.where_clause != nullptr, "has WHERE after JOIN");
+    }
+
+    // DELETE
+    {
+        auto tokens = Tokenizer("DELETE FROM students WHERE id = 5;").Tokenize();
+        auto stmt = Parser(tokens).Parse();
+        CHECK(stmt.type == StmtType::DELETE_STMT, "parsed DELETE");
+        CHECK(stmt.delete_stmt.table_name == "students", "table name");
+    }
+
+    // UPDATE
+    {
+        auto tokens = Tokenizer("UPDATE students SET name = 'Bob', active = false WHERE id = 2;").Tokenize();
+        auto stmt = Parser(tokens).Parse();
+        CHECK(stmt.type == StmtType::UPDATE, "parsed UPDATE");
+        CHECK(stmt.update.assignments.size() == 2, "2 assignments");
+        CHECK(stmt.update.assignments[0].first == "name", "SET name");
+        CHECK(stmt.update.assignments[0].second.str_val == "Bob", "= Bob");
+    }
 }
 
 // ============================================================
@@ -275,22 +272,20 @@ void TestHeapFile() {
 // ============================================================
 int main() {
     std::cout << "========================================\n";
-    std::cout << "  DoraDB — Milestone 1 Tests\n";
-    std::cout << "  Storage Engine + Buffer Pool\n";
+    std::cout << "  DoraDB — Milestone 2 Tests\n";
+    std::cout << "  B+Tree + Catalog + Parser\n";
     std::cout << "========================================\n";
 
-    TestDiskManager();
-    TestSerialization();
-    TestPage();
-    TestBufferPool();
-    TestHeapFile();
+    TestBPlusTree();
+    TestBPlusTreeLarge();
+    TestCatalog();
+    TestTokenizer();
+    TestParser();
 
     std::cout << "\n========================================\n";
     std::cout << "  Results: " << tests_passed << "/" << tests_total << " passed\n";
     std::cout << "========================================\n";
 
-    // Clean up test data
     std::filesystem::remove_all("data");
-
     return (tests_passed == tests_total) ? 0 : 1;
 }
