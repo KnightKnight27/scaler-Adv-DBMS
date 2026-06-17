@@ -1,0 +1,24 @@
+sqlite3 db/sample.db
+
+.read db/schema.sql
+.read db/insert_data.sql
+
+.tables
+
+SELECT COUNT(*) FROM users;
+SELECT COUNT(*) FROM products;
+
+PRAGMA page_size;
+PRAGMA page_count;
+
+SELECT name, rootpage FROM sqlite_master;
+
+xxd db/sample.db
+
+xxd db/sample.db > dumps/full_hex_dump.txt
+
+xxd -s 0 -l 4096 db/sample.db > dumps/page1_hex.txt
+
+xxd -s 4096 -l 4096 db/sample.db > dumps/page2_hex.txt
+
+xxd -s 8192 -l 4096 db/sample.db > dumps/page3_hex.txt
