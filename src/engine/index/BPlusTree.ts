@@ -57,6 +57,29 @@ export class BPlusTree {
     this.insertNonFull(this.root, key, entry);
   }
 
+  delete(key: number) {
+    let curr = this.root;
+    while (!curr.isLeaf) {
+      let found = false;
+      for (let i = 0; i < curr.keys.length; i++) {
+        if (key < curr.keys[i]) {
+          curr = curr.children[i] as BPlusNode;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        curr = curr.children[curr.children.length - 1] as BPlusNode;
+      }
+    }
+
+    const idx = curr.keys.indexOf(key);
+    if (idx !== -1) {
+      curr.keys.splice(idx, 1);
+      curr.children.splice(idx, 1);
+    }
+  }
+
   private insertNonFull(node: BPlusNode, key: number, entry: IndexEntry) {
     if (node.isLeaf) {
       let idx = node.keys.findIndex(k => k > key);
