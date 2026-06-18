@@ -1,6 +1,6 @@
 # Lab 7 — Dijkstra's Shunting-Yard
 
-**Shubham Shah | 24BCS10316**
+**Tanmay Mittal | 24BCS10491**
 
 ---
 
