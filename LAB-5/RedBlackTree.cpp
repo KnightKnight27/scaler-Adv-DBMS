@@ -1,351 +1,289 @@
+// Lab 5 - Red-Black Tree (implementation)
+// Rama Krishnan (24BCS10087) <rama.24bcs10087@sst.scaler.com>
+
 #include "RedBlackTree.h"
-#include <cassert>
-#include <cstddef>
+
 #include <iostream>
-#include <vector>
 #include <queue>
+#include <string>
 
-#define DEBUG
-
-#ifdef DEBUG
-#define LOG(x) std::cout << x << '\n';
-#else
-#define LOG(x) ;
-#endif
-
-/* Theory
- *
- * "insert" node -> node to be inserted
- *
- * Case 0 - Parent of insert node is black
- * Case 1 - Parent of insert node is red and insert node is right of parent and uncle of insert node (sibling of parent) is also red
- * Case 2 - Parent of insert node is red and insert node is right of parent and uncle of insert node is black
- * Case 3 - Parent of insert node is red and insert node is left of parent
- *
- * Solutions to each case:
- *
- * Case 0 - Directly insert the node since it doesn't violate any rules
- * Case 1 - Switch colors of grandparent with parent and uncle nodes. Propagate this further with the grandparent as the grandparent might now be red and violate the "no two adjacent reds" rule
- * Case 2 - Perform a "left rotation" and transform situation to case 3
- * Case 3 - Perform a "right rotation"
- */
-
-RedBlackTree::RedBlackTree()
-    : sentinel(new Node(0))
-{
-    sentinel->col = Color::black;
-    root_ = sentinel;
+RedBlackTree::RedBlackTree() : root_(nullptr), nil_(nullptr), size_(0) {
+    nil_         = new Node{0, BLACK, nullptr, nullptr, nullptr};
+    nil_->left   = nil_;
+    nil_->right  = nil_;
+    nil_->parent = nil_;
+    root_        = nil_;
 }
 
-RedBlackTree::~RedBlackTree()
-{
-    deleteSubtree(root_);
-    delete sentinel;
+RedBlackTree::~RedBlackTree() {
+    destroy(root_);
+    delete nil_;
 }
 
-bool RedBlackTree::find(int val)
-{
-    Node *cur = root_;
-    while (cur != sentinel)
-    {
-        if (val == cur->key)
-            return true;
-        cur = (val < cur->key) ? cur->leftChild : cur->rightChild;
-    }
-    return false;
+void RedBlackTree::destroy(Node* n) {
+    if (n == nil_ || n == nullptr) return;
+    destroy(n->left);
+    destroy(n->right);
+    delete n;
 }
 
-void RedBlackTree::insert(int val)
-{
-    Node *parent = sentinel;
-    Node *cur = root_;
-
-    while (cur != sentinel)
-    {
-        parent = cur;
-        if (val <= cur->key)
-            cur = cur->leftChild;
-        else
-            cur = cur->rightChild;
-    }
-
-    Node *node = new Node(val);
-    node->leftChild = sentinel;
-    node->rightChild = sentinel;
-    node->parentNode = parent;
-
-    if (parent == sentinel)
-    {
-        root_ = node;
-        node->col = Color::black;
-    }
-    else if (val <= parent->key)
-    {
-        parent->leftChild = node;
-    }
-    else
-    {
-        parent->rightChild = node;
-    }
-
-    fixTree(node);
+RedBlackTree::Node* RedBlackTree::newNode(int key, Color col, Node* parent) {
+    return new Node{key, col, nil_, nil_, parent};
 }
 
-void RedBlackTree::remove(int val)
-{
-    // TO BE IMPLEMENTED
+bool RedBlackTree::find(int key) const {
+    return findNode(key) != nil_;
 }
 
-void RedBlackTree::fixTree(Node *node)
-{
-    if (isCase0(node))
-    {
-        handleCase0(node);
+RedBlackTree::Node* RedBlackTree::findNode(int key) const {
+    Node* cur = root_;
+    while (cur != nil_) {
+        if (key == cur->key) return cur;
+        cur = (key < cur->key) ? cur->left : cur->right;
     }
-    else if (isCase3(node))
-    {
-        handleCase3(node);
-    }
-    else if (isCase1(node))
-    {
-        handleCase1(node);
-    }
-    else if (isCase2(node))
-    {
-        handleCase2(node);
-    }
-    else
-    {
-        LOG("Unknown case");
-        LOG("node: " << node->key << " L " << (node->leftChild ? node->leftChild->key : -1) << " R " << (node->rightChild ? node->rightChild->key : -1) << '\n');
-    }
+    return nil_;
 }
 
-bool RedBlackTree::isCase0(Node *node)
-{
-    return (node->parentNode && node->parentNode->col == Color::black);
-}
-bool RedBlackTree::isCase1(Node *node)
-{
-    Node *uncle = getUncle(node);
-
-    return (node->parentNode && node->parentNode->col == Color::red && uncle && uncle->col == Color::red);
-}
-bool RedBlackTree::isCase2(Node *node)
-{
-    Node *uncle = getUncle(node);
-
-    return (node->parentNode && node->parentNode->col == Color::red && uncle && uncle->col == Color::black);
-}
-bool RedBlackTree::isCase3(Node *node)
-{
-    Node *parent = node->parentNode;
-    Node *grandparent = getGrandParent(node);
-
-    bool leftLeaning = (parent && parent->leftChild == node && grandparent && grandparent->leftChild == parent && parent->col == Color::red);
-    bool rightLeaning = (parent && parent->rightChild == node && grandparent && grandparent->rightChild == parent && parent->col == Color::red);
-
-    return (leftLeaning || rightLeaning);
+void RedBlackTree::leftRotate(Node* x) {
+    Node* y  = x->right;
+    x->right = y->left;
+    if (y->left != nil_) y->left->parent = x;
+    y->parent = x->parent;
+    if (x->parent == nil_)            root_                = y;
+    else if (x == x->parent->left)    x->parent->left      = y;
+    else                              x->parent->right     = y;
+    y->left   = x;
+    x->parent = y;
 }
 
-RedBlackTree::Node *RedBlackTree::getGrandParent(Node *node)
-{
-    if (node->parentNode && node->parentNode->parentNode)
-    {
-        return node->parentNode->parentNode;
-    }
-    else
-    {
-        return sentinel;
-    }
+void RedBlackTree::rightRotate(Node* x) {
+    Node* y  = x->left;
+    x->left  = y->right;
+    if (y->right != nil_) y->right->parent = x;
+    y->parent = x->parent;
+    if (x->parent == nil_)            root_                = y;
+    else if (x == x->parent->right)   x->parent->right     = y;
+    else                              x->parent->left      = y;
+    y->right  = x;
+    x->parent = y;
 }
-RedBlackTree::Node *RedBlackTree::getUncle(Node *node)
-{
-    Node *grandparent = getGrandParent(node);
 
-    if (!node->parentNode || grandparent == sentinel)
-    {
-        return sentinel;
+void RedBlackTree::insert(int key) {
+    Node* y = nil_;
+    Node* x = root_;
+    while (x != nil_) {
+        y = x;
+        x = (key < x->key) ? x->left : x->right;
     }
 
-    bool isParentLeftOfGrandparent = (grandparent->leftChild == node->parentNode);
+    Node* z = newNode(key, RED, y);
+    if (y == nil_)            root_      = z;
+    else if (key < y->key)    y->left    = z;
+    else                      y->right   = z;
 
-    if (isParentLeftOfGrandparent)
-    {
-        return grandparent->rightChild;
-    }
-    else
-    {
-        return grandparent->leftChild;
-    }
+    ++size_;
+    insertFixup(z);
 }
 
-void RedBlackTree::handleCase0(Node *node)
-{
-    LOG("case0");
-    if (node->leftChild == nullptr)
-        node->leftChild = sentinel;
-    if (node->rightChild == nullptr)
-        node->rightChild = sentinel;
-}
-
-void RedBlackTree::handleCase1(Node *node)
-{
-    LOG("case1");
-    Node *grandparent = getGrandParent(node);
-    Node *uncle = getUncle(node);
-    Node *parent = node->parentNode;
-
-    parent->col = Color::black;
-    uncle->col = Color::black;
-    if (grandparent == root_)
-    {
-        grandparent->col = Color::black;
+void RedBlackTree::insertFixup(Node* z) {
+    while (z->parent->col == RED) {
+        Node* gp = z->parent->parent;
+        if (z->parent == gp->left) {
+            Node* uncle = gp->right;
+            if (uncle->col == RED) {            // Case 1: recolor and recurse on grandparent
+                z->parent->col = BLACK;
+                uncle->col     = BLACK;
+                gp->col        = RED;
+                z              = gp;
+            } else {
+                if (z == z->parent->right) {     // Case 2: rotate left to reduce to case 3
+                    z = z->parent;
+                    leftRotate(z);
+                }
+                z->parent->col = BLACK;          // Case 3
+                gp->col        = RED;
+                rightRotate(gp);
+            }
+        } else {                                 // Mirror of the above
+            Node* uncle = gp->left;
+            if (uncle->col == RED) {
+                z->parent->col = BLACK;
+                uncle->col     = BLACK;
+                gp->col        = RED;
+                z              = gp;
+            } else {
+                if (z == z->parent->left) {
+                    z = z->parent;
+                    rightRotate(z);
+                }
+                z->parent->col = BLACK;
+                gp->col        = RED;
+                leftRotate(gp);
+            }
+        }
     }
-    else
-    {
-        grandparent->col = Color::red;
-        fixTree(grandparent);
-    }
+    root_->col = BLACK;
 }
 
-void RedBlackTree::handleCase2(Node *node)
-{
-    LOG("case2");
-    Node *parent = node->parentNode;
-    Node *grandparent = getGrandParent(node);
-
-    grandparent->leftChild = node;
-    node->parentNode = grandparent;
-    node->leftChild = parent;
-    parent->parentNode = node;
-
-    fixTree(parent);
+void RedBlackTree::transplant(Node* u, Node* v) {
+    if (u->parent == nil_)            root_              = v;
+    else if (u == u->parent->left)    u->parent->left    = v;
+    else                              u->parent->right   = v;
+    v->parent = u->parent;
 }
 
-void RedBlackTree::handleCase3(Node *node)
-{
-    LOG("case3");
-    Node *parent = node->parentNode;
-    Node *grandparent = getGrandParent(node);
-
-    parent->leftChild = node;
-    parent->rightChild = grandparent;
-    parent->parentNode = grandparent->parentNode;
-    grandparent->parentNode = parent;
-
-    node->leftChild = sentinel;
-    node->rightChild = sentinel;
-
-    grandparent->leftChild = sentinel;
-    grandparent->rightChild = sentinel;
-
-    root_ = parent;
+RedBlackTree::Node* RedBlackTree::minimum(Node* x) const {
+    while (x->left != nil_) x = x->left;
+    return x;
 }
 
-void RedBlackTree::print()
-{
-    if (root_ == sentinel)
-    {
-        std::cout << "[]\n";
-        return;
+bool RedBlackTree::erase(int key) {
+    Node* z = findNode(key);
+    if (z == nil_) return false;
+
+    Node* y          = z;
+    Color yOrigColor = y->col;
+    Node* x;
+
+    if (z->left == nil_) {
+        x = z->right;
+        transplant(z, z->right);
+    } else if (z->right == nil_) {
+        x = z->left;
+        transplant(z, z->left);
+    } else {
+        y          = minimum(z->right);
+        yOrigColor = y->col;
+        x          = y->right;
+        if (y->parent == z) {
+            x->parent = y;                       // keeps sentinel parent link correct
+        } else {
+            transplant(y, y->right);
+            y->right         = z->right;
+            y->right->parent = y;
+        }
+        transplant(z, y);
+        y->left         = z->left;
+        y->left->parent = y;
+        y->col          = z->col;
     }
 
-    std::vector<std::string> result;
-    std::queue<Node *> q;
+    delete z;
+    --size_;
 
+    if (yOrigColor == BLACK) eraseFixup(x);
+    nil_->parent = nil_;                         // scrub any leak from the fixup
+    return true;
+}
+
+void RedBlackTree::eraseFixup(Node* x) {
+    while (x != root_ && x->col == BLACK) {
+        if (x == x->parent->left) {
+            Node* w = x->parent->right;
+            if (w->col == RED) {                 // Case 1
+                w->col         = BLACK;
+                x->parent->col = RED;
+                leftRotate(x->parent);
+                w = x->parent->right;
+            }
+            if (w->left->col == BLACK && w->right->col == BLACK) {  // Case 2
+                w->col = RED;
+                x      = x->parent;
+            } else {
+                if (w->right->col == BLACK) {    // Case 3
+                    w->left->col = BLACK;
+                    w->col       = RED;
+                    rightRotate(w);
+                    w = x->parent->right;
+                }
+                w->col         = x->parent->col; // Case 4
+                x->parent->col = BLACK;
+                w->right->col  = BLACK;
+                leftRotate(x->parent);
+                x = root_;
+            }
+        } else {                                 // Mirror of the above
+            Node* w = x->parent->left;
+            if (w->col == RED) {
+                w->col         = BLACK;
+                x->parent->col = RED;
+                rightRotate(x->parent);
+                w = x->parent->left;
+            }
+            if (w->right->col == BLACK && w->left->col == BLACK) {
+                w->col = RED;
+                x      = x->parent;
+            } else {
+                if (w->left->col == BLACK) {
+                    w->right->col = BLACK;
+                    w->col        = RED;
+                    leftRotate(w);
+                    w = x->parent->left;
+                }
+                w->col         = x->parent->col;
+                x->parent->col = BLACK;
+                w->left->col   = BLACK;
+                rightRotate(x->parent);
+                x = root_;
+            }
+        }
+    }
+    x->col = BLACK;
+}
+
+void RedBlackTree::print() const {
+    if (root_ == nil_) { std::cout << "[]\n"; return; }
+
+    std::vector<std::string> out;
+    std::queue<Node*> q;
     q.push(root_);
-
-    while (!q.empty())
-    {
-        Node *node = q.front();
+    while (!q.empty()) {
+        Node* n = q.front();
         q.pop();
-
-        if (node == sentinel)
-        {
-            result.emplace_back("null");
-        }
-        else
-        {
-            result.emplace_back(std::to_string(node->key));
-
-            // Push children even if sentinel so structure is preserved
-            q.push(node->leftChild);
-            q.push(node->rightChild);
+        if (n == nil_) {
+            out.emplace_back("null");
+        } else {
+            out.emplace_back(std::to_string(n->key));
+            q.push(n->left);
+            q.push(n->right);
         }
     }
-
-    // Remove trailing nulls (same style as LeetCode)
-    while (!result.empty() && result.back() == "null")
-    {
-        result.pop_back();
-    }
+    while (!out.empty() && out.back() == "null") out.pop_back();
 
     std::cout << "[";
-
-    for (size_t i = 0; i < result.size(); i++)
-    {
-        std::cout << result[i];
-
-        if (i + 1 < result.size())
-        {
-            std::cout << ", ";
-        }
+    for (size_t i = 0; i < out.size(); ++i) {
+        std::cout << out[i];
+        if (i + 1 < out.size()) std::cout << ", ";
     }
-
     std::cout << "]\n";
 }
 
-void RedBlackTree::leftRotate(Node *x)
-{
-    Node *y = x->rightChild;
-    if (y == sentinel)
-        return;
-
-    x->rightChild = y->leftChild;
-    if (y->leftChild != sentinel)
-        y->leftChild->parentNode = x;
-
-    y->parentNode = x->parentNode;
-    if (x->parentNode == sentinel)
-        root_ = y;
-    else if (x == x->parentNode->leftChild)
-        x->parentNode->leftChild = y;
-    else
-        x->parentNode->rightChild = y;
-
-    y->leftChild = x;
-    x->parentNode = y;
+void RedBlackTree::inorderInto(Node* n, std::vector<int>& out) const {
+    if (n == nil_) return;
+    inorderInto(n->left, out);
+    out.push_back(n->key);
+    inorderInto(n->right, out);
 }
 
-void RedBlackTree::rightRotate(Node *x)
-{
-    Node *y = x->leftChild;
-    if (y == sentinel)
-        return;
-
-    x->leftChild = y->rightChild;
-    if (y->rightChild != sentinel)
-        y->rightChild->parentNode = x;
-
-    y->parentNode = x->parentNode;
-    if (x->parentNode == sentinel)
-        root_ = y;
-    else if (x == x->parentNode->rightChild)
-        x->parentNode->rightChild = y;
-    else
-        x->parentNode->leftChild = y;
-
-    y->rightChild = x;
-    x->parentNode = y;
+std::vector<int> RedBlackTree::inorder() const {
+    std::vector<int> out;
+    out.reserve(size_);
+    inorderInto(root_, out);
+    return out;
 }
 
-void RedBlackTree::deleteSubtree(Node *node)
-{
-    if (!node || node == sentinel)
-        return;
+int RedBlackTree::blackHeight(Node* n, bool& ok) const {
+    if (n == nil_) return 1;
+    if (n->col == RED && (n->left->col == RED || n->right->col == RED)) ok = false;
+    int lh = blackHeight(n->left, ok);
+    int rh = blackHeight(n->right, ok);
+    if (lh != rh) ok = false;
+    return lh + (n->col == BLACK ? 1 : 0);
+}
 
-    deleteSubtree(node->leftChild);
-    deleteSubtree(node->rightChild);
-    delete node;
+bool RedBlackTree::validate() const {
+    if (root_->col != BLACK) return false;
+    bool ok = true;
+    blackHeight(root_, ok);
+    return ok;
 }

@@ -1,64 +1,77 @@
+// Lab 5 - Red-Black Tree (header)
+// Rama Krishnan (24BCS10087) <rama.24bcs10087@sst.scaler.com>
+//
+// A standards-conformant Red-Black Tree (Cormen / CLRS variant) using a
+// single shared sentinel for nil leaves. Supports insert, find, erase, and
+// an in-order traversal. All invariants are preserved on every mutation:
+//   1. Every node is RED or BLACK.
+//   2. The root is BLACK.
+//   3. Every leaf (sentinel) is BLACK.
+//   4. A RED node has only BLACK children.
+//   5. Every root-to-leaf path crosses the same number of BLACK nodes.
+
 #ifndef REDBLACKTREE_H
 #define REDBLACKTREE_H
 
+#include <cstddef>
 #include <vector>
-class RedBlackTree
-{
+
+class RedBlackTree {
 public:
-    enum Color
-    {
-        black = 0,
-        red = 1
-    };
+    enum Color { BLACK = 0, RED = 1 };
 
-    struct Node
-    {
-        int key;
-        Node *leftChild;
-        Node *rightChild;
-        Node *parentNode;
+    struct Node {
+        int   key;
         Color col;
-
-        Node(int k)
-            : key(k), leftChild(nullptr), rightChild(nullptr), parentNode(nullptr), col(Color::red)
-        {
-        }
+        Node* left;
+        Node* right;
+        Node* parent;
     };
-
-    void print();
 
     RedBlackTree();
     ~RedBlackTree();
 
-    bool find(int val);
-    void insert(int val);
-    void remove(int val);
+    RedBlackTree(const RedBlackTree&)            = delete;
+    RedBlackTree& operator=(const RedBlackTree&) = delete;
 
-    Node *sentinel;
+    bool   find(int key) const;
+    void   insert(int key);
+    bool   erase(int key);
+    size_t size() const { return size_; }
+    bool   empty() const { return size_ == 0; }
+
+    // BFS level-order print, LeetCode-style ("[1, 2, null, 3]").
+    void print() const;
+
+    // In-order traversal — sorted output, useful for verification.
+    std::vector<int> inorder() const;
+
+    // Structural invariant check (returns false if any RB property fails).
+    bool validate() const;
 
 private:
-    Node *root_;
+    Node* root_;
+    Node* nil_;
+    size_t size_;
 
-    void fixTree(Node *node);
+    Node* newNode(int key, Color col, Node* parent);
 
-    // Tree manipulation helpers
-    void leftRotate(Node *x);
-    void rightRotate(Node *x);
-    void deleteSubtree(Node *node);
+    void leftRotate(Node* x);
+    void rightRotate(Node* x);
 
-    // Case checks
-    bool isCase0(Node *node);
-    bool isCase1(Node *node);
-    bool isCase2(Node *node);
-    bool isCase3(Node *node);
+    void insertFixup(Node* z);
 
-    void handleCase0(Node *node);
-    void handleCase1(Node *node);
-    void handleCase2(Node *node);
-    void handleCase3(Node *node);
+    void transplant(Node* u, Node* v);
+    Node* minimum(Node* x) const;
+    Node* findNode(int key) const;
+    void  eraseFixup(Node* x);
 
-    Node *getGrandParent(Node *node);
-    Node *getUncle(Node *node);
+    void destroy(Node* n);
+
+    void inorderInto(Node* n, std::vector<int>& out) const;
+
+    // Validation helpers
+    int  blackHeight(Node* n, bool& ok) const;
 };
 
 #endif
