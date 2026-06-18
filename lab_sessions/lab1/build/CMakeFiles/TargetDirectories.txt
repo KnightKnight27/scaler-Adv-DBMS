@@ -1,0 +1,3 @@
+/home/smit/Desktop/ExternalAssignments/scaler-Adv-DBMS/lab_sessions/lab1/build/CMakeFiles/reader_lab.dir
+/home/smit/Desktop/ExternalAssignments/scaler-Adv-DBMS/lab_sessions/lab1/build/CMakeFiles/edit_cache.dir
+/home/smit/Desktop/ExternalAssignments/scaler-Adv-DBMS/lab_sessions/lab1/build/CMakeFiles/rebuild_cache.dir
