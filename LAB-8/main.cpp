@@ -1,5 +1,5 @@
 // Lab 8 - In-memory transaction manager (MVCC + Strict 2PL + deadlock detection)
-// Pushkar Desai (24BCS10085) <pushkar.24bcs10085@sst.scaler.com>
+// Rama Krishnan (24BCS10087) <rama.24bcs10087@sst.scaler.com>
 // MVCC handles reads via per-key version chains and a snapshot taken on start();
 // Strict 2PL handles writes via shared/exclusive row locks held until commit;
 // a DFS over the waits-for graph detects deadlocks and aborts the youngest tx.

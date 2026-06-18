@@ -269,7 +269,7 @@ int main() {
     //     {"Sneha", 4, 21},           {"Vivaan", 5, 20}, {"Ishaan", 6, 22}};
 
     std::vector<Employee> employees = {
-        {"Pushkar Desai", 1, 19}, {"Rama", 2, 20},   {"Karan", 3, 19},
+        {"Rama Krishnan", 1, 19}, {"Rama", 2, 20},   {"Karan", 3, 19},
         {"Sneha", 4, 21},         {"Vivaan", 5, 20}, {"Ishaan", 6, 31}};
 
     std::string sqlQuery =

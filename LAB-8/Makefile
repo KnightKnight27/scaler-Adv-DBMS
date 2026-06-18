@@ -1,6 +1,6 @@
 # Makefile for Lab 8 Transaction Manager
 # Course: Advanced DBMS
-# Author: Pushkar Desai (24BCS10085) <pushkar.24bcs10085@sst.scaler.com>
+# Author: Rama Krishnan (24BCS10087) <rama.24bcs10087@sst.scaler.com>
 
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -pthread -O3
