@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/reader_lab.dir/main.cpp.o CMakeFiles/reader_lab.dir/file_utils.cpp.o -o reader_lab 
