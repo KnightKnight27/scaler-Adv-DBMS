@@ -1,4 +1,12 @@
-// btree.h - BalancedTree declaration
+// Lab 6 - B-Tree (header)
+// Rama Krishnan (24BCS10087) <rama.24bcs10087@sst.scaler.com>
+//
+// A textbook B-Tree of minimum degree t (every non-root node holds between
+// t-1 and 2t-1 keys). Operations: insert (pre-emptive split on the way
+// down), erase (predecessor/successor swap + borrow-or-merge underflow
+// repair), and search. Used as the canonical on-disk index structure in
+// production engines (PostgreSQL nbtree, MySQL InnoDB, SQLite).
+
 #ifndef BTREE_H
 #define BTREE_H
 

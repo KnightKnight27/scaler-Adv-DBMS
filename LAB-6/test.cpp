@@ -1,4 +1,6 @@
-// Simple tests for BalancedTree. Exits with non-zero on failure.
+// Lab 6 - B-Tree tests (directed + 200-key randomized)
+// Rama Krishnan (24BCS10087) <rama.24bcs10087@sst.scaler.com>
+// Exits non-zero on failure; "All tests passed" on success.
 #include <iostream>
 #include <vector>
 #include <algorithm>

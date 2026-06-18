@@ -1,4 +1,5 @@
-// btree.cpp - BalancedTree implementation
+// Lab 6 - B-Tree (implementation)
+// Rama Krishnan (24BCS10087) <rama.24bcs10087@sst.scaler.com>
 #include "btree.h"
 #include <iostream>
 

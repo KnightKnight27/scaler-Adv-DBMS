@@ -1,4 +1,5 @@
-// Compact B-tree implementation with rewritten identifiers and comments
+// Lab 6 - B-Tree interactive driver
+// Rama Krishnan (24BCS10087) <rama.24bcs10087@sst.scaler.com>
 #include "btree.h"
 #include <iostream>
 
