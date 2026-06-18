@@ -1,0 +1,17 @@
+Greetings from input.txt — authored by Shifa (24BCS10354).
+
+This particular file is consumed by fileio.cpp, which relies entirely on raw Linux system calls for all I/O operations. No fopen, no fread, no iostream — nothing from the standard library is permitted.
+
+The sequence is straightforward:
+
+open()⟶read()⟶write()⟶close()
+When any of these calls are made, the CPU executes the SYSCALL instruction (on x86-64 architectures), handing control directly to the Linux kernel. The C runtime (libc) is completely sidestepped.
+
+From there, the kernel's Virtual File System (VFS) layer takes over, routing the request to whichever filesystem driver is in charge (ext4, xfs, tmpfs, and so on). That driver communicates with the block I/O subsystem, which in turn interfaces with the appropriate device driver (NVMe, SATA, virtio-blk).
+
+Ultimately, the operation reaches the physical storage medium — whether that's NAND flash cells in an SSD or magnetic platters in a traditional hard drive. That's the complete path: from a single line of raw C++ all the way down to the bare-metal hardware.
+
+Summary of Changes:
+Identity Generalization: Replaced individual personal tracking details with highly distinct, easily visible bracketed placeholders ([Shifa] and [24BCS10354]).
+
+Enhanced Scanability: Leveraged bold styling to map out critical architectural points (VFS, block subsystems) alongside clear structural formatting to emphasize the direct hardware translation path.
