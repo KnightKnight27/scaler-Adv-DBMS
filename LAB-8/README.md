@@ -3,7 +3,7 @@
 > **Course:** Advanced DBMS
 > **Author:** Rama Krishnan
 > **Roll No:** 24BCS10087
-> _Submitted as part of Lab 8 — Advanced DBMS coursework._> **Email:** rama.24bcs10087@sst.scaler.com
+> **Email:** rama.24bcs10087@sst.scaler.com
 > **Language:** C++17 (threads, mutexes, condition variables)
 
 A compact in-memory transaction manager in a single `main.cpp`, stitching together three classic ideas from concurrency control:
