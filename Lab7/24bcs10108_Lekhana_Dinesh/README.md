@@ -191,6 +191,4 @@ By completing this lab, I practiced:
 - writing a basic SQL-style parser manually
 - filtering structured records without using a database library
 
-## 12. Originality note
 
-This Lab 7 submission was implemented independently. It follows the required topic of SQL query parsing and Shunting-Yard expression evaluation, but uses an original product dataset, original examples, separate code organization, and original documentation wording.
