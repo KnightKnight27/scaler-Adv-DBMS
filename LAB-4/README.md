@@ -1,8 +1,8 @@
 # Lab 4 - Exploring SQLite Page Storage
 
 ## Student Details
-- Name: Dhruv Bansal
-- Roll Number: 24BCS10114
+- Name: Tanmay Mittal
+- Roll Number: 24BCS10491
 
 ## Objective
 This lab examines how SQLite organizes tables and indexes inside the database file. The work builds a small campus database, forces the page size to 1024 bytes, and documents the page layout using metadata queries and a hex dump.
