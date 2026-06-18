@@ -1,0 +1,3 @@
+Hello from raw system calls.
+This line was written using write().
+File I/O without standard library.
