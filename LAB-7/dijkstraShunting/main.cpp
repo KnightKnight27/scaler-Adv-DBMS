@@ -1,12 +1,15 @@
-/**
- * @file main.cpp
- * @brief Evaluation of SQL WHERE clause conditions using Dijkstra's
- * Shunting-Yard algorithm.
- *
- * This program tokenizes an infix SQL-like WHERE query string, converts it to
- * postfix (RPN) using the Shunting-Yard algorithm, and evaluates it against a
- * list of employees.
- */
+// Lab 7 - Dijkstra Shunting-Yard evaluator for SQL WHERE clauses
+// Rama Krishnan (24BCS10087) <rama.24bcs10087@sst.scaler.com>
+//
+// Tokenize an infix SQL-like WHERE condition, convert it to postfix (RPN)
+// using Dijkstra's Shunting-Yard algorithm, and evaluate the resulting
+// expression once per row against a vector<Employee>.
+//
+// Supported tokens:
+//   identifiers (id, age, ...)   numeric literals
+//   comparison: > < >= <= = !=
+//   logical:    AND OR  (also && / || as aliases)
+//   parens:     ( )
 
 #include <algorithm>
 #include <cctype>
@@ -14,261 +17,208 @@
 #include <stack>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-/**
- * @brief Represents an Employee record.
- */
 struct Employee {
-  std::string name;
-  int id = 0;
-  int age = 0;
+    std::string name;
+    int id  = 0;
+    int age = 0;
 };
 
-/**
- * @brief Returns precedence value of parsing operators.
- * Higher number indicates higher precedence.
- *
- * @param op Operator string.
- * @return int Precedence value (0 if not an operator).
- */
-int getOperatorPrecedence(const std::string &op) {
-  if (op == ">" || op == "<" || op == ">=" || op == "<=" || op == "=")
-    return 3;
-  if (op == "AND")
-    return 2;
-  if (op == "OR")
-    return 1;
-  return 0;
+namespace {
+
+struct OpInfo {
+    int  precedence;
+    bool right_assoc;
+};
+
+// Higher precedence binds tighter. Mirrors typical SQL evaluation order:
+// comparisons bind tighter than AND, AND tighter than OR.
+const std::unordered_map<std::string, OpInfo>& operatorTable() {
+    static const std::unordered_map<std::string, OpInfo> kOps = {
+        {"OR",  {1, false}},
+        {"AND", {2, false}},
+        {"=",   {3, false}}, {"!=", {3, false}},
+        {"<",   {4, false}}, {">",  {4, false}},
+        {"<=",  {4, false}}, {">=", {4, false}},
+    };
+    return kOps;
 }
 
-/**
- * @brief Checks if a string represents a valid integer.
- *
- * @param s String to check.
- * @return true if the string represents an integer, false otherwise.
- */
-bool isNumber(const std::string &s) {
-  if (s.empty())
-    return false;
-  size_t start = 0;
-  if (s[0] == '-' && s.size() > 1) {
-    start = 1;
-  }
-  return std::all_of(s.begin() + start, s.end(),
-                     [](unsigned char c) { return std::isdigit(c); });
+bool isOperator(const std::string& tok) {
+    return operatorTable().find(tok) != operatorTable().end();
 }
 
-/**
- * @brief Tokenizes the raw SQL-like WHERE query string.
- *
- * @param query Infix query string.
- * @return std::vector<std::string> List of tokens.
- */
-std::vector<std::string> tokenize(const std::string &query) {
-  std::vector<std::string> tokens;
-  size_t i = 0;
-  size_t n = query.size();
-
-  while (i < n) {
-    if (std::isspace(static_cast<unsigned char>(query[i]))) {
-      i++;
-      continue;
-    }
-
-    // Identifier or logical operator
-    if (std::isalpha(static_cast<unsigned char>(query[i]))) {
-      std::string lexeme;
-      while (i < n && (std::isalnum(static_cast<unsigned char>(query[i])) ||
-                       query[i] == '_')) {
-        lexeme += query[i];
-        i++;
-      }
-      // Check for logical operators in case-insensitive manner, converting to
-      // uppercase
-      std::string normalized = lexeme;
-      std::transform(normalized.begin(), normalized.end(), normalized.begin(),
-                     [](unsigned char c) { return std::toupper(c); });
-      if (normalized == "AND" || normalized == "OR") {
-        tokens.push_back(normalized);
-      } else {
-        tokens.push_back(lexeme);
-      }
-    }
-    // Numeric literals
-    else if (std::isdigit(static_cast<unsigned char>(query[i]))) {
-      std::string lexeme;
-      while (i < n && std::isdigit(static_cast<unsigned char>(query[i]))) {
-        lexeme += query[i];
-        i++;
-      }
-      tokens.push_back(lexeme);
-    }
-    // Two-character operators: >=, <=
-    else if ((query[i] == '>' || query[i] == '<') && i + 1 < n &&
-             query[i + 1] == '=') {
-      std::string op;
-      op += query[i];
-      op += '=';
-      tokens.push_back(op);
-      i += 2;
-    }
-    // Single-character operators/parentheses: >, <, =, (, )
-    else {
-      tokens.push_back(std::string(1, query[i]));
-      i++;
-    }
-  }
-  return tokens;
+int precedence(const std::string& tok) {
+    auto it = operatorTable().find(tok);
+    return it == operatorTable().end() ? 0 : it->second.precedence;
 }
 
-/**
- * @brief Converts infix expression tokens to postfix notation (RPN) using
- * Shunting-Yard.
- *
- * @param tokens Infix tokens.
- * @return std::vector<std::string> Postfix tokens.
- */
-std::vector<std::string> toPostfix(const std::vector<std::string> &tokens) {
-  std::vector<std::string> rpnOutput;
-  std::stack<std::string> opStack;
-
-  for (const auto &token : tokens) {
-    if (token == "(") {
-      opStack.push(token);
-    } else if (token == ")") {
-      while (!opStack.empty() && opStack.top() != "(") {
-        rpnOutput.push_back(opStack.top());
-        opStack.pop();
-      }
-      if (opStack.empty()) {
-        throw std::runtime_error("Mismatched parentheses: missing '('");
-      }
-      opStack.pop(); // Pop the '('
-    } else if (getOperatorPrecedence(token) > 0) {
-      while (!opStack.empty() && opStack.top() != "(" &&
-             getOperatorPrecedence(opStack.top()) >=
-                 getOperatorPrecedence(token)) {
-        rpnOutput.push_back(opStack.top());
-        opStack.pop();
-      }
-      opStack.push(token);
-    } else {
-      rpnOutput.push_back(token);
-    }
-  }
-
-  while (!opStack.empty()) {
-    if (opStack.top() == "(") {
-      throw std::runtime_error("Mismatched parentheses: missing ')'");
-    }
-    rpnOutput.push_back(opStack.top());
-    opStack.pop();
-  }
-
-  return rpnOutput;
+bool isIntegerLiteral(const std::string& s) {
+    if (s.empty()) return false;
+    size_t i = (s[0] == '-' && s.size() > 1) ? 1 : 0;
+    return std::all_of(s.begin() + i, s.end(),
+                       [](unsigned char c) { return std::isdigit(c); });
 }
 
-/**
- * @brief Resolves database field values dynamically from Employee structure.
- *
- * @param field Name of the field.
- * @param employee Employee reference.
- * @return int Field value.
- */
-int getFieldValue(const std::string &field, const Employee &employee) {
-  if (field == "id")
-    return employee.id;
-  if (field == "age")
-    return employee.age;
-  throw std::runtime_error("Unknown identifier/column: '" + field + "'");
+std::string toUpper(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](unsigned char c) { return std::toupper(c); });
+    return s;
 }
 
-/**
- * @brief Evaluates postfix expression against a given Employee.
- *
- * @param postfix Postfix RPN expression.
- * @param employee Employee record to evaluate.
- * @return true if condition matches, false otherwise.
- */
-bool evaluatePostfix(const std::vector<std::string> &postfix,
-                     const Employee &employee) {
-  std::stack<int> operandStack;
+}  // namespace
 
-  for (const auto &token : postfix) {
-    if (getOperatorPrecedence(token) == 0) {
-      if (isNumber(token)) {
-        operandStack.push(std::stoi(token));
-      } else {
-        operandStack.push(getFieldValue(token, employee));
-      }
-      continue;
+std::vector<std::string> tokenize(const std::string& query) {
+    std::vector<std::string> tokens;
+    size_t i = 0;
+    const size_t n = query.size();
+
+    while (i < n) {
+        unsigned char c = static_cast<unsigned char>(query[i]);
+        if (std::isspace(c)) { ++i; continue; }
+
+        if (std::isalpha(c) || c == '_') {
+            std::string lex;
+            while (i < n && (std::isalnum(static_cast<unsigned char>(query[i])) ||
+                             query[i] == '_')) {
+                lex += query[i++];
+            }
+            std::string up = toUpper(lex);
+            if (up == "AND" || up == "OR") tokens.push_back(up);
+            else                            tokens.push_back(lex);
+            continue;
+        }
+
+        if (std::isdigit(c)) {
+            std::string lex;
+            while (i < n && std::isdigit(static_cast<unsigned char>(query[i]))) {
+                lex += query[i++];
+            }
+            tokens.push_back(std::move(lex));
+            continue;
+        }
+
+        if ((query[i] == '>' || query[i] == '<' || query[i] == '!') &&
+            i + 1 < n && query[i + 1] == '=') {
+            tokens.push_back({query[i], query[i + 1]});
+            i += 2;
+            continue;
+        }
+
+        if (query[i] == '&' && i + 1 < n && query[i + 1] == '&') {
+            tokens.push_back("AND"); i += 2; continue;
+        }
+        if (query[i] == '|' && i + 1 < n && query[i + 1] == '|') {
+            tokens.push_back("OR"); i += 2; continue;
+        }
+
+        // Single-char operator or paren
+        tokens.push_back(std::string(1, query[i]));
+        ++i;
     }
+    return tokens;
+}
 
-    if (operandStack.size() < 2) {
-      throw std::runtime_error(
-          "Malformed postfix expression: insufficient operands for operator '" +
-          token + "'");
+std::vector<std::string> toPostfix(const std::vector<std::string>& tokens) {
+    std::vector<std::string> out;
+    std::stack<std::string> ops;
+
+    for (const auto& tok : tokens) {
+        if (tok == "(") {
+            ops.push(tok);
+        } else if (tok == ")") {
+            while (!ops.empty() && ops.top() != "(") {
+                out.push_back(ops.top());
+                ops.pop();
+            }
+            if (ops.empty()) throw std::runtime_error("Mismatched parentheses: missing '('");
+            ops.pop();
+        } else if (isOperator(tok)) {
+            const auto& info = operatorTable().at(tok);
+            while (!ops.empty() && ops.top() != "(") {
+                int topPrec = precedence(ops.top());
+                if (topPrec > info.precedence ||
+                    (topPrec == info.precedence && !info.right_assoc)) {
+                    out.push_back(ops.top());
+                    ops.pop();
+                } else break;
+            }
+            ops.push(tok);
+        } else {
+            out.push_back(tok);                   // identifier or literal
+        }
     }
-
-    int rightVal = operandStack.top();
-    operandStack.pop();
-    int leftVal = operandStack.top();
-    operandStack.pop();
-
-    if (token == ">") {
-      operandStack.push(leftVal > rightVal);
-    } else if (token == "<") {
-      operandStack.push(leftVal < rightVal);
-    } else if (token == ">=") {
-      operandStack.push(leftVal >= rightVal);
-    } else if (token == "<=") {
-      operandStack.push(leftVal <= rightVal);
-    } else if (token == "=") {
-      operandStack.push(leftVal == rightVal);
-    } else if (token == "AND") {
-      operandStack.push(leftVal && rightVal);
-    } else if (token == "OR") {
-      operandStack.push(leftVal || rightVal);
-    } else {
-      throw std::runtime_error("Unsupported operator: '" + token + "'");
+    while (!ops.empty()) {
+        if (ops.top() == "(") throw std::runtime_error("Mismatched parentheses: missing ')'");
+        out.push_back(ops.top());
+        ops.pop();
     }
-  }
+    return out;
+}
 
-  if (operandStack.size() != 1) {
-    throw std::runtime_error(
-        "Malformed postfix expression: extra operands left on stack");
-  }
+int resolveField(const std::string& field, const Employee& e) {
+    if (field == "id")  return e.id;
+    if (field == "age") return e.age;
+    throw std::runtime_error("Unknown identifier/column: '" + field + "'");
+}
 
-  return operandStack.top();
+bool evaluatePostfix(const std::vector<std::string>& postfix, const Employee& e) {
+    std::stack<int> st;
+    for (const auto& tok : postfix) {
+        if (!isOperator(tok)) {
+            st.push(isIntegerLiteral(tok) ? std::stoi(tok) : resolveField(tok, e));
+            continue;
+        }
+        if (st.size() < 2) {
+            throw std::runtime_error("Malformed expression: not enough operands for '" + tok + "'");
+        }
+        int rhs = st.top(); st.pop();
+        int lhs = st.top(); st.pop();
+
+        if      (tok == ">")  st.push(lhs >  rhs);
+        else if (tok == "<")  st.push(lhs <  rhs);
+        else if (tok == ">=") st.push(lhs >= rhs);
+        else if (tok == "<=") st.push(lhs <= rhs);
+        else if (tok == "=")  st.push(lhs == rhs);
+        else if (tok == "!=") st.push(lhs != rhs);
+        else if (tok == "AND") st.push(lhs && rhs);
+        else if (tok == "OR")  st.push(lhs || rhs);
+        else throw std::runtime_error("Unsupported operator: '" + tok + "'");
+    }
+    if (st.size() != 1) {
+        throw std::runtime_error("Malformed expression: stack does not collapse to a single value");
+    }
+    return st.top() != 0;
 }
 
 int main() {
-  try {
-    std::string query = "id > 3 AND (age < 25 OR age >= 30)";
+    try {
+        const std::string query = "id > 3 AND (age < 25 OR age >= 30)";
 
-    auto tokens = tokenize(query);
-    auto postfix = toPostfix(tokens);
+        auto tokens  = tokenize(query);
+        auto postfix = toPostfix(tokens);
 
-    std::cout << "Postfix: ";
-    for (const auto &token : postfix) {
-      std::cout << token << ' ';
+        std::cout << "Query:   " << query << '\n';
+        std::cout << "Postfix:";
+        for (const auto& t : postfix) std::cout << ' ' << t;
+        std::cout << "\n\nMatching rows:\n";
+
+        const std::vector<Employee> employees = {
+            {"Rama Krishnan", 1, 19}, {"Aarav", 2, 20},  {"Karan", 3, 19},
+            {"Sneha",         4, 21}, {"Vivaan", 5, 20}, {"Ishaan", 6, 31},
+            {"Meera",         7, 22}, {"Devansh", 8, 33},
+        };
+
+        for (const auto& e : employees) {
+            if (evaluatePostfix(postfix, e)) {
+                std::cout << "  id=" << e.id << "  age=" << e.age << "  name=" << e.name << '\n';
+            }
+        }
+    } catch (const std::exception& ex) {
+        std::cerr << "Error: " << ex.what() << '\n';
+        return 1;
     }
-    std::cout << "\n\n";
-
-    std::vector<Employee> employees = {
-        {"Rama Krishnan", 1, 19}, {"Rama", 2, 20},   {"Karan", 3, 19},
-        {"Sneha", 4, 21},         {"Vivaan", 5, 20}, {"Ishaan", 6, 31},
-        {"Meera", 7, 22}};
-
-    for (const auto &emp : employees) {
-      if (evaluatePostfix(postfix, emp)) {
-        std::cout << emp.name << " " << emp.id << " " << emp.age << "\n";
-      }
-    }
-  } catch (const std::exception &e) {
-    std::cerr << "Error: " << e.what() << "\n";
-    return 1;
-  }
-  return 0;
+    return 0;
 }

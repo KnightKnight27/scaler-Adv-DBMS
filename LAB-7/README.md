@@ -1,88 +1,100 @@
-# Lab 7: Advanced DBMS - Query Parsing & Dijkstra Shunting-Yard Evaluation
+# Lab 7 — Query Parsing & Shunting-Yard Evaluation
 
-This repository contains two main programs implementing query processing and condition evaluation mechanisms for database management systems:
+> **Course:** Advanced DBMS
+> **Author:** Rama Krishnan
+> **Roll No:** 24BCS10087
+> **Email:** rama.24bcs10087@sst.scaler.com
+> **Language:** C++17
 
-1. **Dijkstra Shunting-Yard Evaluator** (`dijkstra-shunting`)
-2. **Abstract Syntax Tree (AST) Query Parser** (`queryParsing`)
+Two complementary takes on evaluating a SQL `WHERE` clause against an
+in-memory row set:
 
-Both implementations have been highly optimized for standard-compliant modern C++ (C++17/C++20), ensuring robustness, memory safety, and high scores in automated AI evaluation tools.
+1. **`dijkstraShunting/`** — Dijkstra's Shunting-Yard algorithm. Tokenise
+   the infix expression, convert to postfix (RPN), evaluate per row with a
+   stack.
+2. **`queryParsing/`** — Recursive-descent parser that builds an
+   AST out of `unique_ptr<Node>`, then walks it per row.
 
----
+Together they cover the two textbook approaches to expression evaluation in
+a tiny SQL engine.
 
-## Project Structure
+## Files
 
 ```
-├── dijkstra-shunting/
-│   └── main.cpp           # Infix-to-Postfix (Shunting-Yard) condition parser & evaluator
-├── queryParsing/
-│   └── main.cpp           # AST-based recursive descent SQL parser & evaluator
-└── README.md              # Documentation
+LAB-7/
+├── dijkstraShunting/main.cpp   # Tokenise → Shunting-Yard → postfix eval
+├── queryParsing/main.cpp       # Tokenise → recursive-descent AST → walk
+├── Makefile                    # `make`, `make run`, `make clean`
+└── README.md
 ```
 
----
-
-## 1. Dijkstra Shunting-Yard Evaluator
-
-Located in the [`dijkstra-shunting`](file:///home/espacio/sst/adv_dbms/lab7/dijkstra-shunting/main.cpp) directory.
-
-### Overview
-
-This program evaluates a SQL `WHERE` clause condition (e.g., `id > 3 AND (age < 25 OR age >= 30)`) against a collection of employee records.
-It uses **Dijkstra's Shunting-Yard algorithm** to:
-
-- Tokenize the raw string.
-- Convert the infix logical expression to postfix notation (Reverse Polish Notation or RPN).
-- Evaluate the postfix expression utilizing an operand stack.
-
-### Verification & Key Optimizations
-
-- **No Namespace Pollution**: Removed global `using namespace std;` to align with strict professional standards.
-- **Header Discipline**: Replaced generic `<bits/stdc++.h>` header with exact, standard headers (`<vector>`, `<stack>`, `<string>`, etc.) to improve compilation efficiency and readability.
-- **Descriptive Namespaces & Entities**: Replaced shortened abbreviations (e.g., `struct Emp` and member variable `n`) with clear types like `Employee::name`, and gave the working stacks self-documenting names (`opStack`, `operandStack`).
-- **Exception Safety**: Added error propagation for mismatched parentheses, invalid operations, and unknown fields.
-
----
-
-## 2. AST Query Parser
-
-Located in the [`queryParsing`](file:///home/espacio/sst/adv_dbms/lab7/queryParsing/main.cpp) directory.
-
-### Overview
-
-This program implements a **recursive descent parser** to construct a binary Abstract Syntax Tree (AST) representing a SELECT statement:
-`SELECT name FROM employees WHERE id >= 3 OR age < 20`
-
-It then walks the AST recursively to evaluate matches on employee data.
-
-### Verification & Key Optimizations
-
-- **Complete Memory Safety**: Replaced all raw pointers (`Node*`) with modern smart pointers (`std::unique_ptr<Node>`). This guarantees automatic, leak-free lifetime management of AST nodes under all circumstances.
-- **Structured Error Handling**: Implemented standard exceptions (`std::runtime_error`) for syntax errors, unexpected end-of-tokens, or malformed SELECT clauses.
-- **Robust Lexing**: Clean and structured scanner that handles multi-character boundary conditions (such as `>=`, `<=`) and case-insensitive keyword comparisons.
-- **Readable Parser State**: Descriptive identifiers throughout the recursive descent (`cursor`, `curNode`, `rightExpr`, `combinedNode`) make the AST-building flow easy to follow.
-
----
-
-## Compilation & Execution
-
-Both sub-projects can be compiled using any modern C++ compiler supporting standard C++17 or above.
-
-### Building Dijkstra Shunting-Yard
+## Build & Run
 
 ```bash
-g++ -std=c++17 -Wall -Wextra dijkstra-shunting/main.cpp -o dijkstra_eval
-./dijkstra_eval
+make            # builds both binaries
+make run        # runs both and prints matching rows
+make clean
 ```
 
-### Building AST Query Parser
+Run them individually with `make run-shunting` or `make run-parser`.
 
-```bash
-g++ -std=c++17 -Wall -Wextra queryParsing/main.cpp -o query_parser
-./query_parser
+## What each binary supports
+
+| Feature | Shunting-Yard | Recursive-descent |
+| --- | --- | --- |
+| Identifiers (`id`, `age`)           | ✓ | ✓ |
+| Integer literals                    | ✓ | ✓ |
+| Comparisons `> < >= <= = !=`        | ✓ | ✓ |
+| Logical `AND` / `OR` (+ `&&` / `||`) | ✓ | ✓ |
+| Parentheses                         | ✓ | ✓ |
+| Operator precedence (cmp > AND > OR) | ✓ | ✓ (grammar enforces it)|
+| Full `SELECT col FROM tbl WHERE ...` parsing | — | ✓ |
+
+The Shunting-Yard binary is a focused expression evaluator. The
+recursive-descent binary parses the whole `SELECT` statement, including the
+projected column and table name.
+
+## Grammar (recursive descent)
+
+```
+query       := SELECT <ident> FROM <ident> WHERE <expr>
+expr        := orTerm
+orTerm      := andTerm ( OR  andTerm )*
+andTerm     := factor  ( AND factor  )*
+factor      := '(' expr ')' | comparison
+comparison  := <ident> <op> <number>
+op          := > | < | >= | <= | = | !=
 ```
 
----
+The grammar encodes precedence (comparisons bind tighter than `AND`,
+`AND` tighter than `OR`), so the AST is correct by construction — no
+shunting yard needed on this side.
 
-## Summary of Data Updates
+## Sample queries (run as `make run`)
 
-As requested, all references to the student/employee name `Pratham` have been updated to `Abdullah Danish` inside the database mock datasets in both `main.cpp` files.
+```sql
+SELECT name FROM employees WHERE id >= 3 OR age < 20
+SELECT name FROM employees WHERE id >  3 AND age >= 30
+SELECT id   FROM employees WHERE (age < 25 AND id != 2) OR age >= 30
+```
+
+## Implementation notes
+
+- **No `using namespace std;`** — keeps the global namespace clean.
+- **Standard headers only** — no `<bits/stdc++.h>`.
+- **Memory safety**: AST nodes use `std::unique_ptr`; the Shunting-Yard
+  path uses only `std::vector` / `std::stack`, so there's no manual `new`.
+- **Error reporting**: every parse/eval failure throws
+  `std::runtime_error` with a human-readable message; `main()` catches and
+  returns non-zero.
+- **Builds clean** under `-Wall -Wextra -Wpedantic -Wshadow`.
+
+## Why both?
+
+Shunting-Yard is the right shape when the expression syntax is flat (an
+operator soup with precedences) — what a `WHERE` clause boils down to.
+Recursive descent is the right shape when there is real structure
+(keywords, clauses, sub-queries). Real databases run the recursive-descent
+parser at the statement level and use Shunting-Yard-style precedence
+climbing inside it for expressions — this lab shows both halves in
+isolation.
