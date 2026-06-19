@@ -17,7 +17,6 @@ int main() {
   cout << "Result: " << evaluator.evaluate(expression) << endl;
 
   vector<Row> students = {
-
       {1, "Ayush", 19}, {2, "Anushka", 20}, {3, "Rahul", 19}, {4, "Priya", 21}};
 
   SQLParser parser;

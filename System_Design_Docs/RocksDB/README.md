@@ -1,0 +1,420 @@
+# RocksDB Architecture
+
+## 1. Problem Background
+
+RocksDB was developed at Facebook in 2012, forked from Google's LevelDB. The motivation was clear: Facebook's production systems were generating **write-heavy workloads** at a scale where traditional B-tree storage engines hit a fundamental ceiling.
+
+**The core problem with B-trees under heavy writes:**
+
+When you write to a B-tree, you must read the target leaf page into memory, modify it, and write it back to disk. Even for a simple key-value insert, you're performing a random disk read followed by a random disk write to wherever the B-tree places that key. At Facebook's scale (billions of writes per day across thousands of MySQL servers), the **write amplification** — the ratio of actual disk writes to logical writes — was causing I/O saturation.
+
+The LSM-tree (Log-Structured Merge-tree), first described by O'Neil et al. in 1996, addresses this by converting random writes into **sequential writes**, which are an order of magnitude faster on both HDDs and SSDs.
+
+RocksDB was built to be an **embeddable, persistent key-value store** for high-write, low-latency production use cases. It is now the storage engine underlying Cassandra, TiKV, CockroachDB, MyRocks (MySQL), and many other systems.
+
+---
+
+## 2. Architecture Overview
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                        RocksDB LSM Architecture                          │
+│                                                                          │
+│  WRITE PATH:                                                             │
+│  Put(k,v) ──►  WAL (append-only log)                                    │
+│                    │                                                     │
+│                    └──►  MemTable (in-memory, sorted skip-list)          │
+│                                     │ (when full)                       │
+│                                     ▼                                   │
+│  READ PATH:                 Immutable MemTable ──flush──►  L0 SSTables  │
+│  Get(k) scans:                                                           │
+│    1. MemTable                                                           │
+│    2. Immutable MemTables                                                │
+│    3. L0 SSTs (all, may overlap)                                         │
+│    4. L1 SSTs (sorted, no overlap)                                       │
+│    5. L2 SSTs                                                            │
+│    6. Ln SSTs  ← most data lives here                                   │
+│                                                                          │
+│  COMPACTION (background):                                                │
+│    L0 → L1 → L2 → ... → Ln                                              │
+│    Merge + sort + deduplicate + remove tombstones                        │
+│                                                                          │
+│  Storage Layout:                                                         │
+│  ┌──────┬────────────────────────────────────────────────┐              │
+│  │ L0   │ SST SST SST SST  (overlapping key ranges)     │ ~64MB        │
+│  ├──────┼────────────────────────────────────────────────┤              │
+│  │ L1   │    SST    SST    SST    SST    SST             │ ~256MB       │
+│  ├──────┼────────────────────────────────────────────────┤              │
+│  │ L2   │ SST SST SST SST SST SST SST SST SST SST SST   │ ~2.5GB       │
+│  ├──────┼────────────────────────────────────────────────┤              │
+│  │ L3   │ (many SSTs, no overlapping key ranges)         │ ~25GB        │
+│  └──────┴────────────────────────────────────────────────┘              │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Internal Design
+
+### 3.1 MemTable
+
+The MemTable is an in-memory, sorted data structure that receives all writes first. The default implementation is a **skip-list** (concurrency-friendly, O(log N) insert/search), though RocksDB also supports hash-linked lists for prefix-dominated workloads.
+
+```
+MemTable (Skip-List):
+                                                   HEAD
+Level 3:  ─────────────────────────────── [A] ─── [G] ─── NULL
+Level 2:  ─────────── [B] ─────────────── [A] ─── [G] ─── NULL  
+Level 1:  ─── [C] ─── [B] ─── [F] ─────── [A] ─── [G] ─── NULL
+Level 0:  ─── [C] ─── [B] ─── [F] ─── [D] [A] ─── [G] ─── NULL
+              key3    key1    key5    key2  key7    key4
+
+Each entry: { user_key, sequence_number, value_type, value }
+  - sequence_number: monotonically increasing, enables MVCC within RocksDB
+  - value_type: kTypeValue (put) or kTypeDeletion (tombstone)
+```
+
+When MemTable reaches `write_buffer_size` (default 64MB), it becomes **immutable** and a new MemTable takes writes. Multiple immutable MemTables may exist waiting for flush.
+
+**Why skip-list?**
+- Concurrent writers: multiple threads can insert into different parts of the skip-list simultaneously (CAS operations at each level)
+- O(log N) for all operations, simpler than concurrent B-tree
+- Good cache locality for sequential scans
+
+### 3.2 WAL (Write-Ahead Log)
+
+Before any write goes to the MemTable, it's written to the WAL — the same WAL protocol as other databases.
+
+```
+WAL Entry Format:
+┌──────────────────────────────────────┐
+│ sequence_number (8 bytes)            │
+│ record_type: put/delete/merge        │
+│ key_length + key                     │
+│ value_length + value (if put)        │
+│ CRC32 checksum                       │
+└──────────────────────────────────────┘
+
+WAL Files: 000001.log, 000002.log, ...
+When MemTable is flushed to SSTable, the WAL file covering
+that MemTable can be safely deleted.
+
+Crash Recovery:
+  1. Find last flushed SSTable (check MANIFEST)
+  2. Replay WAL entries that postdate the last flush
+  3. Reconstruct MemTable from replayed entries
+  4. System is ready
+```
+
+### 3.3 SSTables (Sorted String Tables)
+
+SSTs are the persistent, immutable, sorted on-disk files of RocksDB. Once written, they are never modified — only replaced via compaction.
+
+```
+SSTable File (.sst) Internal Structure:
+┌──────────────────────────────────────────────────────┐
+│  Data Blocks                                         │
+│  ┌────────────────────────────────────────────────┐  │
+│  │ Block 1: sorted key-value pairs (4KB default)  │  │
+│  │   [key1 | value1 | key2 | value2 | ...]         │  │
+│  │   Key compression: shared prefix encoded        │  │
+│  ├────────────────────────────────────────────────┤  │
+│  │ Block 2: next set of sorted pairs              │  │
+│  │ ...                                            │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  Index Block                                         │
+│  ┌────────────────────────────────────────────────┐  │
+│  │  [last_key_of_block1 → block1_offset]          │  │
+│  │  [last_key_of_block2 → block2_offset]          │  │
+│  │  ...                                           │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  Filter Block (Bloom Filter per data block)          │
+│  ┌────────────────────────────────────────────────┐  │
+│  │  Bloom filter bits for each data block          │  │
+│  │  Used to skip blocks during Get()               │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  Meta Index Block                                    │
+│  Footer (magic number, index block offset)           │
+└──────────────────────────────────────────────────────┘
+```
+
+### 3.4 Bloom Filters
+
+A Bloom filter is a space-efficient probabilistic data structure that answers: **"Is this key definitely NOT in this SST?"**
+
+```
+Bloom Filter (10-bit array, 3 hash functions, for key "hello"):
+
+  hash1("hello") = 3   → bit[3] = 1
+  hash2("hello") = 7   → bit[7] = 1
+  hash3("hello") = 1   → bit[1] = 1
+
+  Array: [0, 1, 0, 1, 0, 0, 0, 1, 0, 0]
+                 ↑           ↑
+                bit[1]=1    bit[7]=1
+
+Query: Is "world" in this SST?
+  hash1("world") = 3   → bit[3] = 1  (might match)
+  hash2("world") = 4   → bit[4] = 0  → DEFINITELY NOT HERE
+  → Skip this SST entirely without reading any data blocks
+
+Query: Is "hello" in this SST?
+  All 3 bits set → POSSIBLY here → read from SST
+  (False positives possible, false negatives impossible)
+
+False positive rate ≈ (1 - e^(-kn/m))^k
+  k = hash functions, n = inserted elements, m = array size
+  At 10 bits/key: ~1% false positive rate
+```
+
+**Impact on read performance**: Without Bloom filters, a `Get(k)` must check every SST at every level — potentially hundreds of files. With Bloom filters, most SSTs are skipped in microseconds (just a few memory operations), reducing the I/O to only the SSTs that plausibly contain the key.
+
+### 3.5 Compaction
+
+Compaction is the background process that merges SSTs from one level into the next, maintaining the invariant that within a level (L1+), key ranges do not overlap.
+
+```
+Compaction Process (L1 → L2 example):
+
+Before:
+  L1: [SST_A: keys 1-100] [SST_B: keys 101-200] [SST_C: keys 201-300]
+  L2: [SST_X: keys 1-50] [SST_Y: keys 51-150] [SST_Z: keys 151-350]
+
+Compaction picks SST_A from L1 (keys 1-100):
+  Overlapping L2 SSTables: SST_X (1-50) and SST_Y (51-150)
+  Merge-sort all three: SST_A + SST_X + SST_Y
+  During merge:
+    - Keep latest sequence_number for each key (deduplication)
+    - Drop tombstones for keys with no older versions
+    - Drop values older than compaction filter (TTL, etc.)
+  Write new SSTs for L2 with merged data
+  Delete old SST_A, SST_X, SST_Y
+
+After:
+  L1: [SST_B: 101-200] [SST_C: 201-300]
+  L2: [new_SST1: 1-50] [new_SST2: 51-100] [new_SST3: 101-150] [SST_Z: 151-350]
+```
+
+#### Compaction Strategies
+
+```
+1. Leveled Compaction (default):
+   - Each level has a size limit (10× per level)
+   - L1+: no key range overlap within a level
+   - Good read performance (at most 1 SST per level for a key)
+   - Higher write amplification (~10× typical)
+
+2. Universal Compaction:
+   - All files in sorted run order by time
+   - Fewer compaction operations → lower write amplification
+   - Higher space amplification (all versions temporarily coexist)
+   - Better for write-heavy workloads
+
+3. FIFO Compaction:
+   - Files never compacted, oldest deleted when size limit reached
+   - Zero write amplification
+   - Only suitable for time-series / append workloads
+
+Amplification Trade-offs:
+                    Write Amp.  Read Amp.  Space Amp.
+  Leveled:            High        Low        Low
+  Universal:          Low         Medium     High (temporary)
+  FIFO:               None        High       Medium
+```
+
+### 3.6 Read Path and Write Path
+
+```
+WRITE PATH (Put):
+  1. Write to WAL (disk, sequential)
+  2. Insert into MemTable (memory, skip-list O(log N))
+  3. Return to caller (write is durable + in-memory)
+  [Background]: When MemTable full:
+  4. Freeze MemTable → Immutable MemTable
+  5. Flush Immutable MemTable → L0 SSTable (disk, sequential)
+  6. L0 compaction → L1 → L2 → ... (background)
+
+READ PATH (Get):
+  1. Check MemTable (newest data first)
+  2. Check Immutable MemTables (newest first)
+  3. Check L0 SSTables (ALL of them — key ranges may overlap)
+     For each: check Bloom filter → if maybe: read index → read data block
+  4. Check L1 (binary search — no overlap, only 1 SST possible)
+     Check Bloom filter → if maybe: read data block
+  5. Check L2, L3, ... Ln similarly
+  6. Return first found (or NOT_FOUND)
+
+Scan (Iterator):
+  Open merge iterator across all levels simultaneously
+  Advance: O(log(num_ssts)) per next key via tournament tree
+```
+
+---
+
+## 4. Design Trade-Offs
+
+### LSM Tree vs B-Tree
+
+```
+┌────────────────────────┬──────────────────────────────┐
+│     LSM-tree           │        B-tree                │
+├────────────────────────┼──────────────────────────────┤
+│ Sequential writes only │ Random writes (update in-place)│
+│ Low write amplification│ High write amplification     │
+│   (compacted async)    │   (page read → modify → write)│
+│ Higher read amplification│ Low read amplification     │
+│   (check multiple levels)│  (O(log N), single path)   │
+│ Space amplification    │ Minimal space overhead       │
+│   (multiple versions   │   (one copy per key)         │
+│   until compaction)    │                              │
+│ Compaction cost        │ No background merge cost     │
+│   (I/O bursts)         │                              │
+│ Write stalls possible  │ Predictable latency          │
+│   (L0 file buildup)    │                              │
+└────────────────────────┴──────────────────────────────┘
+```
+
+### Compaction Cost
+
+Compaction can be expensive:
+- **Write amplification factor 10–30×**: Each byte of user data may be written 10–30 times across levels
+- **I/O bursts**: Compaction is CPU and disk intensive; can compete with foreground reads
+- **Write stalls**: If L0 fills faster than compaction can process, writes are throttled (soft) or stopped (hard)
+
+**Mitigations**: Tuning `max_background_compactions`, `max_write_buffer_number`, compression at lower levels (LZ4, Zstd), and hardware tiering (NVMe for L0/L1, HDD for deeper levels).
+
+---
+
+## 5. Experiments / Observations
+
+### Experiment 1: Write Amplification Measurement
+
+```bash
+# Using RocksDB's db_bench tool
+./db_bench \
+  --benchmarks=fillrandom \
+  --num=10000000 \
+  --value_size=1024 \
+  --write_buffer_size=67108864 \
+  --max_bytes_for_level_base=268435456 \
+  --compression_type=lz4 \
+  --statistics=1
+
+# After benchmark, check statistics:
+# rocksdb.compact.write.bytes: bytes written during compaction
+# rocksdb.bytes.written: user bytes written
+
+# Write Amplification = compact.write.bytes / user bytes written
+```
+
+**Typical Observations:**
+
+| Workload | Write Amp | Read Amp | Space Amp |
+|---|---|---|---|
+| Random writes, Leveled | 10–30× | 1–2× | 1.1× |
+| Sequential writes, Leveled | 2–5× | 1× | 1.0× |
+| Random writes, Universal | 3–10× | 2–5× | 1.5–2× |
+| Random writes, FIFO | 1× | O(files) | Growing |
+
+### Experiment 2: Bloom Filter Impact
+
+```python
+import rocksdb
+
+# Without Bloom filter
+opts_no_bloom = rocksdb.Options()
+opts_no_bloom.create_if_missing = True
+db_no_bloom = rocksdb.DB('test_no_bloom', opts_no_bloom)
+
+# With Bloom filter (10 bits per key)
+opts_bloom = rocksdb.Options()
+opts_bloom.create_if_missing = True
+table_opts = rocksdb.BlockBasedTableFactory(
+    filter_policy=rocksdb.BloomFilterPolicy(10)
+)
+opts_bloom.table_factory = table_opts
+db_bloom = rocksdb.DB('test_bloom', opts_bloom)
+
+# Insert 1M keys into both
+# Then measure: point lookups for keys NOT in DB (100% miss)
+
+# Typical result:
+# Without Bloom: ~50ms per 1000 lookups (reads SST data blocks)
+# With Bloom:    ~2ms per 1000 lookups (filter eliminates 99% of SST reads)
+```
+
+**Observation**: Bloom filters have the most dramatic impact for **negative lookups** (key not found) and workloads where only a small fraction of SSTs contain each key.
+
+### Experiment 3: Compaction Strategies Comparison
+
+```bash
+# Leveled compaction (default):
+./db_bench --benchmarks=fillrandom,stats \
+  --compaction_style=0 \  # Leveled
+  --num=5000000
+
+# Universal compaction:
+./db_bench --benchmarks=fillrandom,stats \
+  --compaction_style=1 \  # Universal
+  --num=5000000
+
+# Compare output statistics:
+# - rocksdb.compaction.times.micros
+# - rocksdb.compact.write.bytes
+# - rocksdb.number.keys.read (read amplification proxy)
+```
+
+**Observed behavior**:
+- **Leveled**: Lower peak disk usage, consistent read performance, higher per-write I/O
+- **Universal**: Lower write I/O during steady state, but periodic large compaction I/O bursts when runs are merged
+- **Write stalls**: Observable in Leveled mode when insert rate exceeds compaction rate — watch for `compaction_needed` in statistics
+
+### Experiment 4: Read Amplification Visualization
+
+```
+Get("key_X") traversal with 3 levels, Bloom filter hits:
+
+  L0 SST 1: Bloom → MAYBE → Read index → Read data block → NOT FOUND
+  L0 SST 2: Bloom → SKIP (definitely not here)
+  L0 SST 3: Bloom → SKIP
+  L0 SST 4: Bloom → MAYBE → Read index → Read data block → NOT FOUND
+  L1 SST 2: Bloom → MAYBE → Read index → Read data block → FOUND "key_X"!
+
+  I/Os: 2 Bloom checks (memory) + 2 index reads + 2 data block reads + 1 final read
+  Without Bloom: would have read ALL L0 SSTs + 1 L1 SST
+
+  At 1% Bloom false positive rate:
+    100 L0 SSTs → expect ~1 false positive I/O instead of 100 data block reads
+    Read amplification reduced from O(files_per_level) to O(levels)
+```
+
+---
+
+## 6. Key Learnings
+
+1. **LSM trees convert random writes to sequential writes**: This is the core insight. Disk (both HDD and SSD) handles sequential I/O dramatically better than random I/O. By buffering writes in memory (MemTable) and flushing to disk sequentially (SST files), RocksDB achieves write throughput that B-trees cannot match on the same hardware.
+
+2. **Compaction is the fundamental cost of LSM trees**: There is no free lunch. The sequential writes that make LSM trees fast for writing create a background compaction burden. Compaction write amplification (10–30×) means each user byte is physically written 10–30 times. Tuning RocksDB means balancing compaction configuration against workload characteristics.
+
+3. **Bloom filters are essential for read performance**: Without them, every `Get()` would touch every SST at every level — O(total_files) I/Os. Bloom filters reduce this to O(levels) with high probability, making read performance competitive with B-trees for point lookups.
+
+4. **Immutability enables simplicity**: SST files are never modified — only created during flush/compaction and deleted when no longer needed. This immutability eliminates concurrency complexity on the file level, enables atomic level changes via the MANIFEST file, and makes crash recovery straightforward.
+
+5. **RocksDB's influence on distributed databases**: TiKV, CockroachDB, Cassandra with RocksDB storage, and MyRocks all use RocksDB specifically because their distributed write patterns align with LSM tree strengths. When you shard data across nodes, each shard receives writes that are random in global key space but sequential to that shard's MemTable — a perfect fit.
+
+6. **Space amplification is hidden cost**: During compaction, old and new SST versions coexist temporarily. A well-tuned deployment with Universal compaction can use 2× the live data size transiently. Planning storage capacity must account for this.
+
+---
+
+## References
+
+- [RocksDB GitHub](https://github.com/facebook/rocksdb)
+- [RocksDB Wiki](https://github.com/facebook/rocksdb/wiki)
+- [RocksDB Tuning Guide](https://github.com/facebook/rocksdb/wiki/RocksDB-Tuning-Guide)
+- O'Neil, P. et al. "The Log-Structured Merge-Tree (LSM-Tree)." Acta Informatica (1996)
+- Dong, S. et al. "Optimizing Space Amplification in RocksDB." CIDR (2017)
+- [Facebook Engineering: RocksDB](https://engineering.fb.com/2013/11/21/core-data/introducing-rocksdb/)
+
