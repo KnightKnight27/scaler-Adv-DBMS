@@ -36,6 +36,11 @@ class TablePage {
   static bool InsertTuple(Page *page, const Tuple &t, slot_id_t *slot);
   // Read slot into *out; false if out of range or tombstoned.
   static bool GetTuple(const Page *page, slot_id_t slot, Tuple *out);
+
+  // Zero-copy access to a slot's tuple bytes in place (nullptr if out of range
+  // or tombstoned). Used by the vectorized scan to decode columns without
+  // copying each tuple. The pointer is valid while the page stays pinned.
+  static const char *RawTuple(const Page *page, slot_id_t slot, uint16_t *len);
   static bool MarkDelete(Page *page, slot_id_t slot);
   static bool IsDeleted(const Page *page, slot_id_t slot);
 

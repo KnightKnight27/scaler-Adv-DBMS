@@ -81,6 +81,15 @@ bool TablePage::GetTuple(const Page *page, slot_id_t slot, Tuple *out) {
   return true;
 }
 
+const char *TablePage::RawTuple(const Page *page, slot_id_t slot, uint16_t *len) {
+  const char *d = page->GetData();
+  if (slot >= RdU16(d, OFF_NUM_SLOTS)) return nullptr;
+  uint16_t off = RdU16(d, SlotOff(slot));
+  if (off == 0) return nullptr;  // tombstone
+  *len = RdU16(d, SlotOff(slot) + 2);
+  return d + off;
+}
+
 bool TablePage::MarkDelete(Page *page, slot_id_t slot) {
   char *d = page->GetData();
   if (slot >= RdU16(d, OFF_NUM_SLOTS)) return false;
