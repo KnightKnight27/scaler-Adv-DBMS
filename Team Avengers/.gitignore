@@ -1,0 +1,30 @@
+# --- build output ---
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.exe
+
+# --- compiled binaries (no extension on macOS/Linux) ---
+minidb
+test_storage
+test_*
+!test_*.cpp
+
+# --- database / log artifacts produced at runtime ---
+*.db
+*.db-*
+*.wal
+*.log
+minidb_test.db
+
+# --- editor / OS cruft ---
+.DS_Store
+.vscode/
+.idea/
+*.swp
