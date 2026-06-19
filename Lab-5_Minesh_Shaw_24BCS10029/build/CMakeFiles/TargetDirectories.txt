@@ -1,0 +1,3 @@
+/mnt/c/Users/Minesh/OneDrive/Desktop/temporary/scaler-Adv-DBMS/Lab-5_Minesh_Shaw_24BCS10029/build/CMakeFiles/sqlengine.dir
+/mnt/c/Users/Minesh/OneDrive/Desktop/temporary/scaler-Adv-DBMS/Lab-5_Minesh_Shaw_24BCS10029/build/CMakeFiles/edit_cache.dir
+/mnt/c/Users/Minesh/OneDrive/Desktop/temporary/scaler-Adv-DBMS/Lab-5_Minesh_Shaw_24BCS10029/build/CMakeFiles/rebuild_cache.dir
