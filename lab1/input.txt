@@ -1,0 +1,23 @@
+Greetings from input.txt — authored by Shubham Shah (24BCS10316).
+
+This particular file is consumed by fileio.cpp, which relies
+entirely on raw Linux system calls for all I/O operations.
+No fopen, no fread, no iostream — nothing from the standard library.
+
+The sequence is straightforward:
+  open()  → read()  → write()  → close()
+
+When any of these calls are made, the CPU executes the SYSCALL
+instruction (on x86-64 architectures), handing control directly
+to the Linux kernel. The C runtime is completely sidestepped.
+
+From there, the kernel's Virtual File System (VFS) layer takes
+over, routing the request to whichever filesystem driver is in
+charge (ext4, xfs, tmpfs, and so on). That driver communicates
+with the block I/O subsystem, which in turn interfaces with the
+appropriate device driver (NVMe, SATA, virtio-blk).
+
+Ultimately, the operation reaches the physical storage medium —
+whether that's NAND flash cells in an SSD or magnetic platters
+in a traditional hard drive. That's the complete path: from a
+single line of C++ all the way down to hardware.
