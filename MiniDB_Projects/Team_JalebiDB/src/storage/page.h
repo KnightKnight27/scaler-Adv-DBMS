@@ -19,7 +19,9 @@ public:
     void SetPageId(page_id_t page_id) { page_id_ = page_id; }
 
     lsn_t GetLSN() const {
-        return *reinterpret_cast<const lsn_t *>(data_ + sizeof(page_id_t));
+        lsn_t lsn;
+        std::memcpy(&lsn, data_ + sizeof(page_id_t), sizeof(lsn_t));
+        return lsn;
     }
     void SetLSN(lsn_t lsn) {
         *reinterpret_cast<lsn_t *>(data_ + sizeof(page_id_t)) = lsn;
