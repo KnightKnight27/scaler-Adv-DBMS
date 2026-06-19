@@ -5,7 +5,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# ---- Main executable ----
 add_executable(doradb
     src/main.cpp
     src/common/types.cpp
@@ -13,10 +12,13 @@ add_executable(doradb
     src/storage/page.cpp
     src/storage/buffer_pool.cpp
     src/storage/heap_file.cpp
+    src/storage/heap_engine.cpp
     src/index/bplus_tree.cpp
     src/catalog/catalog.cpp
     src/parser/tokenizer.cpp
     src/parser/parser.cpp
+    src/executor/executor.cpp
+    src/optimizer/optimizer.cpp
 )
 
 target_include_directories(doradb PRIVATE src)
