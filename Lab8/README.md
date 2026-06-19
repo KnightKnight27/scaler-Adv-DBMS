@@ -11,12 +11,11 @@ The objective of this lab is to simulate important DBMS transaction concepts in 
 
 ```text
 Lab8/
-└── 24BCS10353_Aparna_Singha/
-    ├── README.md
-    └── transaction-manager/
-        ├── main.cpp
-        ├── Makefile
-        └── run_tests.sh
+├── README.md
+└── transaction-manager/
+    ├── main.cpp
+    ├── Makefile
+    └── run_tests.sh
 ```
 
 ## What This Lab Implements
@@ -133,7 +132,7 @@ Each section prints readable logs such as transaction start, reads, writes, wait
 Move into the project folder:
 
 ```bash
-cd Lab8/24BCS10353_Aparna_Singha/transaction-manager
+cd Lab8/transaction-manager
 ```
 
 Build and run using the Makefile:
