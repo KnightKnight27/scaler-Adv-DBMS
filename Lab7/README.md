@@ -16,12 +16,11 @@ This lab focuses on query parsing, operator precedence, condition validation, an
 
 ```text
 Lab7/
-└── 24BCS10353_Aparna_Singha/
-    ├── README.md
-    ├── dijkstra-shunting/
-    │   └── main.cpp
-    └── queryParsing/
-        └── main.cpp
+├── README.md
+├── dijkstra-shunting/
+│   └── main.cpp
+└── queryParsing/
+    └── main.cpp
 ```
 
 ## Part 1: Dijkstra Shunting-Yard Condition Evaluator
