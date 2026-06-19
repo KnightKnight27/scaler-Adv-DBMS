@@ -42,6 +42,14 @@ StmtPtr Parser::ParseStatement() {
   if (t.text == "INSERT") return ParseInsert();
   if (t.text == "SELECT") return ParseSelect();
   if (t.text == "DELETE") return ParseDelete();
+  if (t.text == "BEGIN" || t.text == "COMMIT" || t.text == "ROLLBACK") {
+    Next();
+    auto stmt = std::make_unique<Statement>();
+    stmt->type = t.text == "BEGIN"    ? StmtType::kBegin
+                 : t.text == "COMMIT" ? StmtType::kCommit
+                                      : StmtType::kRollback;
+    return stmt;
+  }
   throw Exception(ErrorKind::kParse, "unsupported statement '" + t.text + "'");
 }
 

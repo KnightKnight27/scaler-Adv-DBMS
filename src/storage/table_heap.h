@@ -23,6 +23,12 @@ class TableHeap {
   bool GetTuple(const RID &rid, Tuple *out);
   bool MarkDelete(const RID &rid);
 
+  // Read a slot's current byte offset (0 if absent/deleted), and restore it.
+  // Used to undo a delete during transaction rollback: capture the offset before
+  // MarkDelete, then write it back to make the tombstoned tuple live again.
+  uint16_t PeekSlotOffset(const RID &rid);
+  bool RestoreSlot(const RID &rid, uint16_t offset);
+
   // Forward iterator over all live (non-deleted) tuples.
   class Iterator {
    public:

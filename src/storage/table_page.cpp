@@ -89,4 +89,16 @@ bool TablePage::MarkDelete(Page *page, slot_id_t slot) {
   return true;
 }
 
+uint16_t TablePage::GetSlotOffset(const Page *page, slot_id_t slot) {
+  const char *d = page->GetData();
+  if (slot >= RdU16(d, OFF_NUM_SLOTS)) return 0;
+  return RdU16(d, SlotOff(slot));
+}
+
+void TablePage::SetSlotOffset(Page *page, slot_id_t slot, uint16_t offset) {
+  char *d = page->GetData();
+  if (slot >= RdU16(d, OFF_NUM_SLOTS)) return;
+  WrU16(d, SlotOff(slot), offset);
+}
+
 }  // namespace minidb

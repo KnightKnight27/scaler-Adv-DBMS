@@ -49,7 +49,7 @@ struct Expr {
 using ExprPtr = std::unique_ptr<Expr>;
 
 // ---- statements ------------------------------------------------------------
-enum class StmtType { kCreateTable, kCreateIndex, kInsert, kSelect, kDelete };
+enum class StmtType { kCreateTable, kCreateIndex, kInsert, kSelect, kDelete, kBegin, kCommit, kRollback };
 
 struct ColumnDef {
   std::string name;

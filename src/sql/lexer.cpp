@@ -7,9 +7,10 @@
 namespace minidb {
 
 static const std::unordered_set<std::string> kKeywords = {
-    "CREATE", "TABLE", "INDEX",   "ON",     "INSERT", "INTO",  "VALUES",
-    "SELECT", "FROM",  "WHERE",   "DELETE", "JOIN",   "INNER", "AND",
-    "OR",     "INT",   "INTEGER", "VARCHAR", "TEXT"};
+    "CREATE", "TABLE",  "INDEX",   "ON",       "INSERT", "INTO",     "VALUES",
+    "SELECT", "FROM",   "WHERE",   "DELETE",   "JOIN",   "INNER",    "AND",
+    "OR",     "INT",    "INTEGER", "VARCHAR",  "TEXT",   "BEGIN",    "COMMIT",
+    "ROLLBACK"};
 
 std::vector<Token> Lexer::Tokenize() {
   std::vector<Token> out;

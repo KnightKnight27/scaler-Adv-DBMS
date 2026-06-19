@@ -95,6 +95,26 @@ bool TableHeap::MarkDelete(const RID &rid) {
   return ok;
 }
 
+uint16_t TableHeap::PeekSlotOffset(const RID &rid) {
+  Page *page = bpm_->FetchPage(rid.GetPageId());
+  if (page == nullptr) return 0;
+  page->RLatch();
+  uint16_t off = TablePage::GetSlotOffset(page, rid.GetSlotNum());
+  page->RUnlatch();
+  bpm_->UnpinPage(rid.GetPageId(), false);
+  return off;
+}
+
+bool TableHeap::RestoreSlot(const RID &rid, uint16_t offset) {
+  Page *page = bpm_->FetchPage(rid.GetPageId());
+  if (page == nullptr) return false;
+  page->WLatch();
+  TablePage::SetSlotOffset(page, rid.GetSlotNum(), offset);
+  page->WUnlatch();
+  bpm_->UnpinPage(rid.GetPageId(), true);
+  return true;
+}
+
 // --- Iterator ---------------------------------------------------------------
 
 TableHeap::Iterator::Iterator(TableHeap *heap, RID rid, bool end)

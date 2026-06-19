@@ -39,6 +39,13 @@ class TablePage {
   static bool MarkDelete(Page *page, slot_id_t slot);
   static bool IsDeleted(const Page *page, slot_id_t slot);
 
+  // Read / restore a slot's byte offset. A delete only zeros the offset (the
+  // tuple bytes are never reclaimed), so saving the offset before a delete and
+  // writing it back later un-tombstones the tuple in place — used to roll back
+  // a deletion during transaction abort.
+  static uint16_t GetSlotOffset(const Page *page, slot_id_t slot);
+  static void SetSlotOffset(Page *page, slot_id_t slot, uint16_t offset);
+
   static uint16_t FreeSpace(const Page *page);
   // Largest tuple that can ever fit on an empty page.
   static uint16_t MaxTupleSize() { return PAGE_SIZE - SIZE_HEADER - SIZE_SLOT; }

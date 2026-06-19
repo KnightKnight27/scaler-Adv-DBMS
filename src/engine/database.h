@@ -7,6 +7,8 @@
 #include "buffer/buffer_pool_manager.h"
 #include "catalog/catalog.h"
 #include "common/value.h"
+#include "concurrency/lock_manager.h"
+#include "concurrency/transaction_manager.h"
 #include "execution/execution.h"
 #include "sql/sql.h"
 #include "storage/disk_manager.h"
@@ -41,6 +43,12 @@ class Database {
   ResultSet ExecInsert(Statement *stmt);
   ResultSet ExecDelete(Statement *stmt);
   ResultSet ExecSelect(Statement *stmt);
+  ResultSet ExecBegin();
+  ResultSet ExecCommit();
+  ResultSet ExecRollback();
+
+  // Undo every write a transaction made, in reverse order (used by ROLLBACK).
+  void UndoWrites(Transaction *txn);
 
   // Binding helpers: build the input column list for a SELECT (single table or
   // join), resolve column references in an expression to indices, resolve the
@@ -56,6 +64,9 @@ class Database {
   std::unique_ptr<DiskManager> disk_;
   std::unique_ptr<BufferPoolManager> bpm_;
   std::unique_ptr<Catalog> catalog_;
+  std::unique_ptr<LockManager> lock_mgr_;
+  std::unique_ptr<TransactionManager> txn_mgr_;
+  Transaction *txn_{nullptr};  // current explicit transaction, or nullptr (auto-commit)
 };
 
 }  // namespace minidb

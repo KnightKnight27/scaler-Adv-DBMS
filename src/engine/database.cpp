@@ -9,6 +9,8 @@ Database::Database(const std::string &db_file, size_t pool_size) {
   disk_ = std::make_unique<DiskManager>(db_file);
   bpm_ = std::make_unique<BufferPoolManager>(pool_size, disk_.get());
   catalog_ = std::make_unique<Catalog>(bpm_.get());  // claims page 0
+  lock_mgr_ = std::make_unique<LockManager>();
+  txn_mgr_ = std::make_unique<TransactionManager>(lock_mgr_.get());
 }
 
 Database::~Database() {
@@ -23,6 +25,9 @@ ResultSet Database::Execute(const std::string &sql) {
     case StmtType::kDelete: return ExecDelete(stmt.get());
     case StmtType::kSelect: return ExecSelect(stmt.get());
     case StmtType::kCreateIndex: return ExecCreateIndex(stmt.get());
+    case StmtType::kBegin: return ExecBegin();
+    case StmtType::kCommit: return ExecCommit();
+    case StmtType::kRollback: return ExecRollback();
   }
   throw Exception(ErrorKind::kExecution, "unhandled statement");
 }
@@ -99,10 +104,15 @@ ResultSet Database::ExecInsert(Statement *stmt) {
       BPlusTree *tree = catalog_->GetIndex(stmt->table, idx.name);
       if (tree->Insert(row[idx.key_col], rid)) idx.distinct_keys++;
     }
+    // Inside an explicit transaction: X-lock the new row (2PL) and log it for undo.
+    if (txn_ != nullptr) {
+      lock_mgr_->LockExclusive(txn_, rid);
+      txn_->Writes().push_back({WriteKind::kInsert, stmt->table, rid, 0});
+    }
     count++;
   }
   meta->num_rows += static_cast<uint32_t>(count);
-  catalog_->Persist();
+  if (txn_ == nullptr) catalog_->Persist();  // auto-commit; explicit txns persist at COMMIT
   return {false, {}, {}, "INSERT " + std::to_string(count), count};
 }
 
@@ -128,6 +138,13 @@ ResultSet Database::ExecDelete(Statement *stmt) {
     }
   }
   for (auto &v : victims) {
+    // Inside an explicit transaction: X-lock + capture the slot offset so the
+    // delete can be undone (a tombstone keeps the tuple bytes in place).
+    if (txn_ != nullptr) {
+      lock_mgr_->LockExclusive(txn_, v.first);
+      uint16_t off = heap->PeekSlotOffset(v.first);
+      txn_->Writes().push_back({WriteKind::kDelete, stmt->table, v.first, off});
+    }
     heap->MarkDelete(v.first);
     for (const auto &idx : meta->indexes) {
       BPlusTree *tree = catalog_->GetIndex(stmt->table, idx.name);
@@ -137,9 +154,68 @@ ResultSet Database::ExecDelete(Statement *stmt) {
   if (!victims.empty()) {
     auto n = static_cast<uint32_t>(victims.size());
     meta->num_rows = meta->num_rows >= n ? meta->num_rows - n : 0;
-    catalog_->Persist();
+    if (txn_ == nullptr) catalog_->Persist();  // explicit txns persist at COMMIT
   }
   return {false, {}, {}, "DELETE " + std::to_string(victims.size()), static_cast<int>(victims.size())};
+}
+
+// ---- Transaction control ---------------------------------------------------
+ResultSet Database::ExecBegin() {
+  if (txn_ != nullptr) throw Exception(ErrorKind::kExecution, "a transaction is already in progress");
+  txn_ = txn_mgr_->Begin();
+  return {false, {}, {}, "BEGIN", 0};
+}
+
+ResultSet Database::ExecCommit() {
+  if (txn_ == nullptr) throw Exception(ErrorKind::kExecution, "no transaction in progress");
+  catalog_->Persist();        // make the transaction's effects durable
+  txn_mgr_->Commit(txn_);     // release all locks (strict 2PL)
+  txn_ = nullptr;
+  return {false, {}, {}, "COMMIT", 0};
+}
+
+ResultSet Database::ExecRollback() {
+  if (txn_ == nullptr) throw Exception(ErrorKind::kExecution, "no transaction in progress");
+  UndoWrites(txn_);           // undo data changes in reverse order
+  catalog_->Persist();        // persist the restored state
+  txn_mgr_->Abort(txn_);      // release all locks
+  txn_ = nullptr;
+  return {false, {}, {}, "ROLLBACK", 0};
+}
+
+void Database::UndoWrites(Transaction *txn) {
+  auto &writes = txn->Writes();
+  for (auto it = writes.rbegin(); it != writes.rend(); ++it) {
+    TableMeta *meta = catalog_->GetTable(it->table);
+    TableHeap *heap = catalog_->GetTableHeap(it->table);
+    if (meta == nullptr || heap == nullptr) continue;
+    const Schema &schema = meta->schema;
+
+    if (it->kind == WriteKind::kInsert) {
+      // Undo an insert: drop the row from every index, then tombstone it.
+      Tuple t;
+      if (heap->GetTuple(it->rid, &t)) {
+        std::vector<Value> vals = t.GetValues(schema);
+        for (const auto &idx : meta->indexes) {
+          catalog_->GetIndex(it->table, idx.name)->Delete(vals[idx.key_col], it->rid);
+        }
+      }
+      heap->MarkDelete(it->rid);
+      if (meta->num_rows > 0) meta->num_rows--;
+    } else {
+      // Undo a delete: restore the tombstoned slot, then re-index the row.
+      heap->RestoreSlot(it->rid, it->slot_offset);
+      Tuple t;
+      if (heap->GetTuple(it->rid, &t)) {
+        std::vector<Value> vals = t.GetValues(schema);
+        for (const auto &idx : meta->indexes) {
+          catalog_->GetIndex(it->table, idx.name)->Insert(vals[idx.key_col], it->rid);
+        }
+      }
+      meta->num_rows++;
+    }
+  }
+  writes.clear();
 }
 
 // ---- SELECT: bind, plan a Volcano pipeline, run it -------------------------

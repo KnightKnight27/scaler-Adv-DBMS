@@ -1,11 +1,14 @@
 // Concurrency control: 2PL lock manager (wait-die) + transaction manager.
 #include <atomic>
 #include <chrono>
+#include <cstdio>
+#include <string>
 #include <thread>
 
 #include "common/exception.h"
 #include "concurrency/lock_manager.h"
 #include "concurrency/transaction_manager.h"
+#include "engine/database.h"
 #include "tests/test_util.h"
 
 using namespace minidb;
@@ -113,11 +116,56 @@ static void TestTxnLifecycle() {
   CHECK(t->LockSet().empty());
 }
 
+// SQL-level transactions: ROLLBACK undoes inserts and deletes (including the
+// index), COMMIT persists across a reopen.
+static void TestSqlTransactions() {
+  const std::string f = "test_txn_sql.db";
+  std::remove(f.c_str());
+  {
+    Database db(f);
+    db.Execute("CREATE TABLE t (id INT, name VARCHAR(16))");
+    db.Execute("CREATE INDEX t_id ON t (id)");
+    db.Execute("INSERT INTO t VALUES (1,'a'),(2,'b')");
+    CHECK_EQ(db.Execute("SELECT id FROM t").affected, 2);
+
+    // ROLLBACK undoes inserts.
+    db.Execute("BEGIN");
+    db.Execute("INSERT INTO t VALUES (3,'c'),(4,'d')");
+    CHECK_EQ(db.Execute("SELECT id FROM t").affected, 4);  // visible inside the txn
+    db.Execute("ROLLBACK");
+    CHECK_EQ(db.Execute("SELECT id FROM t").affected, 2);  // rolled back
+    CHECK_EQ(db.Execute("SELECT id FROM t WHERE id = 3").affected, 0);
+
+    // ROLLBACK undoes a delete (row + index entry restored).
+    db.Execute("BEGIN");
+    db.Execute("DELETE FROM t WHERE id = 1");
+    CHECK_EQ(db.Execute("SELECT id FROM t").affected, 1);
+    db.Execute("ROLLBACK");
+    CHECK_EQ(db.Execute("SELECT id FROM t").affected, 2);
+    CHECK_EQ(db.Execute("SELECT id FROM t WHERE id = 1").affected, 1);
+
+    // COMMIT persists.
+    db.Execute("BEGIN");
+    db.Execute("INSERT INTO t VALUES (5,'e')");
+    db.Execute("COMMIT");
+    CHECK_EQ(db.Execute("SELECT id FROM t").affected, 3);
+  }
+  // Committed data survives reopen; rolled-back data does not.
+  {
+    Database db(f);
+    CHECK_EQ(db.Execute("SELECT id FROM t").affected, 3);
+    CHECK_EQ(db.Execute("SELECT id FROM t WHERE id = 5").affected, 1);
+    CHECK_EQ(db.Execute("SELECT id FROM t WHERE id = 3").affected, 0);
+  }
+  std::remove(f.c_str());
+}
+
 int main() {
   TestSharedCompatible();
   TestWaitDieAbortsYounger();
   TestOlderWaitsForYounger();
   TestSerializedExclusiveAccess();
   TestTxnLifecycle();
+  TestSqlTransactions();
   return minidb::test::summary("txn");
 }
