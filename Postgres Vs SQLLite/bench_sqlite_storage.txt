@@ -1,0 +1,49 @@
+=== SQLITE STORAGE ===
+3.53.1 2026-05-05 10:34:17 c88b22011a54b4f6fbd149e9f8e4de77658ce58143a1af0e3785e4e6475127e9 (64-bit)
+
+-- file --
+-rw-r--r-- 1 abhig 197610 12288 May  9 19:18 sample.db
+
+-- pragmas --
+4096
+3
+delete
+UTF-8
+
+-- .dbinfo --
+database page size:  4096
+write format:        1
+read format:         1
+reserved bytes:      0
+file change counter: 4
+database page count: 3
+freelist page count: 0
+schema cookie:       2
+schema format:       4
+default cache size:  0
+autovacuum top root: 0
+incremental vacuum:  0
+text encoding:       1 (utf8)
+user version:        0
+application id:      0
+software version:    3053001
+number of tables:    2
+number of indexes:   0
+number of triggers:  0
+number of views:     0
+schema size:         239
+data version         1
+
+-- .schema --
+CREATE TABLE students (
+    id    INTEGER PRIMARY KEY,
+    name  TEXT,
+    age   INTEGER,
+    dept  TEXT
+);
+CREATE TABLE courses (
+    id           INTEGER PRIMARY KEY,
+    student_id   INTEGER,
+    course_name  TEXT,
+    grade        TEXT
+);
