@@ -5,120 +5,192 @@
 #include <chrono>
 
 template<typename T>
-class ClockSweep{
+class ClockSweep {
 public:
 
-   ClockSweep(int maxNumber)
-      : maxCacheSize(maxNumber)
-   {
-      bgClockThread =
-         std::thread(&ClockSweep::runClockSweep,this);
-   }
+    ClockSweep(int maxNumber)
+        : maxCacheSize(maxNumber)
+    {
+        bgClockThread =
+            std::thread(&ClockSweep::runClockSweep, this);
+    }
 
-   ~ClockSweep(){
-      stopThread=true;
+    ~ClockSweep() {
+        stopThread = true;
 
-      if(bgClockThread.joinable())
-         bgClockThread.join();
-   }
+        if (bgClockThread.joinable())
+            bgClockThread.join();
+    }
 
-   T getKey(T key){
+    T getKey(T key) {
 
-      std::lock_guard<std::mutex> lock(cacheMutex);
+        std::lock_guard<std::mutex> lock(cacheMutex);
 
-      for(auto &entry:cache){
+        for (auto &entry : cache) {
 
-         if(entry.key==key){
+            if (entry.key == key) {
 
-            entry.referenceBit=true;
-            return entry.key;
-         }
-      }
+                entry.referenceBit = true;
 
-      return T{};
-   }
+                std::cout
+                    << "Accessed key "
+                    << key
+                    << " -> reference bit set to 1"
+                    << std::endl;
 
-   void putKey(T key){
+                return entry.key;
+            }
+        }
 
-      std::lock_guard<std::mutex> lock(cacheMutex);
+        std::cout
+            << "Key "
+            << key
+            << " not found in cache"
+            << std::endl;
 
-      for(auto &entry:cache){
+        return T{};
+    }
 
-         if(entry.key==key){
+    void putKey(T key) {
 
-            entry.referenceBit=true;
+        std::lock_guard<std::mutex> lock(cacheMutex);
+
+        for (auto &entry : cache) {
+
+            if (entry.key == key) {
+
+                entry.referenceBit = true;
+
+                std::cout
+                    << "Key "
+                    << key
+                    << " already exists -> reference bit set to 1"
+                    << std::endl;
+
+                return;
+            }
+        }
+
+        if (cache.size() < maxCacheSize) {
+
+            cache.push_back({key, true});
+
+            std::cout
+                << "Inserted "
+                << key
+                << " into cache"
+                << std::endl;
+
             return;
-         }
-      }
+        }
 
-      if(cache.size()<maxCacheSize){
+        while (true) {
 
-         cache.push_back({key,true});
-         return;
-      }
+            if (clockHand >= cache.size())
+                clockHand = 0;
 
-      while(true){
+            if (cache[clockHand].referenceBit) {
 
-         if(clockHand>=cache.size())
-            clockHand=0;
+                std::cout
+                    << "Second chance given to "
+                    << cache[clockHand].key
+                    << std::endl;
 
-         if(cache[clockHand].referenceBit){
+                cache[clockHand].referenceBit = false;
+            }
+            else {
 
-            cache[clockHand].referenceBit=false;
-         }
-         else{
+                std::cout
+                    << "Evicting "
+                    << cache[clockHand].key
+                    << " -> inserting "
+                    << key
+                    << std::endl;
 
-            cache[clockHand].key=key;
-            cache[clockHand].referenceBit=true;
+                cache[clockHand].key = key;
+                cache[clockHand].referenceBit = true;
+
+                clockHand++;
+                break;
+            }
 
             clockHand++;
-            break;
-         }
+        }
+    }
 
-         clockHand++;
-      }
-   }
+    void displayCache() {
+
+        std::lock_guard<std::mutex> lock(cacheMutex);
+
+        std::cout << "\nCurrent Cache State:\n";
+
+        for (const auto &entry : cache) {
+
+            std::cout
+                << "[Key: "
+                << entry.key
+                << ", RefBit: "
+                << entry.referenceBit
+                << "] ";
+        }
+
+        std::cout << "\n" << std::endl;
+    }
 
 private:
 
-   struct CacheEntry{
+    struct CacheEntry {
 
-      T key;
-      bool referenceBit;
-   };
+        T key;
+        bool referenceBit;
+    };
 
-   void runClockSweep(){
+    void runClockSweep() {
 
-      while(!stopThread){
+        while (!stopThread) {
 
-         std::this_thread::sleep_for(
-            std::chrono::seconds(5)
-         );
-      }
-   }
+            std::this_thread::sleep_for(
+                std::chrono::seconds(5)
+            );
+        }
+    }
 
-   uint maxCacheSize{0u};
+    uint maxCacheSize{0u};
 
-   std::vector<CacheEntry> cache;
+    std::vector<CacheEntry> cache;
 
-   int clockHand{0};
+    int clockHand{0};
 
-   std::thread bgClockThread;
+    std::thread bgClockThread;
 
-   std::mutex cacheMutex;
+    std::mutex cacheMutex;
 
-   bool stopThread{false};
+    bool stopThread{false};
 };
 
-int main(){
+int main() {
 
-   ClockSweep<int> clockSweep(3);
+    ClockSweep<int> clockSweep(3);
 
-   clockSweep.putKey(1);
-   clockSweep.putKey(2);
-   clockSweep.putKey(3);
+    std::cout << "=== Initial Insertions ===" << std::endl;
 
-   clockSweep.getKey(1);
+    clockSweep.putKey(1);
+    clockSweep.putKey(2);
+    clockSweep.putKey(3);
 
-   clockSweep.putKey(4);
+    clockSweep.displayCache();
+
+    std::cout << "=== Access Key 1 ===" << std::endl;
+
+    clockSweep.getKey(1);
+
+    clockSweep.displayCache();
+
+    std::cout << "=== Insert Key 4 (Triggers Clock Sweep) ===" << std::endl;
+
+    clockSweep.putKey(4);
+
+    clockSweep.displayCache();
+
+    return 0;
 }

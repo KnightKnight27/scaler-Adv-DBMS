@@ -1,7 +1,7 @@
 # Lab 2 - SQLite3 and PostgreSQL Comparison
 
-Name: Abhijit P
-Roll No: 24bcs10175
+**Name:** Abhijit P
+**Roll No:** 24bcs10175
 
 ## Objective
 
@@ -24,7 +24,7 @@ The assignment includes:
 
 SQLite3 was used to create a local file-based database named `football_clubs`.
 
-### Tables Created
+### Table Created
 
 ### football_clubs
 
@@ -38,22 +38,13 @@ SQLite3 was used to create a local file-based database named `football_clubs`.
 | 6  | Manchester City FC   | England  | 1   |
 | 7  | Arsenal FC           | England  | 0   |
 
-### movies
-
-| id | title                               | imdb_rating |
-| -- | ----------------------------------- | ----------- |
-| 1  | Oppenheimer                         | 8.3         |
-| 2  | Dune: Part Two                      | 8.5         |
-| 3  | Spider-Man: Across the Spider-Verse | 8.6         |
-| 4  | Interstellar                        | 8.7         |
-
 ---
 
 ## SQLite3 Storage Analysis
 
 ### Database File Size
 
-```bash id="6bhm6o"
+```bash
 -rwxrwxrwx 1 adx adx 12K May 9 05:05 football_clubs
 ```
 
@@ -61,7 +52,7 @@ SQLite3 was used to create a local file-based database named `football_clubs`.
 
 Observed page size:
 
-```text id="c67k7v"
+```text
 4096 bytes
 ```
 
@@ -69,7 +60,7 @@ Observed page size:
 
 Observed page count:
 
-```text id="j1a5y3"
+```text
 3
 ```
 
@@ -79,15 +70,159 @@ Page count increased after inserting more data into the database.
 
 Default mmap_size:
 
-```text id="76z1xw"
+```text
 0
 ```
 
 Updated mmap_size:
 
-```text id="3z8h8d"
+```text
 268435456
 ```
+
+---
+
+## SQLite Internal Architecture
+
+SQLite is an embedded database engine that stores the entire database inside a single file. Internally, SQLite uses a Pager subsystem to manage communication between memory and disk.
+
+```text
+Application
+    ↓
+SQLite Engine
+    ↓
+Pager
+    ↓
+Page Cache
+    ↓
+Database File
+```
+
+### Pager
+
+The Pager is responsible for:
+
+* Reading pages from disk
+* Writing modified pages back to disk
+* Managing transactions
+* Handling file locking
+* Maintaining database consistency
+
+### Pages
+
+SQLite stores all tables, indexes, and metadata inside fixed-size pages.
+
+For this database:
+
+```text
+Page Size = 4096 bytes
+```
+
+Instead of reading individual rows, SQLite reads and writes complete pages.
+
+### Page Cache
+
+Frequently accessed pages are stored in memory inside the page cache.
+
+Benefits:
+
+* Reduced disk I/O
+* Faster query execution
+* Better performance for repeated access
+
+---
+
+## PRAGMA Commands Used
+
+SQLite provides PRAGMA commands to inspect and configure internal database settings.
+
+### PRAGMA page_size
+
+```sql
+PRAGMA page_size;
+```
+
+Returns the size of a single database page.
+
+Observed value:
+
+```text
+4096 bytes
+```
+
+### PRAGMA page_count
+
+```sql
+PRAGMA page_count;
+```
+
+Returns the total number of pages allocated in the database file.
+
+Observed value:
+
+```text
+3
+```
+
+Estimated database size:
+
+```text
+4096 × 3 = 12288 bytes
+```
+
+### PRAGMA mmap_size
+
+```sql
+PRAGMA mmap_size;
+```
+
+Returns or configures the amount of the database file that can be memory mapped by the operating system.
+
+Observed values:
+
+```text
+Default: 0
+Updated: 268435456
+```
+
+Memory mapping allows SQLite to access database pages directly through memory, reducing the need for repeated file read operations.
+
+---
+
+## Memory-Mapped I/O (mmap)
+
+Memory mapping allows the operating system to map a database file directly into a process's virtual memory space.
+
+### Without mmap
+
+```text
+Database File
+    ↓
+read()
+    ↓
+SQLite Buffer
+    ↓
+Application
+```
+
+### With mmap
+
+```text
+Database File
+    ↓
+Memory Mapping
+    ↓
+Application
+```
+
+Advantages:
+
+* Fewer system calls
+* Reduced memory copying
+* Faster read performance
+* Better utilization of operating system caching
+
+For this small dataset, the performance difference was negligible because the database size was very small.
 
 ---
 
@@ -95,13 +230,13 @@ Updated mmap_size:
 
 ### Query Used
 
-```sql id="fjlwm6"
+```sql
 SELECT * FROM football_clubs;
 ```
 
 ### Without mmap
 
-```text id="jlwm7"
+```text
 real    0m0.009s
 user    0m0.003s
 sys     0m0.000s
@@ -109,7 +244,7 @@ sys     0m0.000s
 
 ### With mmap
 
-```text id="jlwm8"
+```text
 real    0m0.009s
 user    0m0.003s
 sys     0m0.000s
@@ -125,7 +260,7 @@ PostgreSQL was installed and tested using the same football_clubs dataset.
 
 ### PostgreSQL Query Timing
 
-```text id="jlwm9"
+```text
 real    0m0.039s
 user    0m0.006s
 sys     0m0.004s
@@ -147,12 +282,11 @@ sys     0m0.004s
 
 ## Environment Used
 
-The assignment was tested in Linux/WSL environment using bash.
+The assignment was tested in a Linux/WSL environment using bash.
 
-Note:
 PostgreSQL setup used Linux-specific authentication with:
 
-```bash id="jlwm10"
+```bash
 sudo -u postgres
 ```
 
@@ -168,7 +302,9 @@ The assignment helped in understanding:
 
 * database storage concepts
 * page size and page count
-* mmap usage
+* PRAGMA commands
+* memory-mapped I/O (mmap)
 * query timing
-* SQLite3 internals
+* SQLite internals
+* Pager and page cache architecture
 * comparison between SQLite3 and PostgreSQL
