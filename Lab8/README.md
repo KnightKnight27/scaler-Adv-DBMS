@@ -11,12 +11,11 @@ The objective of this lab is to simulate important DBMS transaction concepts in 
 
 ```text
 Lab8/
-└── 24BCS10353_Aparna_Singha/
-    ├── README.md
-    └── transaction-manager/
-        ├── main.cpp
-        ├── Makefile
-        └── run_tests.sh
+├── README.md
+└── transaction-manager/
+    ├── main.cpp
+    ├── Makefile
+    └── run_tests.sh
 ```
 
 ## What This Lab Implements
