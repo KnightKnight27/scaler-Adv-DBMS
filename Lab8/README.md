@@ -132,7 +132,7 @@ Each section prints readable logs such as transaction start, reads, writes, wait
 Move into the project folder:
 
 ```bash
-cd Lab8/24BCS10353_Aparna_Singha/transaction-manager
+cd Lab8/transaction-manager
 ```
 
 Build and run using the Makefile:
