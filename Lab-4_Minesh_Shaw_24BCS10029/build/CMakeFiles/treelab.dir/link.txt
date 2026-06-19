@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/treelab.dir/main.cpp.o CMakeFiles/treelab.dir/RBTree.cpp.o CMakeFiles/treelab.dir/BTree.cpp.o -o treelab 

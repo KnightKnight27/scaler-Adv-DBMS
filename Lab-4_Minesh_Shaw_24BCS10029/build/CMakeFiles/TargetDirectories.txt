@@ -1,0 +1,3 @@
+/mnt/c/Users/Minesh/OneDrive/Desktop/temporary/scaler-Adv-DBMS/Lab-4_Minesh_Shaw_24BCS10029/build/CMakeFiles/treelab.dir
+/mnt/c/Users/Minesh/OneDrive/Desktop/temporary/scaler-Adv-DBMS/Lab-4_Minesh_Shaw_24BCS10029/build/CMakeFiles/edit_cache.dir
+/mnt/c/Users/Minesh/OneDrive/Desktop/temporary/scaler-Adv-DBMS/Lab-4_Minesh_Shaw_24BCS10029/build/CMakeFiles/rebuild_cache.dir
