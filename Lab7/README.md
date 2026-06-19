@@ -126,7 +126,7 @@ This is handled gracefully with a clear error message because `price` is not a v
 Use the following commands exactly:
 
 ```bash
-cd Lab7/24BCS10353_Aparna_Singha
+cd Lab7
 
 g++ -std=c++17 -Wall -Wextra dijkstra-shunting/main.cpp -o dijkstra_demo
 ./dijkstra_demo
