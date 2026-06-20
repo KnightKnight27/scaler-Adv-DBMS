@@ -1,0 +1,4 @@
+hello from lab 2 - file i/o demonstration
+inode -> VFS -> page cache journey
+this is a test file for strace analysis
+kernel layers involved in file operations
