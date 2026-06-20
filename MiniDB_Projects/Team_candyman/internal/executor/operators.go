@@ -69,9 +69,9 @@ type Filter struct {
 	Pred  sql.Expr
 }
 
-func (f *Filter) Open() error      { return f.Child.Open() }
-func (f *Filter) Columns() Schema  { return f.Child.Columns() }
-func (f *Filter) Close() error     { return f.Child.Close() }
+func (f *Filter) Open() error     { return f.Child.Open() }
+func (f *Filter) Columns() Schema { return f.Child.Columns() }
+func (f *Filter) Close() error    { return f.Child.Close() }
 
 func (f *Filter) Next() (types.Row, bool, error) {
 	for {

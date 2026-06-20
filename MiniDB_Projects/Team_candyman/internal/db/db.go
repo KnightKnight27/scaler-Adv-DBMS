@@ -11,6 +11,7 @@ import (
 	"minidb/internal/catalog"
 	"minidb/internal/engine"
 	"minidb/internal/executor"
+	"minidb/internal/lsm"
 	"minidb/internal/recovery"
 	"minidb/internal/sql"
 	"minidb/internal/storage"
@@ -111,7 +112,12 @@ func (d *Database) openEngine() error {
 		d.eng = eng
 		return nil
 	case "lsm":
-		return fmt.Errorf("lsm engine is wired in a later milestone")
+		eng, err := lsm.Open(d.dir, d.cat)
+		if err != nil {
+			return err
+		}
+		d.eng = eng
+		return nil
 	default:
 		return fmt.Errorf("unknown engine %q", d.engine)
 	}

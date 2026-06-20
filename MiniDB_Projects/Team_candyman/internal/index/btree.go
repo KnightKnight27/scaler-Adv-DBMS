@@ -36,9 +36,9 @@ type BTree struct {
 type node struct {
 	leaf     bool
 	keys     [][]byte
-	vals     [][]byte          // leaf only: encoded RIDs
-	next     storage.PageID    // leaf only: next leaf for range scans
-	children []storage.PageID  // internal only: len == len(keys)+1
+	vals     [][]byte         // leaf only: encoded RIDs
+	next     storage.PageID   // leaf only: next leaf for range scans
+	children []storage.PageID // internal only: len == len(keys)+1
 }
 
 // NewBTree creates an empty tree (a single empty leaf root).

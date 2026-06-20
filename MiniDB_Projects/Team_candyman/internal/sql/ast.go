@@ -93,8 +93,8 @@ type BinaryExpr struct {
 // AggCall is an aggregate function call, e.g. COUNT(*), SUM(col).
 type AggCall struct {
 	Func string // COUNT, SUM, AVG, MIN, MAX
-	Star bool    // COUNT(*)
-	Arg  Expr    // argument when not star
+	Star bool   // COUNT(*)
+	Arg  Expr   // argument when not star
 }
 
 func (*ColumnRef) expr()  {}

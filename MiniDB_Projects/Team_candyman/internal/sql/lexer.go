@@ -32,7 +32,7 @@ var keywords = map[string]bool{
 	"BEGIN": true, "COMMIT": true, "ROLLBACK": true,
 	"INT": true, "INTEGER": true, "BIGINT": true,
 	"TEXT": true, "STRING": true, "VARCHAR": true,
-	"NULL": true,
+	"NULL":  true,
 	"COUNT": true, "SUM": true, "AVG": true, "MIN": true, "MAX": true,
 }
 
