@@ -1,0 +1,3 @@
+hello from lab 1
+ifstream reads this text through the operating system file path
+trace this program to watch open/read/stat/close cross the syscall boundary
