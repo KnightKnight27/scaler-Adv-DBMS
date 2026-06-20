@@ -119,7 +119,9 @@ func (bp *BufferPool) evict() error {
 
 // flushFrame writes a dirty frame to disk, honoring the write-ahead rule.
 func (bp *BufferPool) flushFrame(fr *frame) error {
-	if bp.logFlush != nil {
+	// Write-ahead rule applies to data (heap) pages only; index pages carry no
+	// meaningful LSN because indexes are rebuilt from the heap on recovery.
+	if bp.logFlush != nil && fr.key.File == FileData {
 		if err := bp.logFlush(fr.page.LSN()); err != nil {
 			return err
 		}

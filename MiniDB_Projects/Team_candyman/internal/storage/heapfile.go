@@ -88,26 +88,6 @@ func (h *HeapFile) Insert(rec []byte) (RID, error) {
 	}
 }
 
-// InsertAt writes a record at a specific RID's page+slot during redo recovery.
-// It only applies the write if the page's LSN is older than recLSN (idempotent
-// redo). Used by the WAL recovery path.
-func (h *HeapFile) InsertAt(rid RID, rec []byte, recLSN uint64) error {
-	page, err := h.bp.Fetch(FileData, rid.PageID)
-	if err != nil {
-		return err
-	}
-	defer func() { h.bp.Unpin(FileData, rid.PageID, true) }()
-	if page.LSN() >= recLSN {
-		return nil // already reflects this update
-	}
-	// best-effort: append; slot may differ but redo replays full history in order
-	if _, err := page.Insert(rec); err != nil {
-		return err
-	}
-	page.SetLSN(recLSN)
-	return nil
-}
-
 // Read returns the record bytes at a RID.
 func (h *HeapFile) Read(rid RID) ([]byte, error) {
 	page, err := h.bp.Fetch(FileData, rid.PageID)
@@ -182,3 +162,67 @@ func (h *HeapFile) Scan(fn ScanFunc) error {
 
 // FirstPage returns the heap's root page id (for catalog persistence).
 func (h *HeapFile) FirstPage() PageID { return h.firstPage }
+
+// HeapCursor is a pull-based iterator over a heap's live records. It buffers one
+// page of records at a time, so memory use is bounded by a single page.
+type HeapCursor struct {
+	h       *HeapFile
+	curPage PageID
+	buf     []heapRec
+	pos     int
+	done    bool
+}
+
+type heapRec struct {
+	rid RID
+	rec []byte
+}
+
+// Cursor returns a streaming iterator over the heap.
+func (h *HeapFile) Cursor() *HeapCursor {
+	return &HeapCursor{h: h, curPage: h.firstPage}
+}
+
+// Next returns the next live record, or ok=false at the end.
+func (c *HeapCursor) Next() (RID, []byte, bool, error) {
+	for {
+		if c.pos < len(c.buf) {
+			r := c.buf[c.pos]
+			c.pos++
+			return r.rid, r.rec, true, nil
+		}
+		if c.done || c.curPage == InvalidPageID {
+			return RID{}, nil, false, nil
+		}
+		if err := c.loadPage(); err != nil {
+			return RID{}, nil, false, err
+		}
+	}
+}
+
+func (c *HeapCursor) loadPage() error {
+	page, err := c.h.bp.Fetch(FileData, c.curPage)
+	if err != nil {
+		return err
+	}
+	n := page.SlotCount()
+	next := page.NextPage()
+	c.buf = c.buf[:0]
+	c.pos = 0
+	for s := 0; s < n; s++ {
+		if page.IsTombstone(s) {
+			continue
+		}
+		rec, err := page.Read(s)
+		if err != nil {
+			continue
+		}
+		c.buf = append(c.buf, heapRec{RID{PageID: c.curPage, Slot: uint16(s)}, rec})
+	}
+	c.h.bp.Unpin(FileData, c.curPage, false)
+	if next == InvalidPageID {
+		c.done = true
+	}
+	c.curPage = next
+	return nil
+}
