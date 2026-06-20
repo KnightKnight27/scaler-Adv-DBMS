@@ -1988,3 +1988,115 @@ Perhaps the most significant lesson is that database performance is not determin
 17. EXPLAIN ANALYZE Experiments Performed On Custom customers, orders, and products Datasets
 
 18. Statistics Analysis Performed Using pg_stats and ANALYZE
+
+# Appendix: Raw Experiment Transcript
+
+<details>
+<summary>Click to view the raw psql transcript</summary>
+
+```sql
+(base) kavya-dhyani@Modern-14-B10MW:~$ sudo -u postgres psql
+psql (16.14 (Ubuntu 16.14-0ubuntu0.24.04.1))
+Type "help" for help.
+
+postgres=# CREATE DATABASE pg_internals;
+CREATE DATABASE
+postgres=# \c pg_internals;
+You are now connected to database "pg_internals" as user "postgres".
+pg_internals=# CREATE TABLE customers (
+    customer_id SERIAL PRIMARY KEY,
+    customer_name TEXT,
+    city TEXT
+);
+
+CREATE TABLE products (
+    product_id SERIAL PRIMARY KEY,
+    product_name TEXT,
+    price NUMERIC(10,2)
+);
+
+CREATE TABLE orders (
+    order_id SERIAL PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(customer_id),
+    product_id INTEGER REFERENCES products(product_id),
+    quantity INTEGER,
+    order_date DATE
+);
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+pg_internals=# INSERT INTO customers(customer_name, city)
+SELECT
+    'Customer_' || g,
+    'City_' || (g % 20)
+FROM generate_series(1,10000) g;
+INSERT 0 10000
+pg_internals=# INSERT INTO products(product_name, price)
+SELECT
+    'Product_' || g,
+    (random()*1000)::numeric(10,2)
+FROM generate_series(1,1000) g;
+INSERT 0 1000
+pg_internals=# INSERT INTO orders(customer_id, product_id, quantity, order_date)
+SELECT
+    (random()*9999 + 1)::int,
+    (random()*999 + 1)::int,
+    (random()*10 + 1)::int,
+    CURRENT_DATE - ((random()*365)::int)
+FROM generate_series(1,100000);
+INSERT 0 100000
+pg_internals=# CREATE INDEX idx_orders_customer
+ON orders(customer_id);
+
+CREATE INDEX idx_orders_product
+ON orders(product_id);
+
+ANALYZE;
+CREATE INDEX
+CREATE INDEX
+ANALYZE
+pg_internals=# EXPLAIN ANALYZE
+SELECT
+    c.customer_name,
+    p.product_name,
+    o.quantity
+FROM orders o
+JOIN customers c
+    ON o.customer_id = c.customer_id
+JOIN products p
+    ON o.product_id = p.product_id
+WHERE o.quantity >= 5;
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
+ Hash Join  (cost=327.50..2555.37 rows=64777 width=28) (actual time=10.209..102.053 rows=64790 loops=1)
+   Hash Cond: (o.product_id = p.product_id)
+   ->  Hash Join  (cost=298.00..2355.11 rows=64777 width=21) (actual time=9.684..76.812 rows=64790 loops=1)
+         Hash Cond: (o.customer_id = c.customer_id)
+         ->  Seq Scan on orders o  (cost=0.00..1887.00 rows=64777 width=12) (actual time=0.006..24.898 rows=64790 loops=1)
+               Filter: (quantity >= 5)
+               Rows Removed by Filter: 35210
+         ->  Hash  (cost=173.00..173.00 rows=10000 width=17) (actual time=9.658..9.660 rows=10000 loops=1)
+               Buckets: 16384  Batches: 1  Memory Usage: 636kB
+               ->  Seq Scan on customers c  (cost=0.00..173.00 rows=10000 width=17) (actual time=0.005..5.265 rows=10000 loops=1)
+   ->  Hash  (cost=17.00..17.00 rows=1000 width=15) (actual time=0.514..0.515 rows=1000 loops=1)
+         Buckets: 1024  Batches: 1  Memory Usage: 55kB
+         ->  Seq Scan on products p  (cost=0.00..17.00 rows=1000 width=15) (actual time=0.014..0.230 rows=1000 loops=1)
+ Planning Time: 4.983 ms
+ Execution Time: 105.415 ms
+(15 rows)
+
+pg_internals=# SELECT
+    attname,
+    n_distinct
+FROM pg_stats
+WHERE tablename='orders';
+   attname   | n_distinct 
+-------------+------------
+ order_id    |         -1
+ customer_id |       9824
+ quantity    |         11
+ product_id  |       1000
+ order_date  |        366
+(5 rows)
+```
+</details>
