@@ -14,13 +14,11 @@ every line can be explained and defended.
 
 ## Team
 
-> PR title must be `TEAM_candyman`. Fill in each member's details before submission.
-
 **Team name:** `candyman`
 
 | Full name | Roll number | Scaler email |
 |-----------|-------------|--------------|
-| Vansh Malhotra | _SCALER..._ | _<scaler email>_ |
+| Vansh Malhotra | 24BCS10268 | vansh.24bcs10268@asst.scaler.com |
 | Sarthak Arora  | 24BCS10150  | sarthak.24bcs10150@sst.scaler.com |
 
 ---
