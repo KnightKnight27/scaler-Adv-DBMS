@@ -19,6 +19,8 @@ add_executable(doradb
     src/parser/parser.cpp
     src/executor/executor.cpp
     src/optimizer/optimizer.cpp
+    src/txn/lock_manager.cpp
+    src/txn/txn_manager.cpp
 )
 
 target_include_directories(doradb PRIVATE src)

@@ -3,16 +3,20 @@
 //
 // Usage:
 //   ./doradb           → interactive REPL
-//   ./doradb --test    → run M3 integration tests
+//   ./doradb --test    → run integration tests
 // ============================================================
 
 #include "storage/heap_engine.h"
 #include "parser/tokenizer.h"
 #include "parser/parser.h"
+#include "txn/lock_manager.h"
+#include "txn/txn_manager.h"
 
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <thread>
+#include <chrono>
 #include <string>
 #include <sstream>
 
@@ -151,6 +155,128 @@ static int RunTests() {
     std::cout << "========================================\n";
 
     std::filesystem::remove_all("test_data");
+
+    // ============================================================
+    // M4: Transaction + Locking Tests
+    // ============================================================
+    std::cout << "\n========================================\n";
+    std::cout << "  DoraDB — Milestone 4 Tests\n";
+    std::cout << "  Transactions + Locking\n";
+    std::cout << "========================================\n";
+
+    // --- Test: Basic locking ---
+    std::cout << "\n=== Basic Locking ===\n";
+    {
+        LockManager lm;
+        TxnManager tm(&lm);
+
+        int t1 = tm.Begin();
+        int t2 = tm.Begin();
+
+        RID r1{1, 0}, r2{2, 0};
+
+        // Both can get shared locks on same row
+        CHECK(lm.LockShared(t1, r1), "T1 gets SHARED on r1");
+        CHECK(lm.LockShared(t2, r1), "T2 gets SHARED on r1 (compatible)");
+
+        // T1 gets exclusive on r2
+        CHECK(lm.LockExclusive(t1, r2), "T1 gets EXCLUSIVE on r2");
+
+        tm.Commit(t1);
+        tm.Commit(t2);
+        CHECK(tm.GetState(t1) == TxnState::COMMITTED, "T1 committed");
+        CHECK(tm.GetState(t2) == TxnState::COMMITTED, "T2 committed");
+    }
+
+    // --- Test: Deadlock detection ---
+    std::cout << "\n=== Deadlock Detection Demo ===\n";
+    std::cout << "Scenario: T1 holds A, T2 holds B, T1 wants B, T2 wants A\n\n";
+    {
+        LockManager lm;
+        TxnManager tm(&lm);
+        RID rowA{10, 0}, rowB{20, 0};
+
+        int t1 = tm.Begin();
+        int t2 = tm.Begin();
+
+        // T1 locks row A, T2 locks row B
+        CHECK(lm.LockExclusive(t1, rowA), "T1 locks row A");
+        CHECK(lm.LockExclusive(t2, rowB), "T2 locks row B");
+
+        // Now T2 tries to lock row A → must wait (T1 holds it)
+        // Then T1 tries to lock row B → deadlock!
+        // We run T2's request in a thread so it blocks,
+        // then T1's request detects the cycle.
+
+        bool t2_got_a = false;
+        std::thread thread2([&]() {
+            t2_got_a = lm.LockExclusive(t2, rowA);  // blocks waiting for T1
+        });
+
+        // Give thread2 time to block
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        // T1 tries to lock row B → deadlock detected, T1 is victim
+        bool t1_got_b = lm.LockExclusive(t1, rowB);
+
+        if (!t1_got_b) {
+            std::cout << "\n→ T1 was chosen as deadlock victim, aborting T1\n";
+            tm.Abort(t1);
+            // Now T2 should be able to proceed
+        } else if (!t2_got_a) {
+            std::cout << "\n→ T2 was chosen as deadlock victim, aborting T2\n";
+            tm.Abort(t2);
+        }
+
+        thread2.join();
+
+        bool one_aborted = (tm.GetState(t1) == TxnState::ABORTED ||
+                            tm.GetState(t2) == TxnState::ABORTED);
+        CHECK(one_aborted, "One transaction aborted (deadlock resolved)");
+
+        bool one_can_proceed = t1_got_b || t2_got_a;
+        CHECK(one_can_proceed, "Other transaction can proceed");
+
+        // Commit the surviving txn
+        if (tm.GetState(t1) == TxnState::ACTIVE) tm.Commit(t1);
+        if (tm.GetState(t2) == TxnState::ACTIVE) tm.Commit(t2);
+    }
+
+    // --- Test: Strict 2PL (locks held until commit) ---
+    std::cout << "\n=== Strict 2PL Demo ===\n";
+    {
+        LockManager lm;
+        TxnManager tm(&lm);
+        RID r1{30, 0};
+
+        int t1 = tm.Begin();
+        lm.LockExclusive(t1, r1);
+
+        // T2 should not be able to get the lock while T1 is active
+        int t2 = tm.Begin();
+        bool t2_blocked = false;
+        std::thread waiter([&]() {
+            t2_blocked = true;
+            lm.LockShared(t2, r1);  // blocks until T1 commits
+            t2_blocked = false;
+        });
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        CHECK(t2_blocked, "T2 blocked while T1 holds exclusive lock");
+
+        // Commit T1 → releases locks → T2 unblocks
+        tm.Commit(t1);
+        waiter.join();
+
+        CHECK(!t2_blocked, "T2 unblocked after T1 committed");
+        CHECK(lm.GetLockInfo(t2, r1) == "SHARED", "T2 now holds SHARED lock");
+        tm.Commit(t2);
+    }
+
+    std::cout << "\n========================================\n";
+    std::cout << "  Results: " << tests_passed << "/" << tests_total << " passed\n";
+    std::cout << "========================================\n";
+
     return (tests_passed == tests_total) ? 0 : 1;
 }
 
@@ -158,7 +284,7 @@ static int RunTests() {
 // REPL
 // ============================================================
 static void RunREPL() {
-    std::cout << "DoraDB v0.3 — A MiniDB Engine\n";
+    std::cout << "DoraDB v0.4 — A MiniDB Engine\n";
     std::cout << "Type SQL statements, \\i <file> to run script, \\q to quit.\n\n";
 
     HeapEngine engine("data");
