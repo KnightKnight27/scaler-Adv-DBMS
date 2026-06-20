@@ -1,0 +1,1 @@
+/usr/bin/c++  -O2 -Wl,--dependency-file=CMakeFiles/reader.dir/link.d CMakeFiles/reader.dir/reader.cpp.o -o reader

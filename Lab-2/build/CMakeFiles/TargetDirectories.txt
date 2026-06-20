@@ -1,0 +1,3 @@
+/home/vedu/Work/Term 8/DBMS/scaler-Adv-DBMS/Lab-2/build/CMakeFiles/reader.dir
+/home/vedu/Work/Term 8/DBMS/scaler-Adv-DBMS/Lab-2/build/CMakeFiles/edit_cache.dir
+/home/vedu/Work/Term 8/DBMS/scaler-Adv-DBMS/Lab-2/build/CMakeFiles/rebuild_cache.dir
