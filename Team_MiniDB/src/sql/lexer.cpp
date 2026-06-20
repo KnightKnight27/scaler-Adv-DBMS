@@ -51,9 +51,20 @@ std::vector<Token> Lexer::Tokenize() {
     }
     if (c == '\'') {
       pos_++;
-      size_t start = pos_;
-      while (pos_ < src_.size() && src_[pos_] != '\'') pos_++;
-      std::string s = src_.substr(start, pos_ - start);
+      // Standard SQL escaping: a doubled quote ('') inside a string
+      // literal is a literal single quote, not the end of the string.
+      std::string s;
+      while (pos_ < src_.size()) {
+        if (src_[pos_] == '\'') {
+          if (pos_ + 1 < src_.size() && src_[pos_ + 1] == '\'') {
+            s += '\'';
+            pos_ += 2;
+            continue;
+          }
+          break;
+        }
+        s += src_[pos_++];
+      }
       if (pos_ < src_.size()) pos_++;  // closing quote
       tokens.push_back({TokenType::STRING, s});
       continue;
