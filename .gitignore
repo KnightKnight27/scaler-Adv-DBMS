@@ -13,6 +13,9 @@ sql_engine
 txmgr
 db_engine
 Btree
+lab7_shunting_yard
+lab7_query_parser
+lab8_txmgr
 
 .idea/
 .vscode/
