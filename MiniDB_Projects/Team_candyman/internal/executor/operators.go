@@ -26,14 +26,20 @@ type SeqScan struct {
 }
 
 func (s *SeqScan) Open() error {
-	sch, _ := s.Engine.Schema(s.Table)
-	s.schema = schemaFor(s.Alias, sch)
+	s.ensureSchema()
 	cur, err := s.Engine.Scan(s.Table)
 	if err != nil {
 		return err
 	}
 	s.cur = cur
 	return nil
+}
+
+func (s *SeqScan) ensureSchema() {
+	if s.schema == nil {
+		sch, _ := s.Engine.Schema(s.Table)
+		s.schema = schemaFor(s.Alias, sch)
+	}
 }
 
 func (s *SeqScan) Next() (types.Row, bool, error) { return s.cur.Next() }
@@ -43,7 +49,10 @@ func (s *SeqScan) Close() error {
 	}
 	return nil
 }
-func (s *SeqScan) Columns() Schema { return s.schema }
+
+// Columns is valid before Open so parent operators (e.g. joins) can build their
+// output schema without first opening a cursor.
+func (s *SeqScan) Columns() Schema { s.ensureSchema(); return s.schema }
 
 // schemaFor builds an output schema from a table schema qualified by alias.
 func schemaFor(alias string, ts *types.Schema) Schema {
