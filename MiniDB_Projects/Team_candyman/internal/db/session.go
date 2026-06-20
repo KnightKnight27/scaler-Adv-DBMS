@@ -16,7 +16,7 @@ const catalogResource = "\x00catalog"
 // in their own auto-committed transaction.
 type Session struct {
 	db  *Database
-	cur *txn.Transaction
+	cur *txnCtx
 }
 
 // NewSession creates an independent session (used by the REPL and by concurrency
@@ -34,20 +34,22 @@ func (s *Session) Execute(input string) (Result, error) {
 		if s.cur != nil {
 			return Result{}, fmt.Errorf("already in a transaction")
 		}
-		s.cur = s.db.txnMgr.Begin()
+		s.cur = s.db.beginCtx()
 		return Result{Message: "BEGIN"}, nil
 	case *sql.Commit:
 		if s.cur == nil {
 			return Result{}, fmt.Errorf("no transaction in progress")
 		}
-		s.cur.Commit()
+		if err := s.db.commitCtx(s.cur); err != nil {
+			return Result{}, err
+		}
 		s.cur = nil
 		return Result{Message: "COMMIT"}, nil
 	case *sql.Rollback:
 		if s.cur == nil {
 			return Result{}, fmt.Errorf("no transaction in progress")
 		}
-		s.cur.Abort()
+		s.db.abortCtx(s.cur)
 		s.cur = nil
 		return Result{Message: "ROLLBACK"}, nil
 	default:
@@ -56,31 +58,40 @@ func (s *Session) Execute(input string) (Result, error) {
 }
 
 // runLocked acquires the locks a statement needs under 2PL, runs it, and (for
-// auto-committed statements) commits or aborts.
+// auto-committed statements) commits or aborts. A failed statement inside an
+// explicit transaction is undone on its own (statement-level atomicity) while the
+// transaction stays open.
 func (s *Session) runLocked(stmt sql.Statement) (Result, error) {
-	tx := s.cur
-	autocommit := tx == nil
+	ctx := s.cur
+	autocommit := ctx == nil
 	if autocommit {
-		tx = s.db.txnMgr.Begin()
+		ctx = s.db.beginCtx()
 	}
 
-	if err := s.acquire(tx, stmt); err != nil {
-		// On deadlock the transaction is already aborted and its locks released.
+	if err := s.acquire(ctx.tx, stmt); err != nil {
+		// On deadlock the transaction is already aborted and its locks released;
+		// reverse any changes it made and drop it.
+		s.db.rollbackTo(ctx, 0)
 		if err == txn.ErrDeadlock && !autocommit {
 			s.cur = nil
 		}
-		return Result{}, fmt.Errorf("transaction %d aborted: %w", tx.ID, err)
+		return Result{}, fmt.Errorf("transaction %d aborted: %w", ctx.tx.ID, err)
 	}
 
-	res, err := s.dispatch(stmt)
+	mark := len(ctx.ops)
+	res, err := s.dispatch(stmt, ctx)
 	if err != nil {
 		if autocommit {
-			tx.Abort()
+			s.db.abortCtx(ctx)
+		} else {
+			s.db.rollbackTo(ctx, mark) // undo just this statement
 		}
 		return Result{}, err
 	}
 	if autocommit {
-		tx.Commit()
+		if err := s.db.commitCtx(ctx); err != nil {
+			return Result{}, err
+		}
 	}
 	return res, nil
 }
@@ -107,14 +118,14 @@ func (s *Session) acquire(tx *txn.Transaction, stmt sql.Statement) error {
 	return nil
 }
 
-func (s *Session) dispatch(stmt sql.Statement) (Result, error) {
+func (s *Session) dispatch(stmt sql.Statement, ctx *txnCtx) (Result, error) {
 	switch st := stmt.(type) {
 	case *sql.CreateTable:
 		return s.db.execCreate(st)
 	case *sql.Insert:
-		return s.db.execInsert(st)
+		return s.db.execInsert(st, ctx)
 	case *sql.Delete:
-		return s.db.execDelete(st)
+		return s.db.execDelete(st, ctx)
 	case *sql.Select:
 		return s.db.execSelect(st)
 	default:

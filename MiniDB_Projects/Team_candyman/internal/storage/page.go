@@ -104,6 +104,11 @@ func (p *Page) setSlot(i, off, length int, tomb bool) {
 // SlotCount returns the number of slots (including tombstones).
 func (p *Page) SlotCount() int { return p.slotCount() }
 
+// Uninitialized reports whether this page image is all-zero, i.e. a page that was
+// allocated but never written before a crash (a valid empty page has freePtr set
+// to PageSize). Heap scans treat such a page as the end of the chain.
+func (p *Page) Uninitialized() bool { return p.freePtr() == 0 && p.slotCount() == 0 }
+
 // FreeSpace returns the bytes available for a new record including its slot.
 func (p *Page) FreeSpace() int {
 	used := headerSize + p.slotCount()*slotSize

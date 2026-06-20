@@ -104,6 +104,12 @@ func (e *HeapEngine) CreateTable(name string, schema *types.Schema) error {
 	e.mu.Lock()
 	e.tables[name] = &heapTable{meta: meta, heap: h, index: bt}
 	e.mu.Unlock()
+	// Make the freshly allocated heap root durable so that, after a crash, the
+	// table's heap chain starts from a valid (empty) page rather than a torn,
+	// never-written one. DDL is auto-committed.
+	if err := e.Sync(); err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -16,9 +16,14 @@ func openTest(t *testing.T) *Database {
 	return d
 }
 
-func mustExec(t *testing.T, d *Database, sql string) Result {
+// execer is satisfied by both *Database and *Session.
+type execer interface {
+	Execute(string) (Result, error)
+}
+
+func mustExec(t *testing.T, e execer, sql string) Result {
 	t.Helper()
-	res, err := d.Execute(sql)
+	res, err := e.Execute(sql)
 	if err != nil {
 		t.Fatalf("exec %q: %v", sql, err)
 	}

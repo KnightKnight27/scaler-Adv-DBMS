@@ -17,12 +17,63 @@ func runDemo(name string) error {
 		return demoLocking()
 	case "deadlock":
 		return demoDeadlock()
+	case "recovery":
+		return demoRecovery()
 	default:
-		fmt.Println("usage: minidb demo <locking|deadlock>")
+		fmt.Println("usage: minidb demo <locking|deadlock|recovery>")
 		fmt.Println("  locking  - a reader blocks behind an uncommitted writer, then proceeds")
 		fmt.Println("  deadlock - two transactions form a cycle; one is aborted as the victim")
+		fmt.Println("  recovery - simulate a crash; committed data is redone, uncommitted undone")
 		return nil
 	}
+}
+
+// demoRecovery commits some data and leaves an uncommitted transaction, then
+// "crashes" (abandons the database without a clean shutdown) and reopens it,
+// showing the WAL redo committed work and discard the uncommitted work.
+func demoRecovery() error {
+	dir, err := os.MkdirTemp("", "minidb-recovery-")
+	if err != nil {
+		return err
+	}
+
+	d1, err := db.Open(dir, "heap")
+	if err != nil {
+		return err
+	}
+	s := d1.NewSession()
+	exec(s, "CREATE TABLE accounts (id INT PRIMARY KEY, bal INT)")
+	step("txn", "INSERT (1,100); INSERT (2,200)  -> auto-committed")
+	exec(s, "INSERT INTO accounts VALUES (1, 100)")
+	exec(s, "INSERT INTO accounts VALUES (2, 200)")
+
+	u := d1.NewSession()
+	step("txn", "BEGIN; INSERT (3,300)  -> left UNCOMMITTED")
+	exec(u, "BEGIN")
+	exec(u, "INSERT INTO accounts VALUES (3, 300)")
+
+	step("crash", "process dies: no clean shutdown (committed data only in WAL + buffer pool)")
+	// Intentionally do NOT call d1.Close(): the heap on disk is just the synced
+	// empty root; committed rows live only in the WAL.
+
+	step("restart", "reopening database -> running crash recovery from the WAL")
+	d2, err := db.Open(dir, "heap")
+	if err != nil {
+		return err
+	}
+	defer d2.Close()
+
+	res, err := d2.Execute("SELECT id, bal FROM accounts")
+	if err != nil {
+		return err
+	}
+	fmt.Println("\nRows after recovery:")
+	fmt.Println("  id | bal")
+	for _, r := range res.Rows {
+		fmt.Printf("  %s | %s\n", r[0], r[1])
+	}
+	fmt.Println("\nResult: rows 1 and 2 (committed) were redone; row 3 (uncommitted) was discarded.")
+	return nil
 }
 
 func openDemoDB() (*db.Database, error) {

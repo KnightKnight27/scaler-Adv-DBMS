@@ -11,6 +11,7 @@ import (
 	"minidb/internal/catalog"
 	"minidb/internal/engine"
 	"minidb/internal/executor"
+	"minidb/internal/recovery"
 	"minidb/internal/sql"
 	"minidb/internal/storage"
 	"minidb/internal/txn"
@@ -33,6 +34,7 @@ type Database struct {
 	bp      *storage.BufferPool
 	cat     *catalog.Catalog
 	eng     storage.StorageEngine
+	wal     *recovery.WAL
 	lockMgr *txn.LockManager
 	txnMgr  *txn.Manager
 	defSess *Session
@@ -56,14 +58,44 @@ func Open(dir, engineKind string) (*Database, error) {
 		return nil, err
 	}
 
+	wal, err := recovery.Open(filepath.Join(dir, "minidb.wal"))
+	if err != nil {
+		dm.Close()
+		return nil, err
+	}
+	// Write-ahead rule: fsync the whole log before any dirty data page is flushed.
+	bp.SetLogFlush(func(uint64) error { return wal.Flush() })
+
 	lm := txn.NewLockManager()
 	d := &Database{
-		dir: dir, engine: engineKind, dm: dm, bp: bp, cat: cat,
+		dir: dir, engine: engineKind, dm: dm, bp: bp, cat: cat, wal: wal,
 		lockMgr: lm, txnMgr: txn.NewManager(lm),
 	}
 	if err := d.openEngine(); err != nil {
 		dm.Close()
 		return nil, err
+	}
+	// Crash recovery: if the log is non-empty, the previous run did not shut down
+	// cleanly. Replay it (redo committed, undo losers), make the result durable,
+	// then reset the log.
+	recs, err := wal.ReadAll()
+	if err != nil {
+		dm.Close()
+		return nil, err
+	}
+	if len(recs) > 0 {
+		if err := recovery.Recover(recs, d.eng); err != nil {
+			dm.Close()
+			return nil, err
+		}
+		if err := d.eng.Sync(); err != nil {
+			dm.Close()
+			return nil, err
+		}
+		if err := wal.Reset(); err != nil {
+			dm.Close()
+			return nil, err
+		}
 	}
 	d.defSess = d.NewSession()
 	return d, nil
@@ -85,8 +117,20 @@ func (d *Database) openEngine() error {
 	}
 }
 
-// Close flushes and closes the database.
-func (d *Database) Close() error { return d.eng.Close() }
+// Close flushes committed data, resets the WAL (a clean shutdown needs no
+// recovery), and closes the database.
+func (d *Database) Close() error {
+	if err := d.eng.Sync(); err != nil {
+		return err
+	}
+	if err := d.wal.Reset(); err != nil {
+		return err
+	}
+	if err := d.wal.Close(); err != nil {
+		return err
+	}
+	return d.eng.Close()
+}
 
 // Tables lists table names (for the \dt meta-command).
 func (d *Database) Tables() []string { return d.eng.Tables() }
@@ -113,7 +157,7 @@ func (d *Database) execCreate(s *sql.CreateTable) (Result, error) {
 	return Result{Message: fmt.Sprintf("table %s created", s.Table)}, nil
 }
 
-func (d *Database) execInsert(s *sql.Insert) (Result, error) {
+func (d *Database) execInsert(s *sql.Insert, ctx *txnCtx) (Result, error) {
 	schema, ok := d.eng.Schema(s.Table)
 	if !ok {
 		return Result{}, fmt.Errorf("unknown table %q", s.Table)
@@ -148,7 +192,7 @@ func (d *Database) execInsert(s *sql.Insert) (Result, error) {
 		} else if exists {
 			return Result{}, fmt.Errorf("duplicate primary key %s", pk)
 		}
-		if err := d.eng.Put(s.Table, pk, row); err != nil {
+		if err := d.applyMutation(ctx, s.Table, nil, row); err != nil {
 			return Result{}, err
 		}
 		count++
@@ -186,16 +230,15 @@ func (d *Database) buildRow(schema *types.Schema, names []string, colPos []int, 
 	return row, nil
 }
 
-func (d *Database) execDelete(s *sql.Delete) (Result, error) {
-	schema, ok := d.eng.Schema(s.Table)
-	if !ok {
+func (d *Database) execDelete(s *sql.Delete, ctx *txnCtx) (Result, error) {
+	if _, ok := d.eng.Schema(s.Table); !ok {
 		return Result{}, fmt.Errorf("unknown table %q", s.Table)
 	}
 	scan := &executor.SeqScan{Engine: d.eng, Table: s.Table, Alias: s.Table}
 	if err := scan.Open(); err != nil {
 		return Result{}, err
 	}
-	var pks []types.Value
+	var victims []types.Row
 	for {
 		row, ok, err := scan.Next()
 		if err != nil {
@@ -211,17 +254,14 @@ func (d *Database) execDelete(s *sql.Delete) (Result, error) {
 			return Result{}, err
 		}
 		if keep {
-			pks = append(pks, row.PK(schema))
+			victims = append(victims, append(types.Row(nil), row...))
 		}
 	}
 	scan.Close()
-	count := 0
-	for _, pk := range pks {
-		if ok, err := d.eng.Delete(s.Table, pk); err != nil {
+	for _, row := range victims {
+		if err := d.applyMutation(ctx, s.Table, row, nil); err != nil {
 			return Result{}, err
-		} else if ok {
-			count++
 		}
 	}
-	return Result{Message: fmt.Sprintf("%d row(s) deleted", count)}, nil
+	return Result{Message: fmt.Sprintf("%d row(s) deleted", len(victims))}, nil
 }

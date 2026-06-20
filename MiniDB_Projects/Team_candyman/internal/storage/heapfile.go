@@ -48,6 +48,21 @@ func OpenHeapFile(bp *BufferPool, firstPage PageID) *HeapFile {
 	return &HeapFile{bp: bp, firstPage: firstPage}
 }
 
+// safeNext returns the next page in a chain, defending against torn/uninitialized
+// pages left by a crash: an uninitialized page, or a "next" pointer that does not
+// move strictly forward, ends the chain (heap pages are allocated with increasing
+// ids, so a backward/self pointer indicates corruption).
+func safeNext(page *Page, cur PageID) PageID {
+	if page.Uninitialized() {
+		return InvalidPageID
+	}
+	next := page.NextPage()
+	if next != InvalidPageID && next <= cur {
+		return InvalidPageID
+	}
+	return next
+}
+
 // Insert appends a record, allocating and linking a new page if the chain is full.
 // It returns the new record's RID and the LSN slot is left to the caller (the WAL
 // layer sets pageLSN via SetPageLSN after logging).
@@ -63,7 +78,7 @@ func (h *HeapFile) Insert(rec []byte) (RID, error) {
 			h.bp.Unpin(FileData, cur, true)
 			return RID{PageID: cur, Slot: uint16(slot)}, nil
 		}
-		next := page.NextPage()
+		next := safeNext(page, cur)
 		if next != InvalidPageID {
 			h.bp.Unpin(FileData, cur, false)
 			cur = next
@@ -140,7 +155,7 @@ func (h *HeapFile) Scan(fn ScanFunc) error {
 			return err
 		}
 		n := page.SlotCount()
-		next := page.NextPage()
+		next := safeNext(page, cur)
 		for s := 0; s < n; s++ {
 			if page.IsTombstone(s) {
 				continue
@@ -206,7 +221,7 @@ func (c *HeapCursor) loadPage() error {
 		return err
 	}
 	n := page.SlotCount()
-	next := page.NextPage()
+	next := safeNext(page, c.curPage)
 	c.buf = c.buf[:0]
 	c.pos = 0
 	for s := 0; s < n; s++ {
