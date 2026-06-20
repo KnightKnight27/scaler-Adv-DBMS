@@ -353,6 +353,10 @@ Summary:
   targets; would need a free-space map to scale further.
 - **No secondary indexes** - only the primary key is indexed (the spec
   marks secondary indexes optional).
+- **PRIMARY KEY must be INTEGER** - the B+Tree only supports `int64` keys
+  (Section 4), so `CREATE TABLE` rejects a VARCHAR/other-typed primary key
+  immediately with a clear error rather than letting it fail confusingly
+  later at INSERT time.
 - **Single-join SQL** - the parser supports exactly one `JOIN` per query,
   not arbitrary join graphs; the optimizer's "join order selection" is
   therefore a binary choice (which side drives), not a full join-order

@@ -127,6 +127,17 @@ int main() {
     assert(check.rows[0][0] == "O'Brien");
   }
 
+  // --- Regression: a non-INTEGER PRIMARY KEY must be rejected at CREATE
+  // TABLE time with a clear message, not accepted and only fail later
+  // with a confusing "Value is not INTEGER" the first time INSERT's PK
+  // uniqueness check calls AsInt() on it (QA follow-up note). ---
+  {
+    auto r = Run(ex, "CREATE TABLE bad_pk (id VARCHAR PRIMARY KEY, v INT)");
+    assert(!r.ok);
+    assert(r.message.find("must be INTEGER") != std::string::npos);
+    assert(!cat.TableExists("bad_pk"));  // no half-created table left behind
+  }
+
   std::remove("test_query.db");
   std::remove("test_query.db.wal");
   std::remove("test_query.meta");

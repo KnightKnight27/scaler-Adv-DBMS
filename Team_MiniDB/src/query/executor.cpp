@@ -31,6 +31,18 @@ QueryResult Executor::ExecCreateTable(const CreateTableStmt &s) {
     r.message = "table already exists: " + s.table_name;
     return r;
   }
+  // The B+Tree primary index only supports int64 keys (src/index/). A
+  // non-INTEGER PRIMARY KEY used to be accepted here and only fail later,
+  // confusingly, the first time INSERT's PK-uniqueness check called
+  // Value::AsInt() on it. Reject it clearly at the point the schema is
+  // actually wrong instead.
+  for (auto &col : s.columns) {
+    if (col.is_primary_key && col.type != TypeId::INTEGER) {
+      r.ok = false;
+      r.message = "primary key column '" + col.name + "' must be INTEGER (the B+Tree index only supports integer keys)";
+      return r;
+    }
+  }
   catalog_->CreateTable(s.table_name, s.columns);
   r.message = "CREATE TABLE " + s.table_name;
   return r;
