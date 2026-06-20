@@ -84,6 +84,7 @@ class ReplicaApplier {
   bool Connect(const std::string &host, int port) {
     try {
       fd_ = ConnectToHost(host, port);
+      connected_ = true;  // the TCP handshake succeeded; no statement needs to arrive yet
       return true;
     } catch (const std::exception &) {
       return false;
@@ -94,7 +95,6 @@ class ReplicaApplier {
     LineReader reader(fd_);
     std::string line;
     while (reader.ReadLine(&line)) {
-      connected_ = true;
       if (line.empty()) continue;
       try {
         Lexer lex(line);

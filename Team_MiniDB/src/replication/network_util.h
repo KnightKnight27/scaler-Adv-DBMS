@@ -1,6 +1,7 @@
 #pragma once
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -10,7 +11,23 @@
 
 namespace minidb {
 
+// Writing to a socket whose peer has already closed (e.g. a replica that
+// disconnected) raises SIGPIPE, whose default action is to terminate the
+// *whole process* - taking the primary down for every other client, not
+// just the dead connection. send() failing with EPIPE and returning -1 is
+// the behavior the rest of this file is written to handle (see
+// SendLine/PrimaryReplicator::Broadcast); SIGPIPE must be silenced so that
+// actually happens instead of the process dying first.
+inline void IgnoreSigPipeOnce() {
+  static bool done = [] {
+    signal(SIGPIPE, SIG_IGN);
+    return true;
+  }();
+  (void)done;
+}
+
 inline int CreateListenSocket(int port) {
+  IgnoreSigPipeOnce();
   int fd = socket(AF_INET, SOCK_STREAM, 0);
   if (fd < 0) throw std::runtime_error("socket() failed");
   int opt = 1;
@@ -31,6 +48,7 @@ inline int CreateListenSocket(int port) {
 }
 
 inline int ConnectToHost(const std::string &host, int port) {
+  IgnoreSigPipeOnce();
   int fd = socket(AF_INET, SOCK_STREAM, 0);
   if (fd < 0) throw std::runtime_error("socket() failed");
   sockaddr_in addr{};
@@ -47,11 +65,15 @@ inline int ConnectToHost(const std::string &host, int port) {
   return fd;
 }
 
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0  // not available on macOS; IgnoreSigPipeOnce() covers it instead
+#endif
+
 inline bool SendLine(int fd, const std::string &line) {
   std::string framed = line + "\n";
   size_t sent = 0;
   while (sent < framed.size()) {
-    ssize_t n = send(fd, framed.data() + sent, framed.size() - sent, 0);
+    ssize_t n = send(fd, framed.data() + sent, framed.size() - sent, MSG_NOSIGNAL);
     if (n <= 0) return false;
     sent += static_cast<size_t>(n);
   }

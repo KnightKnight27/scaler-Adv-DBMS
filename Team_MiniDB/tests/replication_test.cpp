@@ -6,6 +6,7 @@
 
 #include "catalog/catalog.h"
 #include "query/executor.h"
+#include "replication/network_util.h"
 #include "replication/replication.h"
 #include "sql/lexer.h"
 #include "sql/parser.h"
@@ -52,9 +53,26 @@ int main() {
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
   bool connected = applier.Connect("127.0.0.1", port);
   assert(connected);
+  // Regression (QA Bug 5): IsConnected() must already be true right after
+  // Connect() succeeds, not only after the first statement has arrived.
+  assert(applier.IsConnected());
+
   std::thread apply_thread([&] { applier.RunLoop(&rex); });
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
   assert(replicator.ReplicaCount() == 1);
+
+  // Regression (QA Bug 1): a replica that disappears without a clean TCP
+  // close (we just slam the fd shut, like a kill -9 would look from the
+  // primary's side) must not bring the primary down with SIGPIPE on the
+  // next write to that dead socket. Without IgnoreSigPipeOnce()/
+  // MSG_NOSIGNAL, this would terminate this entire test process.
+  {
+    int rogue_fd = ConnectToHost("127.0.0.1", port);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    close(rogue_fd);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    for (int i = 0; i < 5; i++) replicator.Broadcast("SELECT 1");  // would SIGPIPE pre-fix
+  }
 
   RunOnPrimary(pex, replicator, "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR)");
   RunOnPrimary(pex, replicator, "INSERT INTO users VALUES (1, 'alice')");
