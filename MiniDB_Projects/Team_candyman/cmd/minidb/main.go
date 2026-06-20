@@ -85,7 +85,7 @@ func repl(database *db.Database, in *os.File, out *os.File, interactive bool) er
 			runMeta(database, out, line)
 		default:
 			buf.WriteString(line)
-			buf.WriteByte(' ')
+			buf.WriteByte('\n') // keep newlines so -- line comments terminate
 			if strings.HasSuffix(line, ";") {
 				stmt := strings.TrimSuffix(strings.TrimSpace(buf.String()), ";")
 				buf.Reset()
