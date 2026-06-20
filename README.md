@@ -12,3 +12,4 @@ runnable lab solutions are added alongside them.
 | 5 | Shunting-yard evaluator and SELECT executor | `query_parser/sql_engine.cpp` | `cd query_parser && g++ -std=c++17 -Wall -Wextra -pedantic -o sql_engine sql_engine.cpp && ./sql_engine` |
 | 6 | MVCC, Strict 2PL, deadlock detection | `txn_manager/txn_manager.cpp` | `cd txn_manager && g++ -std=c++17 -Wall -Wextra -pedantic -pthread -o txmgr txn_manager.cpp && ./txmgr` |
 | 7 | Shunting-Yard WHERE evaluator and minimal SQL parser | `lab7/shunting_yard.cpp`, `lab7/query_parser.cpp` | `cd lab7 && g++ -std=c++17 -Wall -Wextra -pedantic -o lab7_shunting_yard shunting_yard.cpp && ./lab7_shunting_yard && g++ -std=c++17 -Wall -Wextra -pedantic -o lab7_query_parser query_parser.cpp && ./lab7_query_parser` |
+| 8 | Transaction manager with MVCC, Strict 2PL, and deadlock detection | `lab8/txn_manager.cpp` | `cd lab8 && g++ -std=c++17 -Wall -Wextra -pedantic -o lab8_txmgr txn_manager.cpp && ./lab8_txmgr` |
