@@ -19,6 +19,19 @@ import (
 )
 
 func main() {
+	// Subcommand: `minidb demo <name>` runs an interactive concurrency demo.
+	if len(os.Args) > 1 && os.Args[1] == "demo" {
+		name := ""
+		if len(os.Args) > 2 {
+			name = os.Args[2]
+		}
+		if err := runDemo(name); err != nil {
+			fmt.Fprintln(os.Stderr, "minidb:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	engine := flag.String("engine", "heap", "storage engine: heap | lsm")
 	dataDir := flag.String("data", "./data", "directory for database files")
 	flag.Parse()

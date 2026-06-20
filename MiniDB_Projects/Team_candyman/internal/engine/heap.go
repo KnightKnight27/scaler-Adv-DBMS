@@ -11,6 +11,7 @@ package engine
 
 import (
 	"fmt"
+	"sync"
 
 	"minidb/internal/catalog"
 	"minidb/internal/index"
@@ -25,7 +26,12 @@ type heapTable struct {
 }
 
 // HeapEngine is the heap-file + B+Tree storage engine.
+//
+// The mu RWMutex guards the tables map only. Per-table data races are prevented
+// a level up by table-granularity 2PL (one writer or many readers per table);
+// mu just makes the map itself safe when DDL adds a table concurrently.
 type HeapEngine struct {
+	mu     sync.RWMutex
 	bp     *storage.BufferPool
 	dm     *storage.DiskManager
 	cat    *catalog.Catalog
@@ -95,12 +101,16 @@ func (e *HeapEngine) CreateTable(name string, schema *types.Schema) error {
 	if err := e.cat.Add(meta); err != nil {
 		return err
 	}
+	e.mu.Lock()
 	e.tables[name] = &heapTable{meta: meta, heap: h, index: bt}
+	e.mu.Unlock()
 	return nil
 }
 
 func (e *HeapEngine) table(name string) (*heapTable, error) {
+	e.mu.RLock()
 	t, ok := e.tables[name]
+	e.mu.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("unknown table %q", name)
 	}
@@ -109,7 +119,9 @@ func (e *HeapEngine) table(name string) (*heapTable, error) {
 
 // Schema returns a table's schema.
 func (e *HeapEngine) Schema(name string) (*types.Schema, bool) {
+	e.mu.RLock()
 	t, ok := e.tables[name]
+	e.mu.RUnlock()
 	if !ok {
 		return nil, false
 	}

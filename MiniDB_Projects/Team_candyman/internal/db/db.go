@@ -13,6 +13,7 @@ import (
 	"minidb/internal/executor"
 	"minidb/internal/sql"
 	"minidb/internal/storage"
+	"minidb/internal/txn"
 	"minidb/internal/types"
 )
 
@@ -23,14 +24,18 @@ type Result struct {
 	Message string     // human-readable status (DDL/DML)
 }
 
-// Database is an open MiniDB instance.
+// Database is an open MiniDB instance. It holds the shared storage stack and the
+// concurrency-control managers; per-connection transaction state lives in Session.
 type Database struct {
-	dir    string
-	engine string
-	dm     *storage.DiskManager
-	bp     *storage.BufferPool
-	cat    *catalog.Catalog
-	eng    storage.StorageEngine
+	dir     string
+	engine  string
+	dm      *storage.DiskManager
+	bp      *storage.BufferPool
+	cat     *catalog.Catalog
+	eng     storage.StorageEngine
+	lockMgr *txn.LockManager
+	txnMgr  *txn.Manager
+	defSess *Session
 }
 
 // Open opens (or creates) a database in dir using the named engine ("heap" or
@@ -51,11 +56,16 @@ func Open(dir, engineKind string) (*Database, error) {
 		return nil, err
 	}
 
-	d := &Database{dir: dir, engine: engineKind, dm: dm, bp: bp, cat: cat}
+	lm := txn.NewLockManager()
+	d := &Database{
+		dir: dir, engine: engineKind, dm: dm, bp: bp, cat: cat,
+		lockMgr: lm, txnMgr: txn.NewManager(lm),
+	}
 	if err := d.openEngine(); err != nil {
 		dm.Close()
 		return nil, err
 	}
+	d.defSess = d.NewSession()
 	return d, nil
 }
 
@@ -81,24 +91,9 @@ func (d *Database) Close() error { return d.eng.Close() }
 // Tables lists table names (for the \dt meta-command).
 func (d *Database) Tables() []string { return d.eng.Tables() }
 
-// Execute parses and runs one SQL statement.
+// Execute runs one SQL statement on the database's default session.
 func (d *Database) Execute(input string) (Result, error) {
-	stmt, err := sql.Parse(input)
-	if err != nil {
-		return Result{}, err
-	}
-	switch s := stmt.(type) {
-	case *sql.CreateTable:
-		return d.execCreate(s)
-	case *sql.Insert:
-		return d.execInsert(s)
-	case *sql.Delete:
-		return d.execDelete(s)
-	case *sql.Select:
-		return d.execSelect(s)
-	default:
-		return Result{}, fmt.Errorf("statement type %T not yet supported", stmt)
-	}
+	return d.defSess.Execute(input)
 }
 
 func (d *Database) execCreate(s *sql.CreateTable) (Result, error) {
