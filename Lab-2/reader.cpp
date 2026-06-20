@@ -3,12 +3,17 @@
 #include <string>
 #include <vector>
 
-int main() {
-    std::cout << "[INFO] Opening file with std::ifstream...\n";
-    std::ifstream file("test.txt");
+int main(int argc, char* argv[]) {
+    std::string filename = "test.txt";
+    if (argc > 1) {
+        filename = argv[1];
+    }
+    
+    std::cout << "[INFO] Opening file with std::ifstream: " << filename << "\n";
+    std::ifstream file(filename);
     
     if (!file.is_open()) {
-        std::cerr << "[ERROR] Failed to open file\n";
+        std::cerr << "[ERROR] Failed to open file: " << filename << "\n";
         return 1;
     }
     
