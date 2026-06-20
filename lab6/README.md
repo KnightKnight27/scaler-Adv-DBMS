@@ -1,28 +1,5 @@
 # Lab 6: B-Tree Implementation
 
-This directory contains a complete, robust, and clean implementation of a standard **B-Tree** in C++.
-
-A **B-Tree** is a self-balancing search tree designed to store sorted data and allow search, sequential access, insertion, and deletion in logarithmic time. Unlike a B+ Tree, keys and data/pointers are stored in **both** internal and leaf nodes.
-
----
-
-## 🌟 Key Features
-
-1. **Customizable Minimum Degree ($t$):** Fully customizable minimum degree through the constructor (defaults to $t = 2$, which defines a 2-3-4 tree).
-2. **Proactive Top-Down Splitting:** Performs proactive splitting of full nodes as it traverses down the tree during insertion. This avoids recursive parent-backtracking and is extremely stable and clean.
-3. **No Leaf-Linkage (B-Tree Property):** Leaf nodes are not linked, demonstrating standard B-Tree properties where elements must be searched hierarchically.
-4. **Beautiful Visual Printout:** A visual, hierarchical tree display showing exactly where keys are positioned and how parent-child relationships are laid out.
-5. **Interactive Console Menu:** Allows real-time user testing, key insertions, searches, and visualizations in the terminal.
-
----
-
-## 📁 File Structure
-
-- [bplus_tree.cpp](file:///Users/tanu/code/scaler-Adv-DBMS/lab6/bplus_tree.cpp): Main implementation file.
-- `bplus_tree`: Precompiled executable binary.
-
----
-
 ## 🛠️ Compilation & Execution
 
 To compile the B-Tree source code manually, run the following command in your terminal from this directory:
