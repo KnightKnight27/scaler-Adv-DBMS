@@ -37,12 +37,12 @@ When an application issues a SQL query, the SQLite library directly accesses the
 
 Key architectural characteristics:
 
-* Embedded database engine
-* Single database file
-* No server process
-* No network communication
-* Minimal resource usage
-* Tight integration with the host application
+- Embedded database engine
+- Single database file
+- No server process
+- No network communication
+- Minimal resource usage
+- Tight integration with the host application
 
 ---
 
@@ -85,12 +85,12 @@ Each client connection receives a dedicated backend process. Shared memory struc
 
 Key architectural characteristics:
 
-* Dedicated database server
-* Multiple concurrent clients
-* Shared memory buffer pool
-* Background maintenance processes
-* Write-Ahead Logging
-* Advanced concurrency control
+- Dedicated database server
+- Multiple concurrent clients
+- Shared memory buffer pool
+- Background maintenance processes
+- Write-Ahead Logging
+- Advanced concurrency control
 
 # 3. Internal Design
 
@@ -136,10 +136,10 @@ Heap Pages
 
 Unlike SQLite, PostgreSQL does not store tables directly as B-Trees. Instead:
 
-* Tables are stored as heap relations.
-* Indexes are separate structures.
-* A shared buffer pool caches frequently accessed pages.
-* Background processes handle flushing and maintenance.
+- Tables are stored as heap relations.
+- Indexes are separate structures.
+- A shared buffer pool caches frequently accessed pages.
+- Background processes handle flushing and maintenance.
 
 This architecture introduces additional complexity but enables significantly higher concurrency and scalability.
 
@@ -171,13 +171,13 @@ All metadata, tables, indexes, and schema information reside within this file.
 
 Advantages:
 
-* Easy backup and portability
-* Simple deployment
-* No external dependencies
+- Easy backup and portability
+- Simple deployment
+- No external dependencies
 
 Limitation:
 
-* Entire database depends on a single file lock mechanism for concurrency control.
+- Entire database depends on a single file lock mechanism for concurrency control.
 
 ---
 
@@ -203,14 +203,14 @@ Each table is assigned an internal relation identifier (OID) and stored in one o
 
 Benefits:
 
-* Better scalability for large datasets
-* Independent management of WAL and data files
-* Efficient maintenance operations
+- Better scalability for large datasets
+- Independent management of WAL and data files
+- Efficient maintenance operations
 
 Trade-off:
 
-* More operational complexity
-* Larger storage footprint
+- More operational complexity
+- Larger storage footprint
 
 ---
 
@@ -236,9 +236,9 @@ Searching for a row requires traversing the B-Tree from root to leaf.
 
 Advantages:
 
-* Efficient point lookups
-* Compact representation
-* Simple storage model
+- Efficient point lookups
+- Compact representation
+- Simple storage model
 
 However, all table modifications ultimately involve updating B-Tree structures, which can increase write costs when pages split.
 
@@ -269,14 +269,14 @@ This design allows PostgreSQL to support MVCC efficiently because multiple row v
 
 Advantages:
 
-* Efficient updates
-* Flexible indexing
-* MVCC support
+- Efficient updates
+- Flexible indexing
+- MVCC support
 
 Trade-off:
 
-* Additional storage overhead
-* Requires VACUUM maintenance
+- Additional storage overhead
+- Requires VACUUM maintenance
 
 ---
 
@@ -348,8 +348,8 @@ Index B-Tree
 
 Each index entry contains:
 
-* Indexed column value
-* RowID of the corresponding table record
+- Indexed column value
+- RowID of the corresponding table record
 
 When a query uses an indexed column, SQLite first traverses the index B-Tree and then uses the RowID to retrieve the row from the table B-Tree.
 
@@ -363,14 +363,14 @@ If an index exists on `age`, SQLite traverses the index B-Tree rather than scann
 
 Advantages:
 
-* Simple implementation
-* Low storage overhead
-* Efficient point lookups
+- Simple implementation
+- Low storage overhead
+- Efficient point lookups
 
 Limitation:
 
-* Additional lookup required from index to table
-* Multiple B-Tree traversals for indexed queries
+- Additional lookup required from index to table
+- Multiple B-Tree traversals for indexed queries
 
 ---
 
@@ -389,8 +389,8 @@ B-Tree Index
 
 Each index entry stores:
 
-* Indexed key
-* Tuple Identifier (TID)
+- Indexed key
+- Tuple Identifier (TID)
 
 A TID points to:
 
@@ -408,14 +408,14 @@ When PostgreSQL performs an index scan:
 
 Advantages:
 
-* Flexible indexing architecture
-* Efficient support for MVCC
-* Multiple index types supported
+- Flexible indexing architecture
+- Efficient support for MVCC
+- Multiple index types supported
 
 Trade-off:
 
-* Additional heap lookup required
-* More storage overhead than SQLite
+- Additional heap lookup required
+- More storage overhead than SQLite
 
 ---
 
@@ -427,8 +427,8 @@ Both systems provide ACID guarantees but implement transactions differently.
 
 SQLite transactions are implemented through either:
 
-* Rollback Journal Mode
-* WAL Mode
+- Rollback Journal Mode
+- WAL Mode
 
 Traditional rollback journal workflow:
 
@@ -455,9 +455,9 @@ Write -> WAL File
 
 Benefits:
 
-* Faster commits
-* Better read concurrency
-* Reduced write amplification
+- Faster commits
+- Better read concurrency
+- Reduced write amplification
 
 However, SQLite still permits only one active writer at a time.
 
@@ -467,9 +467,9 @@ However, SQLite still permits only one active writer at a time.
 
 PostgreSQL uses:
 
-* MVCC
-* Write-Ahead Logging (WAL)
-* Transaction IDs
+- MVCC
+- Write-Ahead Logging (WAL)
+- Transaction IDs
 
 Every transaction receives a unique transaction identifier.
 
@@ -489,9 +489,9 @@ This guarantees durability and crash recovery.
 
 Advantages:
 
-* Strong ACID guarantees
-* High concurrency
-* Robust recovery mechanisms
+- Strong ACID guarantees
+- High concurrency
+- Robust recovery mechanisms
 
 ---
 
@@ -519,9 +519,9 @@ EXCLUSIVE
 
 Characteristics:
 
-* Multiple readers allowed
-* Single writer allowed
-* Writers block other writers
+- Multiple readers allowed
+- Single writer allowed
+- Writers block other writers
 
 This design is simple and lightweight but limits scalability.
 
@@ -554,9 +554,9 @@ Visibility rules determine which version a transaction can see.
 
 Benefits:
 
-* Readers never block writers
-* Writers rarely block readers
-* High transaction throughput
+- Readers never block writers
+- Writers rarely block readers
+- High transaction throughput
 
 Example:
 
@@ -574,9 +574,9 @@ Durability ensures committed transactions survive crashes and power failures.
 
 SQLite durability depends on:
 
-* Rollback Journals
-* WAL Mode
-* fsync()
+- Rollback Journals
+- WAL Mode
+- fsync()
 
 Rollback journal:
 
@@ -594,9 +594,9 @@ WAL mode improves performance by appending changes to a log file before checkpoi
 
 Advantages:
 
-* Simple recovery
-* Minimal administration
-* Strong durability guarantees for embedded systems
+- Simple recovery
+- Minimal administration
+- Strong durability guarantees for embedded systems
 
 ---
 
@@ -632,23 +632,24 @@ After a crash, PostgreSQL replays WAL records generated after the most recent ch
 
 Additional durability components:
 
-* WAL Writer
-* Checkpointer
-* Background Writer
+- WAL Writer
+- Checkpointer
+- Background Writer
 
 Benefits:
 
-* Fast crash recovery
-* High reliability
-* Enterprise-grade fault tolerance
+- Fast crash recovery
+- High reliability
+- Enterprise-grade fault tolerance
 
 Trade-off:
 
-* Increased storage overhead
-* Additional background processes
-* More complex architecture
+- Increased storage overhead
+- Additional background processes
+- More complex architecture
 
 ```
+
 ```
 
 # 4. Design Trade-Offs
@@ -663,18 +664,18 @@ SQLite adopts an embedded architecture in which the database engine runs directl
 
 Benefits:
 
-* Zero deployment complexity
-* No server administration
-* No network communication overhead
-* Minimal memory usage
-* Excellent portability
+- Zero deployment complexity
+- No server administration
+- No network communication overhead
+- Minimal memory usage
+- Excellent portability
 
 Costs:
 
-* Limited concurrency
-* Single-writer restriction
-* No centralized resource management
-* Difficult to scale across multiple machines
+- Limited concurrency
+- Single-writer restriction
+- No centralized resource management
+- Difficult to scale across multiple machines
 
 This design makes SQLite ideal for applications where simplicity and low resource consumption are more important than concurrent access.
 
@@ -686,17 +687,17 @@ PostgreSQL adopts a client-server architecture.
 
 Benefits:
 
-* Supports thousands of concurrent connections
-* Centralized resource management
-* Advanced security controls
-* Network accessibility
-* Better scalability
+- Supports thousands of concurrent connections
+- Centralized resource management
+- Advanced security controls
+- Network accessibility
+- Better scalability
 
 Costs:
 
-* Higher memory consumption
-* Background process overhead
-* More complex deployment and administration
+- Higher memory consumption
+- Background process overhead
+- More complex deployment and administration
 
 The additional complexity is justified because PostgreSQL targets environments where multiple users and applications must access the database simultaneously.
 
@@ -708,27 +709,27 @@ SQLite stores the entire database inside a single file.
 
 Benefits:
 
-* Easy backup and migration
-* Simple deployment
-* Reduced operational complexity
+- Easy backup and migration
+- Simple deployment
+- Reduced operational complexity
 
 Trade-off:
 
-* Limited flexibility for large-scale storage management
-* Entire database depends on a single file structure
+- Limited flexibility for large-scale storage management
+- Entire database depends on a single file structure
 
 PostgreSQL separates data across multiple files and directories.
 
 Benefits:
 
-* Better scalability
-* Easier management of large datasets
-* Independent WAL and data storage
+- Better scalability
+- Easier management of large datasets
+- Independent WAL and data storage
 
 Trade-off:
 
-* More complicated storage layout
-* Increased administrative overhead
+- More complicated storage layout
+- Increased administrative overhead
 
 ---
 
@@ -738,27 +739,27 @@ SQLite relies primarily on the operating system page cache.
 
 Benefits:
 
-* Simpler implementation
-* Lower memory overhead
-* Leverages mature OS caching mechanisms
+- Simpler implementation
+- Lower memory overhead
+- Leverages mature OS caching mechanisms
 
 Trade-off:
 
-* Limited visibility into database access patterns
-* Less control over eviction policies
+- Limited visibility into database access patterns
+- Less control over eviction policies
 
 PostgreSQL manages its own shared buffer pool.
 
 Benefits:
 
-* Database-aware caching decisions
-* Shared cache across all clients
-* Better optimization for database workloads
+- Database-aware caching decisions
+- Shared cache across all clients
+- Better optimization for database workloads
 
 Trade-off:
 
-* Additional memory consumption
-* More complex buffer management algorithms
+- Additional memory consumption
+- More complex buffer management algorithms
 
 ---
 
@@ -768,28 +769,28 @@ SQLite uses file-level locking.
 
 Benefits:
 
-* Simple implementation
-* Low maintenance overhead
-* Predictable behavior
+- Simple implementation
+- Low maintenance overhead
+- Predictable behavior
 
 Trade-off:
 
-* Only one writer can operate at a time
-* Performance degrades under write-heavy concurrent workloads
+- Only one writer can operate at a time
+- Performance degrades under write-heavy concurrent workloads
 
 PostgreSQL uses MVCC.
 
 Benefits:
 
-* Readers do not block writers
-* Writers rarely block readers
-* High throughput under concurrent workloads
+- Readers do not block writers
+- Writers rarely block readers
+- High throughput under concurrent workloads
 
 Trade-off:
 
-* Additional storage overhead
-* More complex visibility rules
-* Requires VACUUM maintenance
+- Additional storage overhead
+- More complex visibility rules
+- Requires VACUUM maintenance
 
 This trade-off is one of the primary reasons PostgreSQL dominates enterprise and web-scale deployments.
 
@@ -801,33 +802,33 @@ SQLite intentionally excludes many enterprise-oriented features.
 
 Advantages:
 
-* Small binary size
-* Easy embedding
-* Low operational requirements
+- Small binary size
+- Easy embedding
+- Low operational requirements
 
 Limitations:
 
-* Limited replication support
-* Fewer administrative tools
-* Less suitable for large distributed systems
+- Limited replication support
+- Fewer administrative tools
+- Less suitable for large distributed systems
 
 PostgreSQL includes:
 
-* Advanced query planner
-* Replication
-* Partitioning
-* Parallel query execution
-* Extensive indexing options
+- Advanced query planner
+- Replication
+- Partitioning
+- Parallel query execution
+- Extensive indexing options
 
 Advantages:
 
-* Enterprise-grade capabilities
-* Flexible workload support
+- Enterprise-grade capabilities
+- Flexible workload support
 
 Trade-off:
 
-* Increased complexity
-* Higher resource requirements
+- Increased complexity
+- Higher resource requirements
 
 ---
 
@@ -835,11 +836,11 @@ Trade-off:
 
 Several architectural decisions make SQLite particularly suitable for mobile devices:
 
-* Embedded architecture eliminates the need for a database server.
-* Single-file storage simplifies application deployment.
-* Low memory consumption conserves device resources.
-* Local execution minimizes latency.
-* Typical mobile workloads rarely require multiple concurrent writers.
+- Embedded architecture eliminates the need for a database server.
+- Single-file storage simplifies application deployment.
+- Low memory consumption conserves device resources.
+- Local execution minimizes latency.
+- Typical mobile workloads rarely require multiple concurrent writers.
 
 As a result, SQLite has become the default database engine for Android, iOS, web browsers, and numerous embedded systems.
 
@@ -851,12 +852,12 @@ PostgreSQL was designed specifically for environments where many users access da
 
 Key architectural advantages include:
 
-* MVCC-based concurrency control
-* Dedicated buffer management
-* Write-Ahead Logging
-* Background maintenance processes
-* Sophisticated query optimization
-* Extensive indexing capabilities
+- MVCC-based concurrency control
+- Dedicated buffer management
+- Write-Ahead Logging
+- Background maintenance processes
+- Sophisticated query optimization
+- Extensive indexing capabilities
 
 These features allow PostgreSQL to support high transaction throughput, complex analytical queries, and enterprise-grade reliability.
 
@@ -1007,11 +1008,11 @@ Although both systems stored the same logical dataset, PostgreSQL consumed signi
 
 Reasons include:
 
-* MVCC metadata stored with tuples
-* Larger page size
-* WAL infrastructure
-* Additional system catalog information
-* Sequence objects created for SERIAL columns
+- MVCC metadata stored with tuples
+- Larger page size
+- WAL infrastructure
+- Additional system catalog information
+- Sequence objects created for SERIAL columns
 
 SQLite's compact storage reflects its design goal of minimizing resource usage for embedded environments, whereas PostgreSQL accepts additional storage overhead in exchange for stronger concurrency and durability guarantees.
 
@@ -1111,10 +1112,10 @@ SQLite operates entirely within the application process.
 
 There are:
 
-* No server processes
-* No worker processes
-* No shared memory regions
-* No background maintenance tasks
+- No server processes
+- No worker processes
+- No shared memory regions
+- No background maintenance tasks
 
 This explains SQLite's extremely low resource requirements.
 
@@ -1130,12 +1131,12 @@ ps aux | grep postgres
 
 Observed components:
 
-* Postmaster
-* Checkpointer
-* Background Writer
-* WAL Writer
-* Autovacuum Launcher
-* Client Backend Processes
+- Postmaster
+- Checkpointer
+- Background Writer
+- WAL Writer
+- Autovacuum Launcher
+- Client Backend Processes
 
 Architecture observed:
 
@@ -1155,11 +1156,11 @@ PostgreSQL continuously runs multiple background processes even when no queries 
 
 This increases baseline resource consumption but enables:
 
-* Crash recovery
-* Concurrent access
-* Automatic maintenance
-* Buffer management
-* Transaction coordination
+- Crash recovery
+- Concurrent access
+- Automatic maintenance
+- Buffer management
+- Transaction coordination
 
 The experiment directly demonstrates the additional infrastructure required to support enterprise workloads.
 
@@ -1252,9 +1253,9 @@ Common use cases include:
 
 ### Mobile Applications
 
-* Android applications
-* iOS applications
-* Offline-first applications
+- Android applications
+- iOS applications
+- Offline-first applications
 
 SQLite's embedded architecture eliminates the need to run a separate database server, making it ideal for resource-constrained devices.
 
@@ -1262,10 +1263,10 @@ SQLite's embedded architecture eliminates the need to run a separate database se
 
 Examples:
 
-* Web browsers
-* Media players
-* Productivity tools
-* Local data management applications
+- Web browsers
+- Media players
+- Productivity tools
+- Local data management applications
 
 The single-file database simplifies installation and deployment.
 
@@ -1273,9 +1274,9 @@ The single-file database simplifies installation and deployment.
 
 Examples:
 
-* Smart devices
-* Industrial controllers
-* Edge computing devices
+- Smart devices
+- Industrial controllers
+- Edge computing devices
 
 These systems often have limited memory and storage resources, making SQLite's lightweight design particularly attractive.
 
@@ -1289,9 +1290,9 @@ PostgreSQL is designed for environments that require concurrency, reliability, a
 
 Examples:
 
-* E-commerce platforms
-* SaaS products
-* Social media applications
+- E-commerce platforms
+- SaaS products
+- Social media applications
 
 PostgreSQL's MVCC architecture allows large numbers of users to access data simultaneously without significant contention.
 
@@ -1299,10 +1300,10 @@ PostgreSQL's MVCC architecture allows large numbers of users to access data simu
 
 Examples:
 
-* ERP systems
-* CRM platforms
-* Financial applications
-* Banking systems
+- ERP systems
+- CRM platforms
+- Financial applications
+- Banking systems
 
 Strong transactional guarantees and durability mechanisms make PostgreSQL suitable for mission-critical workloads.
 
@@ -1310,9 +1311,9 @@ Strong transactional guarantees and durability mechanisms make PostgreSQL suitab
 
 Examples:
 
-* Reporting systems
-* Data warehouses
-* Business intelligence applications
+- Reporting systems
+- Data warehouses
+- Business intelligence applications
 
 The advanced query planner and indexing capabilities allow PostgreSQL to efficiently execute complex analytical workloads.
 
@@ -1324,17 +1325,17 @@ The choice depends primarily on workload characteristics.
 
 Choose SQLite when:
 
-* The application runs on a single device.
-* Deployment simplicity is important.
-* Resource consumption must be minimized.
-* Concurrent writes are limited.
+- The application runs on a single device.
+- Deployment simplicity is important.
+- Resource consumption must be minimized.
+- Concurrent writes are limited.
 
 Choose PostgreSQL when:
 
-* Many users access the database simultaneously.
-* High transaction throughput is required.
-* Strong durability guarantees are critical.
-* The application must scale over time.
+- Many users access the database simultaneously.
+- High transaction throughput is required.
+- Strong durability guarantees are critical.
+- The application must scale over time.
 
 Neither system is universally better. Each is optimized for a different set of engineering requirements and operational constraints.
 
@@ -1346,16 +1347,47 @@ The most important insight gained from this study is that architectural decision
 
 Key learnings include:
 
-* Database architecture has a significant impact on performance characteristics.
-* SQLite prioritizes simplicity, portability, and low resource consumption.
-* PostgreSQL prioritizes concurrency, durability, and scalability.
-* Storage organization affects both performance and storage efficiency.
-* MVCC allows PostgreSQL to support large numbers of concurrent users without excessive locking.
-* File-level locking simplifies SQLite's implementation but limits write concurrency.
-* Dedicated buffer management enables PostgreSQL to make database-aware caching decisions.
-* Write-Ahead Logging is a critical component for ensuring durability and crash recovery.
-* Additional system complexity often exists to solve specific scalability and reliability challenges.
+- Database architecture has a significant impact on performance characteristics.
+- SQLite prioritizes simplicity, portability, and low resource consumption.
+- PostgreSQL prioritizes concurrency, durability, and scalability.
+- Storage organization affects both performance and storage efficiency.
+- MVCC allows PostgreSQL to support large numbers of concurrent users without excessive locking.
+- File-level locking simplifies SQLite's implementation but limits write concurrency.
+- Dedicated buffer management enables PostgreSQL to make database-aware caching decisions.
+- Write-Ahead Logging is a critical component for ensuring durability and crash recovery.
+- Additional system complexity often exists to solve specific scalability and reliability challenges.
 
 Perhaps the most important lesson is that database design is not about finding a perfect architecture. Instead, it involves balancing competing requirements such as simplicity, performance, concurrency, durability, and operational complexity.
 
 SQLite and PostgreSQL represent two successful but fundamentally different solutions to the same problem of reliable data management.
+
+# 8. References
+
+1. SQLite Documentation
+   https://www.sqlite.org/docs.html
+
+2. SQLite File Format Documentation
+   https://www.sqlite.org/fileformat.html
+
+3. SQLite Write-Ahead Logging Documentation
+   https://www.sqlite.org/wal.html
+
+4. PostgreSQL Official Documentation
+   https://www.postgresql.org/docs/
+
+5. PostgreSQL Storage Page Layout
+   https://www.postgresql.org/docs/current/storage-page-layout.html
+
+6. PostgreSQL MVCC Documentation
+   https://www.postgresql.org/docs/current/mvcc.html
+
+7. PostgreSQL WAL Documentation
+   https://www.postgresql.org/docs/current/wal-intro.html
+
+8. PostgreSQL Source Code
+   https://github.com/postgres/postgres
+
+9. SQLite Source Code
+   https://github.com/sqlite/sqlite
+
+10. Course Experiments Performed Using SQLite 3.51.0 and PostgreSQL 16
