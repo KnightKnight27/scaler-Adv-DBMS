@@ -54,11 +54,9 @@ class BPlusTree {
     }
     leaf.InsertAt(idx, key, rid);
 
-    if (!leaf.IsFull()) {
-      bpm_->UnpinPage(leaf_pid, true);
-      return;
-    }
-    SplitLeaf(leaf_pid);
+    bool needs_split = leaf.IsFull();
+    bpm_->UnpinPage(leaf_pid, true);
+    if (needs_split) SplitLeaf(leaf_pid);
   }
 
   bool Remove(Key key) {
