@@ -23,11 +23,11 @@ struct Token {
 // grammar needs.
 class Lexer {
  public:
-  explicit Lexer(const std::string &src) : src_(src) {}
+  explicit Lexer(std::string src) : src_(std::move(src)) {}
   std::vector<Token> Tokenize();
 
  private:
-  const std::string &src_;
+  std::string src_;
   size_t pos_ = 0;
 };
 
