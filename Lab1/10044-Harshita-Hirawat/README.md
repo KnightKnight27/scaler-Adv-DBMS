@@ -1,158 +1,131 @@
-# Lab 1: File I/O Using Raw Linux System Calls
+# Lab 1: C++ File I/O — Kernel Journey with strace
 
-## Aim
+## Objective
 
-The aim of this lab is to understand how file operations work at a low level by performing file creation, writing, reading, and closing using raw Linux system calls from C++.
-
-Instead of using high-level APIs like `fstream`, `printf`, or libc wrappers such as `open()`, `read()`, `write()`, and `close()`, the program directly invokes the Linux `syscall` instruction through inline assembly.
+Understand how a C++ file read travels through Linux system calls, the VFS, an
+inode, and the page cache.
 
 ## Files
 
 ```text
-file_io_syscalls.cpp   C++ implementation
-README.md              Lab explanation
-example.txt            Generated when the program runs
+reader.cpp   C++ file reader
+test.txt     Input file
+README.md    Commands and observations
 ```
 
-## Platform Requirement
+Run this lab on Linux, WSL, or a Linux virtual machine because `strace` and
+`/proc` are Linux features.
 
-This program is meant for:
-
-```text
-Linux x86-64
-```
-
-It uses Linux syscall numbers and GCC-style inline assembly, so it should be run on Linux, WSL, or a Linux virtual machine.
-
-## Build and Run
-
-Compile:
+## 1. Compile and run
 
 ```bash
-g++ -std=c++17 -Wall -Wextra -O2 file_io_syscalls.cpp -o file_io_syscalls
+g++ -std=c++17 -Wall -Wextra reader.cpp -o reader
+./reader
 ```
 
-Run:
-
-```bash
-./file_io_syscalls
-```
-
-Expected output is similar to:
+Output:
 
 ```text
-File descriptor used for reading: 3
-
-Data read from file:
-Hello from C++ using raw Linux system calls.
-This file was opened, written, closed, opened again, and read back.
-
-Completed open/write/read/close using raw syscalls.
+hello from lab 1
 ```
 
-## System Calls Used
+The program uses `std::ifstream`, but the C++ library eventually uses Linux
+system calls to open and read the file.
+
+## 2. Trace the system calls
+
+```bash
+strace -e trace=openat,read,close,fstat,mmap ./reader
+```
+
+A condensed trace looks like this. File descriptors and buffer sizes may vary:
+
+```text
+openat(AT_FDCWD, "test.txt", O_RDONLY) = 3
+fstat(3, {st_mode=S_IFREG|0644, st_size=17, ...}) = 0
+read(3, "hello from lab 1\n", 4096)    = 17
+read(3, "", 4096)                      = 0
+close(3)                                = 0
+```
+
+The complete trace also contains calls made while loading the C++ runtime and
+shared libraries.
 
 | System call | Purpose |
 |---|---|
-| `SYS_openat` | Opens or creates `example.txt` |
-| `SYS_write` | Writes data to a file or terminal |
-| `SYS_read` | Reads data from the file |
-| `SYS_close` | Closes the file descriptor |
-| `SYS_exit` | Exits immediately on serious error |
+| `openat` | Opens `test.txt` and returns a file descriptor |
+| `fstat` | Reads file metadata associated with the inode |
+| `read` | Copies file bytes into the program's buffer |
+| `mmap` | Maps shared libraries or file-backed pages into memory |
+| `close` | Releases the file descriptor |
 
-The program uses `openat` with `AT_FDCWD`, which means the file path is resolved relative to the current working directory.
+## 3. Inode journey
 
-## How Raw Syscalls Are Made
-
-The helper function `raw_syscall6` places the syscall number and arguments into the correct Linux x86-64 registers and then executes:
-
-```asm
-syscall
+```bash
+ls -i test.txt
+stat test.txt
 ```
 
-Register mapping:
+When `openat` runs:
 
-| Register | Use |
-|---|---|
-| `rax` | System call number and return value |
-| `rdi` | Argument 1 |
-| `rsi` | Argument 2 |
-| `rdx` | Argument 3 |
-| `r10` | Argument 4 |
-| `r8` | Argument 5 |
-| `r9` | Argument 6 |
+1. The VFS resolves `test.txt` in the current directory.
+2. Its directory entry points to an inode.
+3. Linux checks the inode's ownership and permissions.
+4. Linux creates an open-file object and returns a file descriptor.
+5. `read` obtains the file data through the page cache.
 
-This bypasses normal library functions and talks directly to the kernel.
+The file descriptor is a handle used by one process. The inode is the
+filesystem's representation of the file and stores metadata such as its size,
+owner, permissions, and block locations.
 
-## Program Flow
-
-1. Create or truncate `example.txt` using `SYS_openat`.
-2. Write text into the file using `SYS_write`.
-3. Close the write file descriptor using `SYS_close`.
-4. Reopen the same file in read-only mode.
-5. Read the file in 64-byte chunks using `SYS_read`.
-6. Print the read data to standard output using `SYS_write`.
-7. Close the read file descriptor.
-
-The file is opened for writing with:
-
-```cpp
-O_CREAT | O_WRONLY | O_TRUNC
-```
-
-The permission used is:
+## 4. Kernel layers
 
 ```text
-0644
+C++ std::ifstream
+        |
+        v
+C++ runtime / libc
+        |
+        v
+read() system call  <-- user/kernel boundary
+        |
+        v
+VFS -> filesystem driver -> page cache
+                              |
+                              v (cache miss)
+                    block device -> physical disk
 ```
 
-This means the owner can read and write, while group and others can only read.
+If the file page is already in the page cache, Linux serves it from RAM. A disk
+read is needed only on a cache miss. Inode metadata can similarly be served from
+the kernel's inode cache.
 
-## File Descriptor Idea
+## 5. Verify with `/proc`
 
-A file descriptor is a small integer returned by the kernel for an open file.
+The optional `--pause` argument keeps the file open for 30 seconds:
 
-Common descriptors are:
+```bash
+./reader --pause &
+PID=$!
+ls -l /proc/$PID/fd
+readlink /proc/$PID/fd/*
+```
 
-| Descriptor | Meaning |
-|---:|---|
-| `0` | Standard input |
-| `1` | Standard output |
-| `2` | Standard error |
-| `3+` | Files opened by the process |
+Find the descriptor pointing to `test.txt`, then inspect it. It is commonly `3`,
+but the number can vary:
 
-In this program, the opened file usually receives descriptor `3` because descriptors `0`, `1`, and `2` are already reserved.
+```bash
+stat /proc/$PID/fd/3
+stat test.txt
+wait $PID
+```
 
-## What Happens Inside the Kernel
+Both `stat` commands should report the same inode because the descriptor points
+to the same file.
 
-When a syscall runs, the CPU switches from user mode to kernel mode. The kernel validates the syscall number, arguments, file permissions, and file descriptor.
+## Key takeaways
 
-For file access, the kernel uses structures such as:
-
-- File descriptor table
-- Open file object
-- Directory entry
-- Inode
-- Page cache
-- Filesystem and block layer
-- Device driver
-
-Reads may be served from the page cache if the data is already in memory. Writes may first update dirty pages in the page cache and later be flushed to disk.
-
-## Relation to DBMS
-
-This lab is important for DBMS because databases ultimately store tables, indexes, logs, and pages inside files.
-
-A DBMS storage engine must understand:
-
-- How data moves between user space and kernel space
-- How file descriptors represent open files
-- Why page cache affects performance
-- Why disk I/O is slower than memory access
-- How low-level reads and writes support database pages
-
-So even though this program is small, it demonstrates the same basic file I/O path used underneath larger database systems.
-
-## Conclusion
-
-This lab showed how a C++ program can perform file I/O without high-level libraries by directly using Linux system calls. It helped connect simple file operations with kernel concepts such as syscalls, descriptors, inodes, page cache, and storage I/O, which are all important for understanding DBMS storage internals.
+- `std::ifstream` ultimately crosses into the kernel through system calls.
+- The VFS resolves a path to an inode and returns a file descriptor.
+- `strace` shows the user-to-kernel system-call boundary.
+- The page cache allows repeated reads to be served from RAM.
