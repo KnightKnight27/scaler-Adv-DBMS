@@ -1,0 +1,3 @@
+/home/vedu/Work/Term 8/DBMS/scaler-Adv-DBMS/Lab-3/build/CMakeFiles/clock_sweep.dir
+/home/vedu/Work/Term 8/DBMS/scaler-Adv-DBMS/Lab-3/build/CMakeFiles/edit_cache.dir
+/home/vedu/Work/Term 8/DBMS/scaler-Adv-DBMS/Lab-3/build/CMakeFiles/rebuild_cache.dir

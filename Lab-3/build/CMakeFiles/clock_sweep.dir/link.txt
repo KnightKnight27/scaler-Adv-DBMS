@@ -1,0 +1,1 @@
+/usr/bin/c++  -O2 -Wall -Wextra -Wl,--dependency-file=CMakeFiles/clock_sweep.dir/link.d CMakeFiles/clock_sweep.dir/clock_sweep.cpp.o -o clock_sweep
