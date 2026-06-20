@@ -33,6 +33,12 @@ class RecoveryManager {
   // Returns the number of operations redone (for the demo/CLI to report).
   int Recover();
 
+  // Live (non-crash) rollback for an explicit ABORT/ROLLBACK: undoes every
+  // INSERT/DELETE this transaction logged, in reverse order, then rebuilds
+  // the index/row-count for every table it touched - the same "index is
+  // derived, not WAL-logged" simplification used by Recover().
+  void UndoTransaction(txn_id_t id);
+
  private:
   DiskManager *disk_manager_;
   BufferPool *bpm_;

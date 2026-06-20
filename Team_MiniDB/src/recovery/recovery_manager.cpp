@@ -120,4 +120,42 @@ int RecoveryManager::Recover() {
   return redo_count;
 }
 
+void RecoveryManager::UndoTransaction(txn_id_t id) {
+  std::vector<LogRecord> records = ReadAllRecords(disk_manager_);
+  std::vector<const LogRecord *> ops;
+  std::unordered_set<std::string> touched_tables;
+  for (auto &r : records) {
+    if (r.txn_id != id) continue;
+    if (r.type != LogType::INSERT && r.type != LogType::DELETE) continue;
+    ops.push_back(&r);
+    touched_tables.insert(r.table);
+  }
+  for (auto it = ops.rbegin(); it != ops.rend(); ++it) {
+    const LogRecord *r = *it;
+    Page *page = bpm_->FetchPage(r->rid.page_id);
+    HeapPage hp(page->GetData());
+    if (r->type == LogType::INSERT) hp.DeleteTuple(r->rid.slot_num);
+    else hp.RestoreTuple(r->rid.slot_num, static_cast<int32_t>(r->data.size()));
+    bpm_->UnpinPage(r->rid.page_id, true);
+  }
+  for (auto &name : touched_tables) {
+    TableInfo *t = catalog_->GetTable(name);
+    if (!t) continue;
+    int pk_idx = t->schema.PrimaryKeyIndex();
+    if (pk_idx < 0) continue;
+    page_id_t new_root = BPlusTree::CreateEmpty(bpm_);
+    auto fresh_index = std::make_unique<BPlusTree>(bpm_, new_root);
+    int64_t row_count = 0;
+    t->heap->Scan([&](RID rid, const std::string &data) {
+      Tuple tup = Tuple::Deserialize(data, t->schema);
+      fresh_index->Insert(tup.Get(pk_idx).AsInt(), rid);
+      row_count++;
+    });
+    t->btree_root = fresh_index->RootPageId();
+    t->index = std::move(fresh_index);
+    t->num_rows = row_count;
+  }
+  catalog_->Save();
+}
+
 }  // namespace minidb
