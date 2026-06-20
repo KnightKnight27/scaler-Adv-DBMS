@@ -28,6 +28,26 @@ The Sakila files provided were MySQL-style SQL files, so I imported the useful S
 | `payment` | 16044 |
 | `rental` | 16044 |
 
+### 1.1 SQLite Installation and Version
+
+SQLite was verified with:
+
+```bash
+sqlite3 --version
+```
+
+Installed version:
+
+```text
+3.53.1 (64-bit)
+```
+
+On Ubuntu or Debian, SQLite and its development library can be installed with:
+
+```bash
+sudo apt install sqlite3 libsqlite3-dev
+```
+
 ---
 
 ## 2. SQLite3 Exploration
@@ -143,6 +163,52 @@ Observed result:
 | Reason | SQLite is embedded and runs inside the calling application process |
 
 SQLite does not need a separate server. In this experiment, the database operations were executed through the local SQLite engine and no independent SQLite daemon was running in the background.
+
+### 2.6 Other Useful PRAGMA Commands
+
+```sql
+PRAGMA journal_mode;
+PRAGMA cache_size;
+PRAGMA integrity_check;
+PRAGMA database_list;
+```
+
+| PRAGMA | Purpose |
+|---|---|
+| `journal_mode` | Shows whether SQLite uses DELETE, WAL, MEMORY, or another journal mode |
+| `cache_size` | Shows the configured number of pages kept in SQLite's page cache |
+| `integrity_check` | Checks the database structure; a healthy database returns `ok` |
+| `database_list` | Lists the main database and any attached databases |
+
+### 2.7 Verifying mmap with strace
+
+On Linux, the system-call difference can be checked with:
+
+```bash
+strace -c -e trace=openat,read,mmap sqlite3 sakila_lab.db \
+  "PRAGMA mmap_size=0; SELECT count(*) FROM rental;"
+
+strace -c -e trace=openat,read,mmap sqlite3 sakila_lab.db \
+  "PRAGMA mmap_size=268435456; SELECT count(*) FROM rental;"
+```
+
+With `mmap_size=0`, SQLite follows its normal file-read path. With mmap enabled,
+the database file can be mapped into the process address space, so the trace
+shows database-backed `mmap()` activity and fewer `read()` calls.
+
+### 2.8 SQLite Is a Linked Library
+
+SQLite runs inside the application instead of running as a separate server.
+On Linux, its dynamic linkage can be checked with:
+
+```bash
+ldd $(which sqlite3) | grep sqlite
+```
+
+A dynamically linked installation shows `libsqlite3.so`. Applications call
+functions such as `sqlite3_open()`, `sqlite3_exec()`, and `sqlite3_close()`
+directly in their own process. SQLite therefore needs no TCP connection,
+authentication handshake, or long-running database daemon.
 
 ---
 
@@ -338,9 +404,22 @@ SQLite exposes mmap as a simple database setting. PostgreSQL does not use the sa
 |---|---|---|
 | Architecture | Embedded database library | Client-server DBMS |
 | Process model | Runs inside application process | Multiple `postgres` processes observed |
+| Communication | Direct function calls and local file I/O | TCP or Unix-domain socket |
+| Concurrency | File locking; one writer at a time, improved by WAL | MVCC supports many concurrent readers and writers |
+| Authentication | Filesystem permissions; no database server login | Users, roles, passwords, and SSL support |
+| Transactions | ACID transactions with serialized writes | ACID transactions with multiple isolation levels |
 | Deployment | Simple local file | Requires running server |
 | Storage inspection | Easy through file size and PRAGMA commands | Uses catalog queries and relation sizes |
 | Best suited for | Local storage, simple apps, embedded use | Multi-user systems and server applications |
+
+### 5.5 When to Use Each Database
+
+Use SQLite for embedded applications, desktop or mobile software, tests, local
+tools, and low-concurrency workloads where simple deployment is important.
+
+Use PostgreSQL for web backends, multi-user applications, concurrent writes,
+advanced queries, role-based security, auditing, and production systems that
+need a dedicated database server.
 
 ---
 
@@ -352,6 +431,10 @@ SQLite exposes mmap as a simple database setting. PostgreSQL does not use the sa
 PRAGMA page_size;
 PRAGMA page_count;
 PRAGMA mmap_size;
+PRAGMA journal_mode;
+PRAGMA cache_size;
+PRAGMA integrity_check;
+PRAGMA database_list;
 PRAGMA mmap_size=0;
 SELECT * FROM rental;
 SELECT * FROM payment;
@@ -363,6 +446,9 @@ SELECT * FROM payment;
 ```bash
 ls -lh sakila_lab.db
 ps aux | grep sqlite
+ldd $(which sqlite3) | grep sqlite
+strace -c -e trace=openat,read,mmap sqlite3 sakila_lab.db "PRAGMA mmap_size=0; SELECT count(*) FROM rental;"
+strace -c -e trace=openat,read,mmap sqlite3 sakila_lab.db "PRAGMA mmap_size=268435456; SELECT count(*) FROM rental;"
 ```
 
 ### PostgreSQL
