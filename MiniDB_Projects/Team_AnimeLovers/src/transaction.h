@@ -71,7 +71,9 @@ struct LockRequest {
 };
 
 struct LockTable {
-    std::vector<LockRequest> queue;   // granted requests come first
+    std::vector<LockRequest> queue;             // currently GRANTED locks only
+    int                      waiting_exclusive = 0; // # writers waiting (for writer
+                                                    // preference — avoids writer starvation)
     std::mutex               mu;
     std::condition_variable  cv;
 };
@@ -170,6 +172,7 @@ struct Transaction {
     TxnId       id;
     Timestamp   snapshot_ts;   // MVCC snapshot (begin timestamp)
     TxnState    state = TxnState::ACTIVE;
+    bool        wrote = false; // did this txn modify data? read-only txns log nothing
     std::vector<UndoEntry> undo_log;  // applied in reverse on abort
 };
 
@@ -207,7 +210,12 @@ private:
     std::atomic<TxnId>      next_txn_id_{1};
     std::atomic<Timestamp>  clock_{1};
     std::map<TxnId, Transaction>  active_;
-    std::mutex                     mu_;
+    std::mutex                     mu_;          // guards active_ only (held briefly)
+    std::mutex                     storage_mu_;  // guards the (thread-unsafe) buffer
+                                                 // pool + WAL during a data operation
+    // NOTE on lock ordering: mu_ and storage_mu_ are NEVER held at the same time.
+    // Each critical section takes exactly one, so there is no acquisition cycle.
+    // 2PL table locks (via lm_) are always taken BEFORE storage_mu_, never after.
 
     // 2PL helpers
     void tpl_execute_insert(TxnId txn_id, const InsertStmt& s, Transaction& txn);
@@ -217,6 +225,9 @@ private:
     ResultSet mvcc_execute_select(TxnId txn_id, const SelectStmt& s, Transaction& txn);
     void      mvcc_execute_insert(TxnId txn_id, const InsertStmt& s, Transaction& txn);
     void      mvcc_execute_delete(TxnId txn_id, const DeleteStmt& s, Transaction& txn);
+
+    // Lazily append a BEGIN record on a transaction's first write (call under storage_mu_)
+    void log_begin_if_needed(Transaction& txn);
 
     Timestamp next_ts() { return clock_.fetch_add(1); }
     std::string resource_key(const std::string& table, const Value& pk) const;

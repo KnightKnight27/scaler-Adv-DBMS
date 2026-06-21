@@ -97,6 +97,18 @@ bool LockManager::conflicts(LockMode held, LockMode requested) const {
     return !(held == LockMode::SHARED && requested == LockMode::SHARED);
 }
 
+// Is requested mode compatible with ALL locks currently held on this resource
+// by OTHER transactions? `q` holds only granted locks (see note in lock()).
+static bool compatible_with_holders(const std::vector<LockRequest>& q,
+                                    TxnId txn_id, LockMode mode) {
+    for (const auto& r : q) {
+        if (r.txn_id == txn_id) continue;               // our own lock never conflicts
+        if (!(r.mode == LockMode::SHARED && mode == LockMode::SHARED))
+            return false;                               // S/S ok; anything with X conflicts
+    }
+    return true;
+}
+
 void LockManager::lock(TxnId txn_id, const std::string& resource, LockMode mode) {
     LockTable* lt;
     {
@@ -106,59 +118,60 @@ void LockManager::lock(TxnId txn_id, const std::string& resource, LockMode mode)
 
     std::unique_lock<std::mutex> ul(lt->mu);
 
-    // Check if we already hold a compatible lock (idempotent re-lock)
-    for (auto& req : lt->queue) {
-        if (req.txn_id == txn_id && req.granted) {
-            if (mode == LockMode::SHARED || req.mode == LockMode::EXCLUSIVE)
-                return; // already have what we need
-        }
-    }
+    // `lt->queue` holds ONLY currently-granted locks. We never store an
+    // ungranted request in it, so there are no dangling references across the
+    // wait below (the earlier bug: a reference into the vector was invalidated
+    // when another thread push_back'd while we waited).
 
-    // Add our request to the queue
-    lt->queue.push_back({txn_id, mode, false});
-    auto& my_req = lt->queue.back();
+    // Idempotent re-lock: already hold something strong enough?
+    for (const auto& req : lt->queue)
+        if (req.txn_id == txn_id &&
+            (mode == LockMode::SHARED || req.mode == LockMode::EXCLUSIVE))
+            return;
 
-    // Build waits-for edges
-    for (auto& req : lt->queue) {
-        if (req.granted && req.txn_id != txn_id && conflicts(req.mode, mode)) {
+    // Register waits-for edges to every conflicting current holder, then check
+    // for a deadlock cycle. If found, this transaction is the victim.
+    bool registered = false;
+    for (const auto& req : lt->queue) {
+        if (req.txn_id != txn_id &&
+            !(req.mode == LockMode::SHARED && mode == LockMode::SHARED)) {
             add_waits_for(txn_id, req.txn_id);
-            if (has_cycle(txn_id)) {
-                // We are the victim — remove our request and throw
-                remove_waits_for(txn_id);
-                lt->queue.pop_back();
-                throw DeadlockException(txn_id);
-            }
+            registered = true;
         }
     }
+    if (registered && has_cycle(txn_id)) {
+        remove_waits_for(txn_id);
+        throw DeadlockException(txn_id);
+    }
 
-    // Wait until no conflicting granted lock exists
+    // Writer preference: while a writer is waiting, new SHARED requests yield to
+    // it. Without this, a steady stream of readers can starve the writer forever
+    // (it never sees a moment with zero shared holders).
+    if (mode == LockMode::EXCLUSIVE) lt->waiting_exclusive++;
+
+    // Block until compatible with all holders. The predicate re-reads the queue
+    // each wake-up, so it is robust to other threads mutating it meanwhile.
     lt->cv.wait(ul, [&]() {
-        for (auto& req : lt->queue) {
-            if (!req.granted && req.txn_id == txn_id) break;
-            if (&req == &my_req) break;
-            if (req.granted && req.txn_id != txn_id && conflicts(req.mode, mode))
-                return false;
-        }
+        if (!compatible_with_holders(lt->queue, txn_id, mode)) return false;
+        if (mode == LockMode::SHARED && lt->waiting_exclusive > 0) return false;
         return true;
     });
 
-    my_req.granted = true;
+    if (mode == LockMode::EXCLUSIVE) lt->waiting_exclusive--;
     remove_waits_for(txn_id);
-
-    // Track which resources this txn holds
-    std::lock_guard<std::mutex> wg(wf_mu_);
-    // (waits_for_ is cleaned; held_by tracking below)
-    (void)0;
+    lt->queue.push_back({txn_id, mode, true}); // record the granted lock
 }
 
 void LockManager::unlock_all(TxnId txn_id) {
     std::lock_guard<std::mutex> g(global_mu_);
     for (auto& [res, lt] : lock_tables_) {
-        std::lock_guard<std::mutex> lg(lt.mu);
-        auto& q = lt.queue;
-        q.erase(std::remove_if(q.begin(), q.end(),
-                [txn_id](const LockRequest& r){ return r.txn_id == txn_id; }), q.end());
-        lt.cv.notify_all();
+        {
+            std::lock_guard<std::mutex> lg(lt.mu);
+            auto& q = lt.queue;
+            q.erase(std::remove_if(q.begin(), q.end(),
+                    [txn_id](const LockRequest& r){ return r.txn_id == txn_id; }), q.end());
+        }
+        lt.cv.notify_all(); // wake any waiters so they can re-check compatibility
     }
     remove_waits_for(txn_id);
 }
@@ -168,7 +181,7 @@ std::vector<std::string> LockManager::held_by(TxnId txn_id) const {
     std::lock_guard<std::mutex> g(const_cast<std::mutex&>(global_mu_));
     for (auto& [r, lt] : lock_tables_)
         for (auto& req : lt.queue)
-            if (req.txn_id == txn_id && req.granted) { res.push_back(r); break; }
+            if (req.txn_id == txn_id) { res.push_back(r); break; }
     return res;
 }
 
@@ -273,11 +286,12 @@ TxnId TransactionManager::begin() {
     txn.id          = id;
     txn.snapshot_ts = next_ts(); // MVCC snapshot timestamp
     txn.state       = TxnState::ACTIVE;
-    {
-        std::lock_guard<std::mutex> g(mu_);
-        active_[id] = std::move(txn);
-    }
-    wal_.append({LogType::BEGIN, id, "", {}, {}});
+    std::lock_guard<std::mutex> g(mu_);
+    active_[id] = std::move(txn);
+    // NB: we do NOT log BEGIN here. A read-only transaction writes nothing to
+    // the WAL at all — BEGIN is logged lazily on the first write (see below).
+    // This keeps read transactions free of disk I/O, which is what lets MVCC
+    // readers run concurrently without serialising on the log.
     return id;
 }
 
@@ -287,13 +301,20 @@ std::string TransactionManager::resource_key(const std::string& table, const Val
 
 // ─── 2PL mode helpers ────────────────────────────────────────────────────────
 
+// Lazily log BEGIN the first time a transaction actually modifies data, and
+// mark it as a writer. Must be called while holding storage_mu_ (guards wal_).
+void TransactionManager::log_begin_if_needed(Transaction& txn) {
+    if (!txn.wrote) {
+        wal_.append({LogType::BEGIN, txn.id, "", {}, {}});
+        txn.wrote = true;
+    }
+}
+
+// The 2PL table-level EXCLUSIVE lock is acquired by the dispatcher BEFORE these
+// helpers run; here we only touch storage (heap + WAL), already under storage_mu_.
 void TransactionManager::tpl_execute_insert(TxnId txn_id, const InsertStmt& s,
                                              Transaction& txn) {
-    auto& schema = db_.catalog().get(s.table);
-    // Acquire exclusive lock on the new primary key
-    if (schema.pk_col >= 0)
-        lm_.lock(txn_id, resource_key(s.table, s.values[schema.pk_col]),
-                 LockMode::EXCLUSIVE);
+    log_begin_if_needed(txn);
     RID rid = db_.executor().execute_insert(s);
     wal_.append({LogType::INSERT, txn_id, s.table, s.values, rid});
     // To undo an insert we delete the row again (op = INSERT).
@@ -302,18 +323,7 @@ void TransactionManager::tpl_execute_insert(TxnId txn_id, const InsertStmt& s,
 
 void TransactionManager::tpl_execute_delete(TxnId txn_id, const DeleteStmt& s,
                                              Transaction& txn) {
-    auto& schema = db_.catalog().get(s.table);
-    auto& tbl    = db_.tables().at(s.table);
-    // Acquire exclusive locks on every row's primary key before deleting.
-    std::vector<std::pair<RID, Row>> to_lock;
-    tbl->scan([&](RID rid, const Row& row) {
-        to_lock.emplace_back(rid, row);
-    });
-    for (auto& [rid, row] : to_lock) {
-        if (schema.pk_col >= 0)
-            lm_.lock(txn_id, resource_key(s.table, row[schema.pk_col]),
-                     LockMode::EXCLUSIVE);
-    }
+    log_begin_if_needed(txn);
     // execute_delete returns the rows it actually removed (after WHERE filtering),
     // so we can re-insert them on abort. Record one undo entry per deleted row.
     auto deleted = db_.executor().execute_delete(s);
@@ -327,14 +337,41 @@ void TransactionManager::tpl_execute_delete(TxnId txn_id, const DeleteStmt& s,
 
 ResultSet TransactionManager::mvcc_execute_select(TxnId txn_id, const SelectStmt& s,
                                                    Transaction& txn) {
-    // Read from our snapshot — no locks needed (readers never block)
+    // Read from our snapshot — no locks needed (readers never block).
     auto& schema = db_.catalog().get(s.table);
-    auto rows = mvcc_.scan(s.table, txn.snapshot_ts);
 
     ResultSet rs;
     if (s.star) for (auto& c : schema.columns) rs.columns.push_back(c.name);
     else rs.columns = s.columns;
 
+    // Fast path: a point query on the primary key uses the B+ index to find the
+    // single RID, then reads that RID's version visible to our snapshot. This
+    // mirrors the 2PL path's INDEX_POINT plan so the two modes do comparable
+    // work per read — otherwise MVCC would do an O(rows) version scan here.
+    if (s.has_where && !s.where_cond.rhs_is_col &&
+        s.where_cond.op == TokenType::EQ &&
+        schema.col_index(s.where_cond.left_col) == schema.pk_col &&
+        schema.pk_col >= 0) {
+        auto& tbl = db_.tables().at(s.table);
+        auto rid  = tbl->index().search(s.where_cond.rhs_val);
+        if (rid) {
+            auto row = mvcc_.read(s.table, *rid, txn.snapshot_ts);
+            if (row) {
+                Row out;
+                if (s.star) out = *row;
+                else for (auto& cn : s.columns) {
+                    int i = schema.col_index(cn);
+                    if (i < 0) throw std::runtime_error("Column not found: " + cn);
+                    out.push_back((*row)[i]);
+                }
+                rs.rows.push_back(std::move(out));
+            }
+        }
+        return rs;
+    }
+
+    // General path: scan all versions visible to the snapshot, then filter.
+    auto rows = mvcc_.scan(s.table, txn.snapshot_ts);
     for (auto& [rid, row] : rows) {
         // Apply WHERE filter
         if (s.has_where) {
@@ -371,6 +408,7 @@ ResultSet TransactionManager::mvcc_execute_select(TxnId txn_id, const SelectStmt
 
 void TransactionManager::mvcc_execute_insert(TxnId txn_id, const InsertStmt& s,
                                               Transaction& txn) {
+    log_begin_if_needed(txn);
     // Write to the heap table (physical storage)
     db_.executor().execute_insert(s);
     // Find the RID of the row we just inserted
@@ -390,6 +428,7 @@ void TransactionManager::mvcc_execute_insert(TxnId txn_id, const InsertStmt& s,
 
 void TransactionManager::mvcc_execute_delete(TxnId txn_id, const DeleteStmt& s,
                                               Transaction& txn) {
+    log_begin_if_needed(txn);
     Timestamp end_ts = next_ts();
     auto& schema = db_.catalog().get(s.table);
     auto rows = mvcc_.scan(s.table, txn.snapshot_ts);
@@ -406,8 +445,14 @@ void TransactionManager::mvcc_execute_delete(TxnId txn_id, const DeleteStmt& s,
 // ─── execute dispatcher ──────────────────────────────────────────────────────
 
 ResultSet TransactionManager::execute(TxnId txn_id, const std::string& sql) {
-    std::lock_guard<std::mutex> g(mu_);
-    auto& txn = active_.at(txn_id);
+    // Look up the transaction under mu_ briefly, then release it. The map node
+    // is stable (only this thread erases its own txn at commit/abort), so the
+    // pointer stays valid while we do the lock wait and data work below.
+    Transaction* txn;
+    {
+        std::lock_guard<std::mutex> g(mu_);
+        txn = &active_.at(txn_id);
+    }
 
     Parser parser(sql);
     Statement stmt = parser.parse();
@@ -417,32 +462,40 @@ ResultSet TransactionManager::execute(TxnId txn_id, const std::string& sql) {
 
         if constexpr (std::is_same_v<T, SelectStmt>) {
             if (mode_ == ConcurrencyMode::MVCC)
-                return mvcc_execute_select(txn_id, s, txn);
-            // 2PL: acquire shared lock per column read (table-level for simplicity)
+                // Snapshot read: no 2PL lock, no storage_mu_. Concurrent readers
+                // only briefly touch the version store's own mutex.
+                return mvcc_execute_select(txn_id, s, *txn);
+            // 2PL: SHARED table lock, held until commit. This is what makes a
+            // concurrent writer (EXCLUSIVE) block readers — the contention MVCC avoids.
             lm_.lock(txn_id, "TABLE:" + s.table, LockMode::SHARED);
+            std::lock_guard<std::mutex> sg(storage_mu_);
             return db_.executor().execute_select(s);
 
         } else if constexpr (std::is_same_v<T, InsertStmt>) {
-            if (mode_ == ConcurrencyMode::MVCC)
-                mvcc_execute_insert(txn_id, s, txn);
-            else
-                tpl_execute_insert(txn_id, s, txn);
+            if (mode_ != ConcurrencyMode::MVCC)
+                lm_.lock(txn_id, "TABLE:" + s.table, LockMode::EXCLUSIVE);
+            std::lock_guard<std::mutex> sg(storage_mu_);
+            if (mode_ == ConcurrencyMode::MVCC) mvcc_execute_insert(txn_id, s, *txn);
+            else                                tpl_execute_insert(txn_id, s, *txn);
             return {};
 
         } else if constexpr (std::is_same_v<T, DeleteStmt>) {
-            if (mode_ == ConcurrencyMode::MVCC)
-                mvcc_execute_delete(txn_id, s, txn);
-            else
-                tpl_execute_delete(txn_id, s, txn);
+            if (mode_ != ConcurrencyMode::MVCC)
+                lm_.lock(txn_id, "TABLE:" + s.table, LockMode::EXCLUSIVE);
+            std::lock_guard<std::mutex> sg(storage_mu_);
+            if (mode_ == ConcurrencyMode::MVCC) mvcc_execute_delete(txn_id, s, *txn);
+            else                                tpl_execute_delete(txn_id, s, *txn);
             return {};
 
         } else if constexpr (std::is_same_v<T, CreateStmt>) {
+            std::lock_guard<std::mutex> sg(storage_mu_);
             db_.executor().execute_create(s, db_.db_dir());
             // Persist the schema so the table is found again after a restart.
             // (DDL is auto-committed: it takes effect immediately, not at COMMIT.)
             db_.catalog().save(db_.db_dir() + "/catalog.cat");
             return {};
         } else if constexpr (std::is_same_v<T, DropStmt>) {
+            std::lock_guard<std::mutex> sg(storage_mu_);
             db_.executor().execute_drop(s);
             db_.catalog().save(db_.db_dir() + "/catalog.cat");
             return {};
@@ -453,51 +506,71 @@ ResultSet TransactionManager::execute(TxnId txn_id, const std::string& sql) {
 }
 
 void TransactionManager::commit(TxnId txn_id) {
+    // Snapshot whether this txn wrote anything (under mu_), without holding mu_
+    // during the WAL flush.
+    bool wrote;
+    {
+        std::lock_guard<std::mutex> g(mu_);
+        wrote = active_.at(txn_id).wrote;
+        active_.at(txn_id).state = TxnState::COMMITTED;
+    }
+    // Only writers touch the WAL. Read-only txns commit with zero I/O.
+    if (wrote) {
+        std::lock_guard<std::mutex> sg(storage_mu_);
+        wal_.append({LogType::COMMIT, txn_id, "", {}, {}});
+        wal_.flush();
+    }
+    lm_.unlock_all(txn_id);                 // strict 2PL: release locks at commit
     std::lock_guard<std::mutex> g(mu_);
-    auto& txn = active_.at(txn_id);
-    txn.state = TxnState::COMMITTED;
-    wal_.append({LogType::COMMIT, txn_id, "", {}, {}});
-    wal_.flush();
-    lm_.unlock_all(txn_id);
     active_.erase(txn_id);
 }
 
 void TransactionManager::abort(TxnId txn_id) {
-    std::lock_guard<std::mutex> g(mu_);
-    auto& txn = active_.at(txn_id);
-
-    // Apply undo entries in REVERSE order so the heap returns to its pre-txn state.
-    for (auto it = txn.undo_log.rbegin(); it != txn.undo_log.rend(); ++it) {
-        const UndoEntry& u = *it;
-
-        if (mode_ == ConcurrencyMode::MVCC) {
-            // MVCC reads consult the version store, so it is enough to make the
-            // aborted version invisible: seal it with end_ts = 0 (before any snapshot).
-            mvcc_.delete_version(u.table, u.rid, 0);
-            continue;
-        }
-
-        // 2PL: physically reverse the heap change.
-        if (!db_.catalog().exists(u.table)) continue;
-        auto& tbl    = db_.tables().at(u.table);
-        auto& schema = db_.catalog().get(u.table);
-
-        if (u.op == LogType::INSERT) {
-            // Undo an insert → delete the row. Locate its current RID by PK.
-            if (schema.pk_col >= 0) {
-                auto rid = tbl->index().search(u.row[schema.pk_col]);
-                if (rid) tbl->delete_row(*rid, u.row);
-            }
-        } else if (u.op == LogType::DELETE) {
-            // Undo a delete → re-insert the before-image.
-            tbl->insert_row(u.row);
-        }
+    bool wrote;
+    {
+        std::lock_guard<std::mutex> g(mu_);
+        wrote = active_.at(txn_id).wrote;
     }
 
-    txn.state = TxnState::ABORTED;
-    wal_.append({LogType::ABORT, txn_id, "", {}, {}});
-    wal_.flush();
+    if (wrote) {
+        // Undo work touches storage (heap + WAL) — do it under storage_mu_, NOT mu_.
+        std::lock_guard<std::mutex> sg(storage_mu_);
+        Transaction& txn = active_.at(txn_id); // safe: only this thread erases it
+
+        // Apply undo entries in REVERSE order to restore the pre-txn state.
+        for (auto it = txn.undo_log.rbegin(); it != txn.undo_log.rend(); ++it) {
+            const UndoEntry& u = *it;
+
+            if (mode_ == ConcurrencyMode::MVCC) {
+                // MVCC reads consult the version store, so it is enough to make the
+                // aborted version invisible: seal it with end_ts = 0 (pre-snapshot).
+                mvcc_.delete_version(u.table, u.rid, 0);
+                continue;
+            }
+
+            // 2PL: physically reverse the heap change.
+            if (!db_.catalog().exists(u.table)) continue;
+            auto& tbl    = db_.tables().at(u.table);
+            auto& schema = db_.catalog().get(u.table);
+
+            if (u.op == LogType::INSERT) {
+                // Undo an insert → delete the row. Locate its current RID by PK.
+                if (schema.pk_col >= 0) {
+                    auto rid = tbl->index().search(u.row[schema.pk_col]);
+                    if (rid) tbl->delete_row(*rid, u.row);
+                }
+            } else if (u.op == LogType::DELETE) {
+                // Undo a delete → re-insert the before-image.
+                tbl->insert_row(u.row);
+            }
+        }
+        wal_.append({LogType::ABORT, txn_id, "", {}, {}});
+        wal_.flush();
+    }
+
     lm_.unlock_all(txn_id);
+    std::lock_guard<std::mutex> g(mu_);
+    active_.at(txn_id).state = TxnState::ABORTED;
     active_.erase(txn_id);
 }
 
