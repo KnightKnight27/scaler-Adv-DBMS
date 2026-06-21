@@ -1,0 +1,24 @@
+# build artifacts
+*.o
+*.obj
+*.exe
+*.pdb
+*.ilk
+minidb
+deadlock_demo
+recovery_demo
+bench_index
+bench_mvcc
+test_storage
+test_btree
+test_query
+test_txn
+test_recovery
+test_mvcc
+
+# generated data
+team_cash_data/
+bench_data_*/
+*.tbl
+*.wal
+catalog.txt
