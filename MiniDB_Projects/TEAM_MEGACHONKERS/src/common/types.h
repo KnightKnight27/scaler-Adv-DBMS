@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <common/config.h>
 
 namespace minidb {
 

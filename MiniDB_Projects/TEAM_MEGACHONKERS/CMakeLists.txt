@@ -26,6 +26,9 @@ add_library(minidb_core STATIC
     src/recovery/wal.cpp
     src/catalog/catalog.cpp
     src/concurrency/lock_manager.cpp
+    src/execution/insert_executor.cpp
+    src/execution/seq_scan_executor.cpp
+    src/execution/join_executor.cpp
 )
 
 target_include_directories(minidb_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)

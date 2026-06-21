@@ -1,5 +1,6 @@
 #include "catalog/catalog.h"
 #include "common/logger.h"
+#include <mutex>
 
 namespace minidb {
 

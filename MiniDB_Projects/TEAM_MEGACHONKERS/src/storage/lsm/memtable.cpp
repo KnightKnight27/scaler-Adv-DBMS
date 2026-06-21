@@ -1,4 +1,5 @@
 #include "storage/lsm/memtable.h"
+#include <mutex>
 
 namespace minidb {
 

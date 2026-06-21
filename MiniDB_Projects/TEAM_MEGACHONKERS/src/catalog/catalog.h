@@ -10,6 +10,9 @@
 #include "catalog/schema.h"
 #include "common/config.h"
 
+#include "storage/lsm/memtable.h"
+#include "recovery/wal.h"
+
 namespace minidb {
 
 struct TableMetadata {
