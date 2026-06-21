@@ -9,34 +9,25 @@
 
 class DiskManager;
 
-// The buffer pool caches a fixed set of pages in memory so the layers above
-// never call the disk directly. Eviction uses clock-sweep (the PostgreSQL /
-// lab-3 policy): each frame has a usage counter; the "hand" sweeps frames,
-// decrementing usage until it finds one at 0 to evict. We extend the lab's
-// pure cache with the two things a real pool needs:
-//   - pin_count: a page in use cannot be evicted (its frame pointer is live);
-//   - dirty:     a modified page must be written back to disk before reuse.
+// caches pages in memory; clock-sweep eviction with pin_count + dirty
 class BufferPool {
 public:
     explicit BufferPool(DiskManager& disk, std::size_t num_frames = DEFAULT_POOL_FRAMES);
 
-    // Flush all dirty frames on destruction so a clean shutdown is durable
-    // without the caller having to remember flush_all(). Safe because the pool
-    // is declared before — so destroyed after — the DiskManager it writes to.
+    // flushes dirty frames
     ~BufferPool();
 
-    // Bring page `id` into a frame (loading from disk on a miss) and pin it.
-    // Returns a pointer to its PAGE_SIZE bytes, valid until the matching unpin.
+    // load+pin page id, valid until unpin
     char* fetch_page(PageID id);
 
-    // Release one pin on `id`. Pass dirty=true if you modified the page.
+    // dirty=true if you wrote to it
     bool unpin_page(PageID id, bool dirty);
 
-    // Grow the data file by one page and return its id (not yet pinned).
+    // grow file by one page, return id
     PageID new_page();
 
     void flush_page(PageID id);
-    void flush_all();  // write every dirty frame back to disk
+    void flush_all();
 
 private:
     struct Frame {
@@ -53,5 +44,5 @@ private:
     std::unordered_map<PageID, std::size_t> table_;  // page_id -> frame index
     std::size_t                         hand_ = 0;    // clock-sweep position
 
-    std::size_t find_victim();  // pick a frame to (re)use; throws if all pinned
+    std::size_t find_victim();  // throws if all pinned
 };

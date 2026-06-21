@@ -2,17 +2,14 @@
 
 #include <cstdint>
 
-// A page's position in the data file: file offset = page_id * PAGE_SIZE.
-// Signed so we can use -1 as the "no such page" sentinel.
+// file offset = page_id * PAGE_SIZE; -1 = no page
 using PageID = std::int32_t;
 
-// A tuple's position inside a page = its index in that page's slot directory.
-using SlotId = std::uint16_t;
+using SlotId = std::uint16_t;  // index into page slot directory
 
 constexpr PageID INVALID_PAGE_ID = -1;
 
-// A RowID uniquely identifies one tuple in the whole heap: which page, and
-// which slot within that page. This is what the B+ tree will point at later.
+// (page, slot) -> one tuple in the heap
 struct RowID {
     PageID page_id = INVALID_PAGE_ID;
     SlotId slot = 0;

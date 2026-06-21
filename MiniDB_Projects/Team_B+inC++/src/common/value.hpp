@@ -4,8 +4,7 @@
 #include <string>
 #include <variant>
 
-// A single column value. We support exactly two column types (INT, TEXT) — the
-// minimum the rubric needs — so a Value is either a 32-bit int or a string.
+// column value: int or text
 using Value = std::variant<int, std::string>;
 
 enum class ColumnType { INT, TEXT };
@@ -15,8 +14,7 @@ inline std::string value_to_string(const Value& v) {
     return std::get<std::string>(v);
 }
 
-// Three-way compare of two values of the SAME type. Throws on a type mismatch
-// (e.g. comparing an int column against a string literal) — that's a query bug.
+// 3-way compare, same type only; throws on mismatch
 inline int value_compare(const Value& a, const Value& b) {
     if (a.index() != b.index())
         throw std::runtime_error("type mismatch in comparison");

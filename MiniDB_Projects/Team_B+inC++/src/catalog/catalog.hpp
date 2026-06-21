@@ -10,35 +10,28 @@
 #include "../storage/disk_manager.hpp"
 #include "../storage/heap_file.hpp"
 
-// Everything the engine needs to operate on one table. The storage objects are
-// held by unique_ptr so their addresses are stable: BufferPool holds a
-// DiskManager& and HeapFile holds both — those references stay valid because
-// the pointed-to objects never move, even as the Table is stored in the map.
-// Declaration order matters for destruction: heap, then pool (flushes), then
-// disk — so the pool's flush-on-destroy still has a live DiskManager.
+// one table. unique_ptr keeps storage addresses stable.
+// destruction order matters: heap, pool (flushes), disk.
 struct Table {
     std::string                   name;
     Schema                        schema;
-    int                           pk_col = 0;   // primary-key column (must be INT)
-    std::size_t                   row_count = 0;  // live rows; used by the optimizer
+    int                           pk_col = 0;   // pk column (INT)
+    std::size_t                   row_count = 0;  // live rows
     std::unique_ptr<DiskManager>  disk;
     std::unique_ptr<BufferPool>   pool;
     std::unique_ptr<HeapFile>     heap;
-    std::unique_ptr<BPlusTree>    index;        // primary key -> RowID
+    std::unique_ptr<BPlusTree>    index;        // pk -> RowID
 };
 
-// The catalog is the name → Table registry. Each table is its own data file
-// (`<dir>/<name>.db`). Opening a table whose file already has data rebuilds the
-// in-memory PK index by scanning the heap.
+// name -> Table registry, one data file per table
 class Catalog {
 public:
     explicit Catalog(std::string dir = ".");
 
-    // Register a table. Creates/opens its data file and (re)builds its index.
-    // Throws if the table name is already registered this session.
+    // creates/opens data file, rebuilds index. throws if name taken.
     Table& create_table(const std::string& name, const Schema& schema, int pk_col);
 
-    // Look up a registered table, or nullptr.
+    // nullptr if absent
     Table* get_table(const std::string& name);
 
 private:

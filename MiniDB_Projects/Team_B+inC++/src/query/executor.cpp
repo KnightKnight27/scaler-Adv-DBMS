@@ -15,10 +15,7 @@
 
 namespace {
 
-// ── Runtime row + schema ────────────────────────────────────────────────────
-// A Row is just the column values. An ExecSchema labels each value with its
-// (table, name, type) so expressions can resolve column references by name —
-// including across a join, where two tables' columns sit side by side.
+// Row = column values; ExecSchema labels each with (table,name,type)
 using Row = std::vector<Value>;
 
 struct ColInfo { std::string table; std::string name; ColumnType type; };
@@ -30,7 +27,7 @@ ExecSchema schema_of(const Table& t) {
     return s;
 }
 
-// Resolve a (maybe-qualified) column reference to its index in `s`.
+// colref -> index in s
 int resolve(const ExecSchema& s, const std::string& table, const std::string& name) {
     int found = -1;
     for (int i = 0; i < static_cast<int>(s.size()); ++i) {
@@ -43,7 +40,6 @@ int resolve(const ExecSchema& s, const std::string& table, const std::string& na
     return found;
 }
 
-// ── Expression evaluation ───────────────────────────────────────────────────
 Value eval_operand(const Expr* e, const Row& row, const ExecSchema& s) {
     if (auto* c = dynamic_cast<const ColumnRef*>(e)) return row[static_cast<std::size_t>(resolve(s, c->table, c->name))];
     if (auto* l = dynamic_cast<const Literal*>(e)) return l->val;
@@ -65,7 +61,7 @@ bool eval_pred(const Expr* e, const Row& row, const ExecSchema& s) {
     throw std::runtime_error("unknown operator: " + b->op);
 }
 
-// ── Operators (Volcano pull model: open(), then next() until nullopt) ────────
+// pull model: open() then next() until nullopt
 struct Operator {
     virtual ~Operator() = default;
     virtual const ExecSchema& schema() const = 0;
@@ -73,7 +69,6 @@ struct Operator {
     virtual std::optional<Row> next() = 0;
 };
 
-// Full table scan over the heap.
 class SeqScan : public Operator {
 public:
     explicit SeqScan(Table* t) : t_(t), schema_(schema_of(*t)) {}
@@ -90,7 +85,7 @@ private:
     std::size_t pos_ = 0;
 };
 
-// Scan only the keys in [low, high] via the B+ tree, then fetch by RowID.
+// scan keys in [low,high] via B+ tree, then fetch by RowID
 class IndexScan : public Operator {
 public:
     IndexScan(Table* t, int low, int high) : t_(t), schema_(schema_of(*t)), low_(low), high_(high) {}
@@ -111,7 +106,6 @@ private:
     std::size_t         pos_ = 0;
 };
 
-// Pass through only rows satisfying the predicate.
 class Filter : public Operator {
 public:
     Filter(std::unique_ptr<Operator> child, const Expr* pred)
@@ -128,7 +122,6 @@ private:
     const Expr*               pred_;
 };
 
-// Keep only the selected columns (SELECT col, col, ...).
 class Project : public Operator {
 public:
     Project(std::unique_ptr<Operator> child, const std::vector<SelectCol>& cols)
@@ -155,8 +148,7 @@ private:
     ExecSchema                schema_;
 };
 
-// Nested-loop join: for each left row, scan the (materialized) right rows and
-// emit the concatenation where the ON predicate holds.
+// nested loop; right side materialized
 class NestedLoopJoin : public Operator {
 public:
     NestedLoopJoin(std::unique_ptr<Operator> l, std::unique_ptr<Operator> r, std::unique_ptr<Expr> on)
@@ -195,12 +187,7 @@ private:
     std::size_t               right_idx_ = 0;
 };
 
-// ── Planning ────────────────────────────────────────────────────────────────
-// Pre-optimizer rule (Phase 2): if the WHERE is a single top-level comparison
-// of the primary-key column against an int literal, scan via the index over the
-// implied key range. A residual Filter(WHERE) always sits on top, so the index
-// range only has to be a SUPERSET — correctness never depends on its precision.
-// The Phase 3 cost optimizer generalizes this choice.
+// use index for a sargable pk predicate; residual filter keeps it correct
 std::optional<std::pair<int, int>> detect_pk_range(const Expr* where, const Table& t) {
     const auto* b = dynamic_cast<const BinaryExpr*>(where);
     if (!b || b->op == "AND" || b->op == "OR") return std::nullopt;
@@ -218,11 +205,7 @@ std::optional<std::pair<int, int>> detect_pk_range(const Expr* where, const Tabl
     return std::nullopt;
 }
 
-// Cost-based scan choice. A SeqScan reads every row (cost = N). An IndexScan is
-// possible only when WHERE has a sargable predicate on the PK; its cost is the
-// estimated matching rows plus the B+ descent (~log N). We pick the cheaper —
-// so a selective `pk = k` uses the index, while `pk != k` (matches almost all)
-// or a non-PK predicate falls back to a sequential scan.
+// pick cheaper of seqscan (N) vs indexscan (matches + log N)
 std::unique_ptr<Operator> scan_for(Table& t, const Expr* where, std::ostream& out) {
     double n = std::max(1.0, static_cast<double>(t.row_count));
     std::optional<std::pair<int, int>> rng = where ? detect_pk_range(where, t) : std::nullopt;
@@ -253,14 +236,11 @@ std::unique_ptr<Operator> plan_select(const SelectStmt& s, Catalog& cat, std::os
         Table* t2 = cat.get_table(s.join_table);
         if (!t2) throw std::runtime_error("no such table: " + s.join_table);
 
-        // Cost-based join order. We materialize the inner side, so the nA*nB
-        // comparison work is order-independent; the tie-break is materialization
-        // cost, so we make the SMALLER relation the inner. (Pushing the WHERE
-        // into the join inputs is future work — inputs are full scans for now.)
+        // make smaller relation the inner (it gets materialized)
         double nA = std::max(1.0, static_cast<double>(t->row_count));
         double nB = std::max(1.0, static_cast<double>(t2->row_count));
-        Table* outer = t; Table* inner = t2;       // default keeps B as inner
-        if (nA < nB) { outer = t2; inner = t; }     // smaller relation becomes inner
+        Table* outer = t; Table* inner = t2;
+        if (nA < nB) { outer = t2; inner = t; }
         out << "  [opt] join " << t->name << "(" << static_cast<long>(nA) << ") x "
             << t2->name << "(" << static_cast<long>(nB) << "): outer=" << outer->name
             << ", inner=" << inner->name << " (smaller side materialized)\n";
@@ -283,8 +263,7 @@ std::unique_ptr<Operator> plan_select(const SelectStmt& s, Catalog& cat, std::os
     return root;
 }
 
-// ── Output formatting ───────────────────────────────────────────────────────
-// Header names are qualified ("table.col") only when a bare name is ambiguous.
+// qualify header name only when ambiguous
 std::vector<std::string> header_names(const ExecSchema& s) {
     std::vector<std::string> names;
     for (const ColInfo& c : s) {
@@ -303,7 +282,6 @@ void print_row(std::ostream& out, const Row& row) {
     out << "\n";
 }
 
-// ── Statement executors ─────────────────────────────────────────────────────
 void exec_create(const CreateStmt& s, Catalog& cat, std::ostream& out) {
     cat.create_table(s.table, s.schema, s.pk_col);
     out << "table '" << s.table << "' created\n";
@@ -325,7 +303,7 @@ void exec_insert(const InsertStmt& s, Database& db, std::ostream& out) {
 
     std::string bytes = t->schema.serialize(s.values);
     TxID tx = db.begin_stmt();
-    db.wal().append({LogType::INSERT, tx, s.table, key, bytes});  // write-ahead, before the heap page
+    db.wal().append({LogType::INSERT, tx, s.table, key, bytes});  // write-ahead
     RowID rid = t->heap->insert(bytes);
     t->index->insert(key, rid);
     ++t->row_count;
@@ -340,11 +318,11 @@ void exec_delete(const DeleteStmt& s, Database& db, std::ostream& out) {
     ExecSchema sch = schema_of(*t);
     TxID tx = db.begin_stmt();
     int n = 0;
-    for (auto& [rid, bytes] : t->heap->scan()) {  // scan() is a snapshot; safe to erase
+    for (auto& [rid, bytes] : t->heap->scan()) {  // snapshot, safe to erase
         Row row = t->schema.deserialize(bytes);
         if (!s.where || eval_pred(s.where.get(), row, sch)) {
             int pk = std::get<int>(row[static_cast<std::size_t>(t->pk_col)]);
-            db.wal().append({LogType::DELETE, tx, s.table, pk, bytes});  // before-image, for UNDO
+            db.wal().append({LogType::DELETE, tx, s.table, pk, bytes});  // before-image for undo
             t->heap->erase(rid);
             t->index->remove(pk);
             if (t->row_count) --t->row_count;

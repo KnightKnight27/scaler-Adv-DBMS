@@ -5,7 +5,6 @@
 #include <unordered_map>
 
 namespace {
-// Uppercased identifier -> keyword token. Anything not here is a plain IDENT.
 const std::unordered_map<std::string, Tok>& keywords() {
     static const std::unordered_map<std::string, Tok> kw = {
         {"SELECT", Tok::SELECT}, {"FROM", Tok::FROM}, {"WHERE", Tok::WHERE},
@@ -34,7 +33,7 @@ std::vector<Token> Lexer::tokenize() {
 
         if (std::isspace(static_cast<unsigned char>(c))) { ++pos_; continue; }
 
-        // identifier or keyword: [A-Za-z_][A-Za-z0-9_]*
+        // ident or keyword
         if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') {
             std::size_t start = pos_;
             while (pos_ < n && (std::isalnum(static_cast<unsigned char>(sql_[pos_])) || sql_[pos_] == '_'))
@@ -46,7 +45,7 @@ std::vector<Token> Lexer::tokenize() {
             continue;
         }
 
-        // number: one or more digits (non-negative integers)
+        // number
         if (std::isdigit(static_cast<unsigned char>(c))) {
             std::size_t start = pos_;
             while (pos_ < n && std::isdigit(static_cast<unsigned char>(sql_[pos_]))) ++pos_;
@@ -54,19 +53,19 @@ std::vector<Token> Lexer::tokenize() {
             continue;
         }
 
-        // string literal: '...'
+        // string literal
         if (c == '\'') {
-            ++pos_;  // opening quote
+            ++pos_;
             std::size_t start = pos_;
             while (pos_ < n && sql_[pos_] != '\'') ++pos_;
             if (pos_ >= n) throw std::runtime_error("unterminated string literal");
             std::string s = sql_.substr(start, pos_ - start);
-            ++pos_;  // closing quote
+            ++pos_;
             out.push_back({Tok::STRING, s});
             continue;
         }
 
-        // two-char and single-char operators / punctuation
+        // operators / punctuation
         switch (c) {
             case '(': out.push_back({Tok::LPAREN, "("}); ++pos_; break;
             case ')': out.push_back({Tok::RPAREN, ")"}); ++pos_; break;

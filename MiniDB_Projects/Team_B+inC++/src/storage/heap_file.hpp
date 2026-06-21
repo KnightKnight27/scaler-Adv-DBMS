@@ -10,10 +10,7 @@
 class BufferPool;
 class DiskManager;
 
-// A HeapFile is an unordered collection of tuples spread across slotted pages.
-// It is the table's row store: insert returns a stable RowID, get/erase work
-// by RowID, and scan walks every live tuple (the SeqScan the executor uses).
-// All page access goes through the buffer pool; the heap never touches disk.
+// unordered tuples across slotted pages; the table row store
 class HeapFile {
 public:
     HeapFile(BufferPool& pool, DiskManager& disk);
@@ -22,7 +19,7 @@ public:
     std::optional<std::string> get(RowID rid);
     bool erase(RowID rid);
 
-    // Materialize every live (RowID, tuple) pair. Fine for a teaching-scale DB.
+    // every live (RowID, tuple) pair
     std::vector<std::pair<RowID, std::string>> scan();
 
 private:

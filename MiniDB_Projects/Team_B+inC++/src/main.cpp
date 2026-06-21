@@ -10,13 +10,8 @@
 #include "query/lexer.hpp"
 #include "query/parser.hpp"
 
-// MiniDB REPL. Reads SQL from stdin, splits on ';', and runs each statement
-// against a Database (catalog + WAL + transactions). Per-table data files and
-// the write-ahead log live in the directory given as argv[1] (default ".").
-//
-// Two meta-commands aid the recovery demo:
-//   RECOVER  — replay the WAL (REDO committed, UNDO losers) into declared tables
-//   CRASH    — hard-exit without flushing the buffer pool, simulating a crash
+// REPL: read SQL from stdin, split on ';', run each statement
+// RECOVER replays the WAL; CRASH hard-exits without flushing
 
 namespace {
 
@@ -78,7 +73,7 @@ int main(int argc, char** argv) {
         if (cmd == "CRASH") {
             std::cout << "minidb> CRASH;\n*** simulating crash: exiting without flushing the buffer pool ***\n";
             std::cout.flush();
-            std::_Exit(1);  // skip destructors -> heap pages are NOT flushed
+            std::_Exit(1);  // skip destructors -> pages not flushed
         }
         run_statement(chunk, db);
     }

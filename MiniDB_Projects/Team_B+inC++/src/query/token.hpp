@@ -2,8 +2,6 @@
 
 #include <string>
 
-// One lexical token. `text` holds the raw lexeme (the number/string/identifier
-// text for those kinds; empty-ish for fixed punctuation).
 enum class Tok {
     // keywords
     SELECT, FROM, WHERE, INSERT, INTO, VALUES, DELETE, CREATE, TABLE,

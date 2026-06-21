@@ -5,8 +5,7 @@
 
 #include "token.hpp"
 
-// Turns a SQL string into a flat token stream ending in a Tok::END sentinel.
-// Keywords are matched case-insensitively; identifiers keep their original case.
+// sql string -> token stream
 class Lexer {
 public:
     explicit Lexer(std::string sql) : sql_(std::move(sql)) {}

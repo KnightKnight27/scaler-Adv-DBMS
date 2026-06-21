@@ -26,7 +26,7 @@ WAL::~WAL() {
     if (out_.is_open()) { out_.flush(); out_.close(); }
 }
 
-// Layout per record: type(1) txid(8) pk(4) table(len+bytes) image(len+bytes).
+// layout: type(1) txid(8) pk(4) table(len+bytes) image(len+bytes)
 void WAL::append(const LogRecord& rec) {
     std::uint8_t t = static_cast<std::uint8_t>(rec.type);
     out_.write(reinterpret_cast<const char*>(&t), 1);
@@ -44,7 +44,7 @@ std::vector<LogRecord> WAL::read_all() {
     if (!in.is_open()) return recs;
     while (true) {
         std::uint8_t t;
-        if (!in.read(reinterpret_cast<char*>(&t), 1)) break;  // clean EOF
+        if (!in.read(reinterpret_cast<char*>(&t), 1)) break;  // EOF
         LogRecord r;
         r.type = static_cast<LogType>(t);
         std::uint64_t txid;
@@ -53,8 +53,8 @@ std::vector<LogRecord> WAL::read_all() {
         if (!get_u32(in, pk)) break;
         r.txid = txid;
         r.pk = static_cast<int>(pk);
-        if (!get_str(in, r.table)) break;   // a torn final record (crash mid-write)
-        if (!get_str(in, r.image)) break;   // is simply dropped
+        if (!get_str(in, r.table)) break;   // torn final record (crash mid-write)
+        if (!get_str(in, r.image)) break;   // dropped
         recs.push_back(std::move(r));
     }
     return recs;

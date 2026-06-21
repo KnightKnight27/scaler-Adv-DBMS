@@ -17,13 +17,13 @@ Table& Catalog::create_table(const std::string& name, const Schema& schema, int 
     table->schema = schema;
     table->pk_col = pk_col;
 
-    // Build the storage stack bottom-up: disk -> pool -> heap.
+    // build storage stack: disk -> pool -> heap
     table->disk = std::make_unique<DiskManager>(dir_ + "/" + name + ".db");
     table->pool = std::make_unique<BufferPool>(*table->disk);
     table->heap = std::make_unique<HeapFile>(*table->pool, *table->disk);
     table->index = std::make_unique<BPlusTree>();
 
-    // If the data file already held rows, rebuild the PK index from the heap.
+    // rebuild pk index from heap if file has rows
     if (table->disk->num_pages() > 0) {
         for (auto& [rid, bytes] : table->heap->scan()) {
             std::vector<Value> row = schema.deserialize(bytes);

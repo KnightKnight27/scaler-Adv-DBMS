@@ -8,12 +8,10 @@ void BPlusTree::destroy(Node* node) {
     if (!node) return;
     if (!node->leaf)
         for (Node* c : node->children) destroy(c);
-    delete node;  // leaves are freed here too (reached via their parent's children)
+    delete node;
 }
 
-// Descend from the root to the leaf whose key range covers `key`.
-// Routing rule: child[i] holds keys in [keys[i-1], keys[i]); so we take the
-// first child index i where key < keys[i], i.e. advance while key >= keys[i].
+// child[i] holds [keys[i-1], keys[i])
 BPlusTree::Node* BPlusTree::find_leaf(Key key) const {
     Node* n = root_;
     while (n && !n->leaf) {
@@ -42,7 +40,7 @@ void BPlusTree::insert(Key key, RowID rid) {
     }
     std::optional<Split> split = insert_rec(root_, key, rid);
     if (split) {
-        // Root split: grow the tree by one level.
+        // root split: grow one level
         Node* new_root = new Node(false);
         new_root->keys.push_back(split->key);
         new_root->children.push_back(root_);
@@ -55,7 +53,7 @@ std::optional<BPlusTree::Split> BPlusTree::insert_rec(Node* node, Key key, RowID
     if (node->leaf) {
         auto it = std::lower_bound(node->keys.begin(), node->keys.end(), key);
         std::size_t pos = static_cast<std::size_t>(it - node->keys.begin());
-        if (it != node->keys.end() && *it == key) {  // upsert: key already present
+        if (it != node->keys.end() && *it == key) {  // upsert
             node->values[pos] = rid;
             return std::nullopt;
         }
@@ -63,7 +61,7 @@ std::optional<BPlusTree::Split> BPlusTree::insert_rec(Node* node, Key key, RowID
         node->values.insert(node->values.begin() + pos, rid);
         if (static_cast<int>(node->keys.size()) <= ORDER) return std::nullopt;
 
-        // Split leaf: right sibling takes the upper half; chain the leaves.
+        // split leaf: right takes upper half, chain them
         std::size_t mid = node->keys.size() / 2;
         Node* right = new Node(true);
         right->keys.assign(node->keys.begin() + mid, node->keys.end());
@@ -72,10 +70,10 @@ std::optional<BPlusTree::Split> BPlusTree::insert_rec(Node* node, Key key, RowID
         node->values.resize(mid);
         right->next = node->next;
         node->next = right;
-        return Split{right->keys.front(), right};  // copy first key of right up
+        return Split{right->keys.front(), right};
     }
 
-    // Internal node: route to the right child, then absorb any split it returns.
+    // internal: route to child, absorb its split
     std::size_t i = 0;
     while (i < node->keys.size() && key >= node->keys[i]) ++i;
     std::optional<Split> child_split = insert_rec(node->children[i], key, rid);
@@ -85,7 +83,7 @@ std::optional<BPlusTree::Split> BPlusTree::insert_rec(Node* node, Key key, RowID
     node->children.insert(node->children.begin() + i + 1, child_split->right);
     if (static_cast<int>(node->keys.size()) <= ORDER) return std::nullopt;
 
-    // Split internal: the median key moves UP (removed from this level).
+    // split internal: median moves up
     std::size_t mid = node->keys.size() / 2;
     Key up = node->keys[mid];
     Node* right = new Node(false);
@@ -101,7 +99,7 @@ std::vector<RowID> BPlusTree::range(Key low, Key high) const {
     Node* n = find_leaf(low);
     while (n) {
         for (std::size_t i = 0; i < n->keys.size(); ++i) {
-            if (n->keys[i] > high) return out;      // sorted + chained: we're done
+            if (n->keys[i] > high) return out;      // sorted + chained, done
             if (n->keys[i] >= low) out.push_back(n->values[i]);
         }
         n = n->next;
@@ -117,5 +115,5 @@ bool BPlusTree::remove(Key key) {
     std::size_t pos = static_cast<std::size_t>(it - leaf->keys.begin());
     leaf->keys.erase(it);
     leaf->values.erase(leaf->values.begin() + pos);
-    return true;  // lazy: no merge/borrow; the tree stays a valid search structure
+    return true;  // lazy: no merge/borrow
 }

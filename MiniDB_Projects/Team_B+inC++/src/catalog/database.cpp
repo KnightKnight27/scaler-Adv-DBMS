@@ -8,7 +8,6 @@
 Database::Database(const std::string& dir)
     : catalog_(dir), wal_(dir + "/minidb.wal") {}
 
-// ── Explicit transactions ───────────────────────────────────────────────────
 void Database::begin() {
     if (current_ != 0) throw std::runtime_error("transaction already in progress");
     current_ = next_txid_++;
@@ -27,10 +26,9 @@ void Database::rollback() {
     rollback_internal();
 }
 
-// ── Per-statement bracketing ────────────────────────────────────────────────
 TxID Database::begin_stmt() {
-    if (current_ != 0) return current_;            // inside an explicit transaction
-    current_ = next_txid_++;                        // start an implicit one
+    if (current_ != 0) return current_;            // inside explicit txn
+    current_ = next_txid_++;                        // start implicit
     implicit_ = true;
     undo_.clear();
     wal_.append({LogType::BEGIN, current_, "", 0, ""});
@@ -38,7 +36,7 @@ TxID Database::begin_stmt() {
 }
 
 void Database::end_stmt(bool ok) {
-    if (!implicit_) return;                         // explicit txn: wait for COMMIT/ROLLBACK
+    if (!implicit_) return;                         // explicit: wait for COMMIT/ROLLBACK
     if (ok) commit_internal();
     else    rollback_internal();
 }
@@ -53,22 +51,22 @@ void Database::track_delete(const std::string& table, int pk, const std::string&
 
 void Database::commit_internal() {
     wal_.append({LogType::COMMIT, current_, "", 0, ""});
-    wal_.flush();  // write-ahead: committed records are now durable
+    wal_.flush();  // committed records now durable
     undo_.clear();
     current_ = 0;
     implicit_ = false;
 }
 
 void Database::rollback_internal() {
-    // Reverse the applied writes, newest first.
+    // reverse applied writes, newest first
     for (auto it = undo_.rbegin(); it != undo_.rend(); ++it) {
         Table* t = catalog_.get_table(it->table);
         if (!t) continue;
-        if (it->type == LogType::INSERT) {           // undo an insert: remove it
+        if (it->type == LogType::INSERT) {           // undo insert
             t->heap->erase(it->rid);
             t->index->remove(it->pk);
             if (t->row_count) --t->row_count;
-        } else {                                     // undo a delete: put the row back
+        } else {                                     // undo delete: put row back
             RowID rid = t->heap->insert(it->image);
             t->index->insert(it->pk, rid);
             ++t->row_count;
@@ -81,18 +79,17 @@ void Database::rollback_internal() {
     implicit_ = false;
 }
 
-// ── Crash recovery (REDO committed, UNDO losers) ────────────────────────────
 void Database::recover(std::ostream& out) {
     std::vector<LogRecord> log = wal_.read_all();
 
-    // A transaction is "committed" iff its COMMIT record is on disk.
+    // committed iff COMMIT record on disk
     std::unordered_set<TxID> committed;
     for (const LogRecord& r : log)
         if (r.type == LogType::COMMIT) committed.insert(r.txid);
 
     long redo = 0, undo = 0;
 
-    // REDO: re-apply committed writes in log order (idempotent against the heap).
+    // redo committed writes in log order
     for (const LogRecord& r : log) {
         Table* t = catalog_.get_table(r.table);
         if (!t || !committed.count(r.txid)) continue;
@@ -113,7 +110,7 @@ void Database::recover(std::ostream& out) {
         }
     }
 
-    // UNDO: reverse any loser (uncommitted/aborted) writes that reached the heap.
+    // undo loser writes that reached the heap
     for (auto it = log.rbegin(); it != log.rend(); ++it) {
         Table* t = catalog_.get_table(it->table);
         if (!t || committed.count(it->txid)) continue;

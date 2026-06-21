@@ -6,8 +6,7 @@
 #include "ast.hpp"
 #include "token.hpp"
 
-// Recursive-descent parser: token stream -> one Statement (AST).
-// Expression precedence (loosest to tightest): OR < AND < comparison < primary.
+// recursive descent; precedence: OR < AND < cmp < primary
 class Parser {
 public:
     explicit Parser(std::vector<Token> toks) : toks_(std::move(toks)) {}
@@ -28,7 +27,7 @@ private:
     SelectStmt parse_select();
     DeleteStmt parse_delete();
 
-    void  read_colref(std::string& table, std::string& name);  // IDENT [. IDENT]
+    void  read_colref(std::string& table, std::string& name);
     Value parse_literal_value();
 
     std::unique_ptr<Expr> parse_or();

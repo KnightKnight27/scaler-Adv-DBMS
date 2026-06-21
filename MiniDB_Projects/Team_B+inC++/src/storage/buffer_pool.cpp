@@ -4,7 +4,7 @@
 
 #include "disk_manager.hpp"
 
-constexpr std::uint8_t MAX_USAGE = 5;  // usage cap (same as lab 3 / PostgreSQL)
+constexpr std::uint8_t MAX_USAGE = 5;  // usage cap
 
 BufferPool::BufferPool(DiskManager& disk, std::size_t num_frames)
     : disk_(disk), frames_(num_frames) {}
@@ -12,7 +12,7 @@ BufferPool::BufferPool(DiskManager& disk, std::size_t num_frames)
 BufferPool::~BufferPool() { flush_all(); }
 
 char* BufferPool::fetch_page(PageID id) {
-    // Hit: page already resident. Pin it and bump its usage ("hotness").
+    // hit: pin and bump usage
     auto it = table_.find(id);
     if (it != table_.end()) {
         Frame& f = frames_[it->second];
@@ -21,7 +21,7 @@ char* BufferPool::fetch_page(PageID id) {
         return f.data;
     }
 
-    // Miss: choose a frame, flush it if dirty, then load the requested page.
+    // miss: evict (flush if dirty) then load
     std::size_t idx = find_victim();
     Frame& f = frames_[idx];
     if (f.valid) {
@@ -43,7 +43,7 @@ bool BufferPool::unpin_page(PageID id, bool dirty) {
     if (it == table_.end()) return false;
     Frame& f = frames_[it->second];
     if (f.pin_count > 0) f.pin_count--;
-    if (dirty) f.dirty = true;  // sticky: once dirty, stays dirty until flushed
+    if (dirty) f.dirty = true;  // sticky
     return true;
 }
 
@@ -71,14 +71,13 @@ void BufferPool::flush_all() {
 }
 
 std::size_t BufferPool::find_victim() {
-    // Prefer an empty frame if one exists.
+    // use an empty frame if there is one
     for (std::size_t i = 0; i < frames_.size(); ++i) {
         if (!frames_[i].valid) return i;
     }
-    // Otherwise sweep the clock hand: skip pinned frames, decrement usage,
-    // and evict the first unpinned frame whose usage has fallen to 0.
+    // sweep: skip pinned, decrement usage, evict first at 0
     std::size_t scanned = 0;
-    std::size_t limit = frames_.size() * (MAX_USAGE + 1);  // bounded by usage cap
+    std::size_t limit = frames_.size() * (MAX_USAGE + 1);
     while (scanned++ < limit) {
         Frame& f = frames_[hand_];
         std::size_t cur = hand_;

@@ -1,13 +1,5 @@
-// Track B benchmark: MVCC vs 2PL under read/write contention.
-//
-// The SAME workload runs in both modes: a set of "hot" keys is continuously
-// written (each writer holds its exclusive lock briefly to simulate work), while
-// reader threads hammer those same keys. Under 2PL a reader's shared lock blocks
-// on a writer's exclusive lock, so reads stall; under MVCC readers use a snapshot
-// and never block. We report how many reads each mode completes in a fixed window.
-//
-// Build:  g++ -std=c++17 -pthread -O2 -I../src bench_mvcc_vs_2pl.cpp ../src/txn/transaction_manager.cpp -o bench -static
-// (or `make bench` from the project root)
+// MVCC vs 2PL under read/write contention; same workload both modes
+// build: g++ -std=c++17 -pthread -O2 -I../src bench_mvcc_vs_2pl.cpp ../src/txn/transaction_manager.cpp -o bench -static
 
 #include <atomic>
 #include <chrono>
@@ -31,7 +23,7 @@ static Result run(ConcurrencyMode mode, int readers, int writers, int keys,
     std::atomic<long> reads{0}, writes{0};
     std::vector<std::thread> threads;
 
-    // Writers: each repeatedly updates one key, holding its X-lock for a moment.
+    // writers: each updates one key, holding its X-lock briefly
     for (int w = 0; w < writers; ++w) {
         threads.emplace_back([&, w] {
             std::string key = "k" + std::to_string(w % keys);
@@ -43,12 +35,12 @@ static Result run(ConcurrencyMode mode, int readers, int writers, int keys,
                     std::this_thread::sleep_for(std::chrono::microseconds(write_hold_us));
                     tm.commit(t);
                     writes.fetch_add(1, std::memory_order_relaxed);
-                } catch (const DeadlockException&) { /* writers touch one key: rare */ }
+                } catch (const DeadlockException&) {}
             }
         });
     }
 
-    // Readers: repeatedly read the hot keys.
+    // readers: hammer the hot keys
     for (int r = 0; r < readers; ++r) {
         threads.emplace_back([&, r] {
             long i = r;

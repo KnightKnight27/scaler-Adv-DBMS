@@ -25,7 +25,6 @@ Statement Parser::parse() {
     return stmt;
 }
 
-// IDENT, or IDENT '.' IDENT (qualified). On the unqualified form `table` stays "".
 void Parser::read_colref(std::string& table, std::string& name) {
     std::string first = expect(Tok::IDENT, "column name").text;
     if (match(Tok::DOT)) {
@@ -57,7 +56,7 @@ CreateStmt Parser::parse_create() {
         if (match(Tok::INT_KW))       col.type = ColumnType::INT;
         else if (match(Tok::TEXT_KW)) col.type = ColumnType::TEXT;
         else throw std::runtime_error("parse error: expected INT or TEXT");
-        if (match(Tok::PRIMARY)) {     // optional inline "PRIMARY KEY"
+        if (match(Tok::PRIMARY)) {     // optional PRIMARY KEY
             expect(Tok::KEY, "KEY");
             s.pk_col = static_cast<int>(s.schema.columns.size());
             pk_set = true;
@@ -65,7 +64,7 @@ CreateStmt Parser::parse_create() {
         s.schema.columns.push_back(col);
     } while (match(Tok::COMMA));
     expect(Tok::RPAREN, "')'");
-    (void)pk_set;  // if none given, pk defaults to column 0
+    (void)pk_set;  // pk defaults to col 0
     return s;
 }
 
@@ -120,8 +119,6 @@ DeleteStmt Parser::parse_delete() {
     return s;
 }
 
-// ── expression grammar ──────────────────────────────────────────────────────
-
 std::unique_ptr<Expr> Parser::parse_or() {
     auto left = parse_and();
     while (match(Tok::OR)) {
@@ -156,7 +153,7 @@ std::unique_ptr<Expr> Parser::parse_cmp() {
         case Tok::GT:  op = ">";  break;
         case Tok::LE:  op = "<="; break;
         case Tok::GE:  op = ">="; break;
-        default: return left;  // no comparison operator: just the primary
+        default: return left;  // no cmp op
     }
     advance();
     auto node = std::make_unique<BinaryExpr>();

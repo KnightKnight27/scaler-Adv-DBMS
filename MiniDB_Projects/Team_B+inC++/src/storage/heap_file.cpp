@@ -9,8 +9,7 @@
 HeapFile::HeapFile(BufferPool& pool, DiskManager& disk) : pool_(pool), disk_(disk) {}
 
 RowID HeapFile::insert(const std::string& tuple) {
-    // First-fit: try existing pages in order; take the first with room.
-    // (A production heap keeps a free-space map; we scan, which is fine here.)
+    // first-fit: scan pages for room
     for (PageID pid = 0; pid < disk_.num_pages(); ++pid) {
         char* data = pool_.fetch_page(pid);
         SlottedPage page(data);
@@ -22,7 +21,7 @@ RowID HeapFile::insert(const std::string& tuple) {
         pool_.unpin_page(pid, /*dirty=*/false);
     }
 
-    // No page had room: grow the file by one fresh page and insert there.
+    // none had room: new page
     PageID pid = pool_.new_page();
     char* data = pool_.fetch_page(pid);
     SlottedPage page(data);

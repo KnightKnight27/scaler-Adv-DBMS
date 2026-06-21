@@ -7,9 +7,7 @@
 
 #include "../txn/transaction.hpp"  // TxID
 
-// Write-ahead log record types. INSERT carries the new row's bytes (the
-// after-image, for REDO); DELETE carries the old row's bytes (the before-image,
-// for UNDO). BEGIN/COMMIT/ABORT carry only the txid.
+// INSERT = after-image (REDO), DELETE = before-image (UNDO)
 enum class LogType : std::uint8_t { BEGIN, INSERT, DELETE, COMMIT, ABORT };
 
 struct LogRecord {
@@ -20,20 +18,17 @@ struct LogRecord {
     std::string image;   // INSERT: after-image; DELETE: before-image
 };
 
-// Append-only write-ahead log. The golden rule (write-ahead): a change's log
-// record must be durable (flush()) before the data page it describes reaches
-// disk. We flush at COMMIT, so a committed transaction's records always survive
-// a crash even if its heap pages never made it out of the buffer pool.
+// append-only WAL. log record durable (flushed) before its page reaches disk
 class WAL {
 public:
     explicit WAL(const std::string& path);
     ~WAL();
 
     void append(const LogRecord& rec);  // buffered
-    void flush();                       // make everything appended so far durable
-    std::vector<LogRecord> read_all();  // read the whole log back (for recovery)
+    void flush();
+    std::vector<LogRecord> read_all();  // for recovery
 
 private:
     std::string   path_;
-    std::ofstream out_;  // opened in append+binary
+    std::ofstream out_;
 };
