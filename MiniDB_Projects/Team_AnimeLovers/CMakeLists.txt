@@ -23,3 +23,9 @@ target_link_libraries(minidb PRIVATE minidb_lib)
 # 2PL vs MVCC benchmark executable
 add_executable(bench benchmarks/bench_2pl_vs_mvcc.cpp)
 target_link_libraries(bench PRIVATE minidb_lib)
+
+# 2PL deadlock-detection demonstration
+add_executable(deadlock_demo benchmarks/deadlock_demo.cpp)
+target_link_libraries(deadlock_demo PRIVATE minidb_lib)
+find_package(Threads REQUIRED)
+target_link_libraries(deadlock_demo PRIVATE Threads::Threads)
