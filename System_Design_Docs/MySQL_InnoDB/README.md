@@ -74,24 +74,44 @@ undo chain: balance=300 -> balance=100 -> ...       (older versions)
 - Locking: gap/next-key locks block phantoms even at REPEATABLE READ, but can
   block inserts in a range and cause more contention.
 
-## 5. Experiments / Observations
+## 5. Experiments / Observations (run locally on MySQL/InnoDB 9.6.0)
 
-> No MySQL server was installed here, so these are representative examples
-> (illustrative, not run live).
+I made an InnoDB table `accounts(id INT PRIMARY KEY, name, balance, city)` with
+50,000 rows and ran real `EXPLAIN`. The `type`/`key`/`rows` columns:
 
-```sql
-EXPLAIN SELECT * FROM accounts WHERE id = 42345;      -- key: PRIMARY  (clustered search)
-EXPLAIN SELECT * FROM accounts WHERE city = 'city_7'; -- key: NULL     (full scan)
+```
+WHERE id = 42345                 -> type=const  key=PRIMARY   rows=1
+WHERE city = 'city_7' (no index) -> type=ALL    key=NULL      rows=50275  (full scan)
 CREATE INDEX idx_city ON accounts(city);
-EXPLAIN SELECT * FROM accounts WHERE city = 'city_7'; -- key: idx_city (index + bookmark lookup)
+WHERE city = 'city_7' (indexed)  -> type=ref    key=idx_city  rows=1000
 ```
 
-Gap lock demo (REPEATABLE READ): session 1 does
-`SELECT ... WHERE id BETWEEN 100 AND 200 FOR UPDATE`; then session 2's
-`INSERT id=150` blocks until session 1 commits - that is the gap lock stopping a
-phantom. Live tools: `SHOW ENGINE INNODB STATUS` and
-`performance_schema.data_locks`. This mirrors the real SQLite plan flip
-(SCAN -> SEARCH) I measured in the PostgreSQL_vs_SQLite topic.
+So a PK lookup is `const` (one row straight out of the clustered index), an
+un-indexed filter is `ALL` (scan all 50k rows), and the secondary index turns it
+into a `ref` lookup of ~1000 rows. Same SCAN-vs-SEARCH story I measured in
+SQLite, now on InnoDB.
+
+**Gap lock demo (real, default REPEATABLE READ).** I deleted id=150 to leave a
+gap, then in session 1 ran
+`START TRANSACTION; SELECT ... WHERE id BETWEEN 100 AND 200 FOR UPDATE;` and
+held it. `performance_schema.data_locks` then showed the locks it held:
+
+```
+LOCK_TYPE  LOCK_MODE        n
+RECORD     X                100   <- next-key locks (record + the gap before it)
+TABLE      IX                 1   <- table intention lock
+RECORD     X,REC_NOT_GAP      1
+```
+
+While session 1 held those locks, session 2 tried
+`INSERT INTO accounts ... VALUES (150, ...)` and got:
+
+```
+ERROR 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+```
+
+The insert into the locked gap was blocked - a live demonstration of how
+next-key/gap locks stop phantom rows under REPEATABLE READ.
 
 ## 6. Key Learnings
 
@@ -106,6 +126,6 @@ phantom. Live tools: `SHOW ENGINE INNODB STATUS` and
   reasonable, with opposite cleanup costs.
 
 ### References
-MySQL Reference Manual (InnoDB engine; locking and transaction model);
-cross-checked access paths against the real SQLite experiment in the
-PostgreSQL_vs_SQLite topic.
+MySQL Reference Manual (InnoDB engine; locking and transaction model).
+Experiments run locally on MySQL/InnoDB 9.6.0 (50k-row table, real `EXPLAIN`,
+and a two-session gap-lock test using `performance_schema.data_locks`).
