@@ -58,9 +58,12 @@ public:
         free_end() = PAGE_SIZE; // records start from the back
     }
 
-    // Free bytes remaining between the slot array end and the record area
+    // Free bytes remaining between the slot array end and the record area.
+    // Guard against underflow: a malformed page (free_end < slot_area_end)
+    // reports zero free space rather than a huge wrapped-around value.
     uint16_t free_space() const {
         uint16_t slot_area_end = static_cast<uint16_t>(4 + num_slots() * sizeof(SlotEntry));
+        if (free_end() < slot_area_end) return 0;
         return free_end() - slot_area_end;
     }
 

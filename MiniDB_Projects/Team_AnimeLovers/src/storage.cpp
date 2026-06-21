@@ -37,11 +37,15 @@ void DiskManager::write_page(PageId pid, const Page& page) {
 }
 
 PageId DiskManager::allocate_page() {
-    // Extend the file by one blank page and return its id
+    // Extend the file by one EMPTY but INITIALISED page (free_end = PAGE_SIZE).
+    // Writing all-zeros instead would leave free_end = 0, and a later fetch of
+    // that page would underflow free_space() and corrupt slot offsets — a bug
+    // that surfaces during crash recovery when the page is read back from disk.
     PageId new_pid = page_count_++;
+    Page p;
+    p.init(); // zero the page, then set free_end = PAGE_SIZE
     file_.seekp(static_cast<std::streamoff>(new_pid) * PAGE_SIZE, std::ios::beg);
-    std::array<uint8_t, PAGE_SIZE> blank{};
-    file_.write(reinterpret_cast<const char*>(blank.data()), PAGE_SIZE);
+    file_.write(reinterpret_cast<const char*>(p.data.data()), PAGE_SIZE);
     file_.flush();
     return new_pid;
 }
