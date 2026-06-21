@@ -53,3 +53,8 @@ include(GoogleTest)
 gtest_discover_tests(lsm_test)
 gtest_discover_tests(wal_test)
 gtest_discover_tests(execution_test)
+
+
+# Benchmarks
+add_executable(lsm_benchmark benchmarks/lsm_benchmark.cpp)
+target_link_libraries(lsm_benchmark PRIVATE minidb_core)
