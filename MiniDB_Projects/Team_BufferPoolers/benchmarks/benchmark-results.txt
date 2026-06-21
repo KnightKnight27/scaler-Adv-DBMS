@@ -1,0 +1,20 @@
+================================
+MiniDB Benchmark Suite
+=================================
+
+[Storage Benchmark]
+Inserted 1000 rows in 26.821998 ms
+
+[Index Benchmark]
+1000 index lookups in 2.668814 ms
+
+[Recovery Benchmark]
+Recovered 1000 WAL entries in 20.650509 ms
+Recovered rows: 1000
+
+[Replication Benchmark]
+Replicated 1000 rows in 37.660343 ms
+Replica row count = 1000
+=================================
+Benchmark Complete
+=================================
