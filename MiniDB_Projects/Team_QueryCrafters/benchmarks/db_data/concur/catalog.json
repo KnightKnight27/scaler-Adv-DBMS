@@ -1,0 +1,1 @@
+{"accounts": [{"name": "id", "type": "INT", "primary_key": true}, {"name": "balance", "type": "INT", "primary_key": false}]}

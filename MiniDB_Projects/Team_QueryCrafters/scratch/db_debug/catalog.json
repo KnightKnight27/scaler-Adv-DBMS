@@ -1,0 +1,1 @@
+{"students": [{"name": "id", "type": "INT", "primary_key": true}, {"name": "name", "type": "TEXT", "primary_key": false}, {"name": "age", "type": "INT", "primary_key": false}]}
