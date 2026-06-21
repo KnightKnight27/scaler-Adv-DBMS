@@ -1,0 +1,100 @@
+1. Design a Buffer Pool
+Objective
+
+Design a memory management system that caches database pages in RAM to reduce expensive disk I/O operations.
+
+Architecture
+                +-------------+
+                |   Disk      |
+                +-------------+
+                       ^
+                       |
+                  Read/Write
+                       |
+                +-------------+
+                | Buffer Pool |
+                +-------------+
+                       ^
+                       |
+                +-------------+
+                | Query Engine|
+                +-------------+
+Components
+Buffer Frames
+
+Fixed-size memory slots that store pages loaded from disk.
+
+Example:
+
+Frame ID	Page ID	Dirty	Pin Count
+0	100	Yes	1
+1	205	No	0
+2	302	No	2
+Page Table
+
+Maps:
+
+Page ID → Frame ID
+
+Example:
+
+100 → Frame 0
+205 → Frame 1
+302 → Frame 2
+
+Hash table used for O(1) lookup.
+
+Replacement Policy
+
+Use LRU (Least Recently Used).
+
+When pool is full:
+
+Find least recently used page.
+If dirty, flush to disk.
+Replace with requested page.
+
+Alternative policies:
+
+Clock
+LRU-K
+MRU
+Dirty Pages
+
+Modified pages not yet written to disk.
+
+Dirty Bit = 1
+
+Written back:
+
+During eviction
+During checkpoint
+Pin Count
+
+Prevents eviction of active pages.
+
+Pin Count > 0
+
+cannot be replaced.
+
+Operations
+Read Page
+Check page table.
+If present → return frame.
+Else:
+Select victim frame.
+Load page from disk.
+Update page table.
+Write Page
+Modify page in frame.
+Set dirty bit.
+Defer disk write.
+Complexity
+Operation	Cost
+Lookup	O(1)
+Insert	O(1)
+Eviction	O(1) avg
+Advantages
+Reduced disk I/O
+Faster query execution
+Better cache utilization

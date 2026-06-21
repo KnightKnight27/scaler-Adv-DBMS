@@ -1,0 +1,88 @@
+Design a Recovery Strategy
+Goal
+
+Ensure database remains consistent after crashes.
+
+Use:
+
+Write Ahead Logging (WAL) + Checkpointing + ARIES-style recovery
+
+Architecture
+Transaction
+      |
+      v
+ Write Log First
+      |
+      v
+ Database Page
+WAL Rule
+
+Before page reaches disk:
+
+Log Record
+must be flushed first
+
+Example:
+
+T1: A = 100 → 150
+
+Log:
+<START T1>
+<UPDATE A 100 150>
+<COMMIT T1>
+Checkpointing
+
+Every fixed interval:
+
+Flush dirty pages
+Write CHECKPOINT record
+
+Example:
+
+<BEGIN_CHECKPOINT>
+<END_CHECKPOINT>
+
+Benefits:
+
+Faster recovery
+Less log scanning
+Crash Recovery
+Analysis Phase
+
+Find:
+
+Active transactions
+Dirty pages
+Redo Phase
+
+Reapply committed operations.
+
+A = 150
+B = 300
+Undo Phase
+
+Rollback incomplete transactions.
+
+Example:
+
+T2 not committed
+
+Undo:
+A = 150 → 100
+Failure Scenarios
+System Crash
+
+Recover from WAL.
+
+Power Failure
+
+Redo committed transactions.
+
+Transaction Failure
+
+Undo only that transaction.
+
+Advantages
+Durability
+Atomicity
+Fast crash recovery
