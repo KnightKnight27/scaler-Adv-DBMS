@@ -36,7 +36,6 @@ __pycache__/
 *.log
 
 # Database files (local test DBs)
-*.db
 *.sqlite
 *.sqlite3
 *-journal
