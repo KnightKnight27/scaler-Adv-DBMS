@@ -105,6 +105,13 @@ static void batch_mode(TransactionManager& tm, const std::string& filepath) {
     std::string line, statement;
     TxnId active = 0;
     while (std::getline(f, line)) {
+        // Strip inline comments and blank lines before accumulating
+        auto comment_pos = line.find("--");
+        if (comment_pos != std::string::npos) line = line.substr(0, comment_pos);
+        // Trim trailing whitespace
+        while (!line.empty() && std::isspace((unsigned char)line.back())) line.pop_back();
+        if (line.empty()) continue;
+
         statement += line + " ";
         // Execute on semicolon boundary
         if (line.find(';') != std::string::npos) {
