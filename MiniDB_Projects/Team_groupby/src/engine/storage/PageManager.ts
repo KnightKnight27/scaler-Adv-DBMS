@@ -1,4 +1,4 @@
-import { Page, Tuple, Slot } from '../types';
+import { Page, Tuple } from '../types';
 
 export class PageManager {
   static PAGE_SIZE = 4096;

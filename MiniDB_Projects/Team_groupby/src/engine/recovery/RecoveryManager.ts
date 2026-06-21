@@ -1,4 +1,4 @@
-import { LogRecord, Tuple } from '../types';
+import { LogRecord } from '../types';
 import { BufferPoolManager } from '../storage/BufferPoolManager';
 import { PageManager } from '../storage/PageManager';
 

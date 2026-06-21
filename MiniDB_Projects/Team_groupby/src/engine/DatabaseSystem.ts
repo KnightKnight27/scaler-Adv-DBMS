@@ -1,8 +1,8 @@
-import { Tuple, Page, Transaction } from './types';
+import { Tuple, Transaction } from './types';
 import { BufferPoolManager } from './storage/BufferPoolManager';
 import { PageManager } from './storage/PageManager';
 import { BPlusTree } from './index/BPlusTree';
-import { Parser, AST } from './query/Parser';
+import { Parser } from './query/Parser';
 import { SeqScan, Operator, Filter, NestedLoopJoin } from './query/Operators';
 import { CostBasedOptimizer, PlanNode } from './query/Optimizer';
 import { TransactionManager } from './tx/TransactionManager';
@@ -275,7 +275,7 @@ export class DatabaseSystem {
   }
 
   private rollbackTxnActions(txnId: number) {
-    for (const [name, meta] of this.tables) {
+    for (const [, meta] of this.tables) {
       const page = this.bufferPool.fetchPage(meta.pageId);
       for (let s = 0; s < page.slots.length; s++) {
         const tuple = PageManager.getTuple(page, s);

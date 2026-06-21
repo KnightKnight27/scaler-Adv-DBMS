@@ -5,10 +5,7 @@ export class BufferPoolManager {
   private frames: BufferFrame[] = [];
   private pool: Map<number, Page> = new Map();
   private diskPages: Map<number, Page> = new Map();
-  private size: number;
-
   constructor(size: number = 8) {
-    this.size = size;
     for (let i = 0; i < size; i++) {
       this.frames.push({
         frameId: i,
@@ -76,8 +73,8 @@ export class BufferPoolManager {
     }
   }
 
-  private findEvictionCandidate(): BufferFrame | null {
-    let candidate: BufferFrame | null = null;
+  private findEvictionCandidate(): BufferFrame | undefined {
+    let candidate: BufferFrame | undefined = undefined;
     let minTime = Infinity;
     for (const frame of this.frames) {
       if (frame.pinCount === 0 && frame.lastAccessed < minTime) {

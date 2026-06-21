@@ -1,4 +1,4 @@
-import { DatabaseSystem } from '../DatabaseSystem';
+import { DatabaseSystem } from '../engine/DatabaseSystem';
 
 export class PerformanceSuite {
   static runBenchmark(): {
