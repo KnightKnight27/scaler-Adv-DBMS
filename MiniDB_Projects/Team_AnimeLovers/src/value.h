@@ -1,49 +1,74 @@
 #pragma once
-// value.h — The two primitive types MiniDB understands: INT and VARCHAR.
-//
-// Every row, index key, and query predicate is built from Value.
-// We use std::variant so the compiler enforces that we always check
-// the active type before reading the payload (no silent UB from bare unions).
+#include <cstdint>
 #include <string>
 #include <variant>
+#include <stdexcept>
+#include <functional>
 
-namespace minidb {
+// Supported SQL column types. Kept minimal on purpose — the focus is on
+// demonstrating the engine internals, not a complete type system.
+enum class Type : uint8_t { INT = 0, VARCHAR = 1 };
 
-enum class Type { INT, VARCHAR };
-
+// A single column value. is_null=true means SQL NULL regardless of type.
 struct Value {
-    Type type;
-    std::variant<int, std::string> data;
+    Type type    = Type::INT;
+    bool is_null = false;
+    std::variant<int64_t, std::string> data;
 
-    // Named constructors make call-sites self-documenting.
-    static Value make_int(int v)           { return {Type::INT,     v}; }
-    static Value make_str(std::string v)   { return {Type::VARCHAR, std::move(v)}; }
+    static Value make_int(int64_t v)        { return {Type::INT,     false, v}; }
+    static Value make_varchar(std::string v){ return {Type::VARCHAR,  false, std::move(v)}; }
+    static Value make_null(Type t)          { return {t,             true,  {}}; }
 
-    int               as_int() const       { return std::get<int>(data); }
-    const std::string& as_str() const      { return std::get<std::string>(data); }
-
-    std::string to_string() const {
-        if (type == Type::INT) return std::to_string(as_int());
-        return as_str();
+    int64_t as_int() const {
+        if (type != Type::INT) throw std::runtime_error("value is not INT");
+        return std::get<int64_t>(data);
+    }
+    const std::string& as_str() const {
+        if (type != Type::VARCHAR) throw std::runtime_error("value is not VARCHAR");
+        return std::get<std::string>(data);
     }
 
-    bool operator==(const Value& o) const { return type == o.type && data == o.data; }
-    bool operator!=(const Value& o) const { return !(*this == o); }
-    bool operator< (const Value& o) const {
+    bool operator==(const Value& o) const {
+        if (type != o.type || is_null != o.is_null) return false;
+        if (is_null) return true;
+        return data == o.data;
+    }
+    bool operator<(const Value& o) const {
         if (type == Type::INT) return as_int() < o.as_int();
         return as_str() < o.as_str();
     }
     bool operator<=(const Value& o) const { return !(o < *this); }
-    bool operator> (const Value& o) const { return  (o < *this); }
+    bool operator>(const Value& o) const  { return o < *this; }
     bool operator>=(const Value& o) const { return !(*this < o); }
+    bool operator!=(const Value& o) const { return !(*this == o); }
+
+    std::string to_string() const {
+        if (is_null) return "NULL";
+        if (type == Type::INT) return std::to_string(as_int());
+        return as_str();
+    }
 };
 
-// A Record ID uniquely identifies a row on disk: which page it lives on
-// and which slot within that page.  The B+ Tree stores RIDs as its leaf payload.
+// Record ID: identifies one stored record by its page and slot.
+// Used by the B+ Tree to point back to heap storage.
 struct RID {
-    int page_id = -1;
-    int slot    = -1;
-    bool valid() const { return page_id >= 0 && slot >= 0; }
+    uint32_t page_id = UINT32_MAX;
+    uint16_t slot_id = UINT16_MAX;
+
+    bool valid() const { return page_id != UINT32_MAX; }
+    bool operator==(const RID& o) const { return page_id == o.page_id && slot_id == o.slot_id; }
+    bool operator<(const RID& o) const {
+        if (page_id != o.page_id) return page_id < o.page_id;
+        return slot_id < o.slot_id;
+    }
 };
 
-} // namespace minidb
+// Hash support so RID can be used as a key in unordered_map (needed by the
+// MVCC version chain and lock manager).
+namespace std {
+template<> struct hash<RID> {
+    size_t operator()(const RID& r) const noexcept {
+        return hash<uint64_t>{}((uint64_t)r.page_id << 16 | r.slot_id);
+    }
+};
+}

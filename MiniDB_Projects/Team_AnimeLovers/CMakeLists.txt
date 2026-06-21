@@ -1,34 +1,25 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.14)
 project(MiniDB CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# Warnings on, optimise for debugging clarity over speed (matches course goals)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -g")
 
-# Warn aggressively; the code should be clean.
-add_compile_options(-Wall -Wextra -Wpedantic)
-
-# --- Source files shared by all targets ---
-set(MINIDB_SRC
+# Core database library (all modules link against this)
+add_library(minidb_lib
     src/storage.cpp
     src/bplustree.cpp
     src/parser.cpp
-    src/transaction.cpp
     src/engine.cpp
+    src/transaction.cpp
 )
+target_include_directories(minidb_lib PUBLIC src)
 
-# --- Interactive shell ---
-add_executable(minidb src/main.cpp ${MINIDB_SRC})
+# Main REPL executable
+add_executable(minidb src/main.cpp)
+target_link_libraries(minidb PRIVATE minidb_lib)
 
-# --- Test suite ---
-add_executable(minidb_tests tests/test.cpp ${MINIDB_SRC})
-
-# --- Benchmark (2PL vs MVCC) ---
-add_executable(benchmark benchmarks/benchmark.cpp ${MINIDB_SRC})
-
-# All three targets need the source directory on the include path.
-foreach(t minidb minidb_tests benchmark)
-    target_include_directories(${t} PRIVATE src)
-    # Link pthreads — used by the benchmark and transaction layer.
-    find_package(Threads REQUIRED)
-    target_link_libraries(${t} PRIVATE Threads::Threads)
-endforeach()
+# 2PL vs MVCC benchmark executable
+add_executable(bench benchmarks/bench_2pl_vs_mvcc.cpp)
+target_link_libraries(bench PRIVATE minidb_lib)
