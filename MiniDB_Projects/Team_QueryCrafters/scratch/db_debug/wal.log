@@ -1,0 +1,5 @@
+{"txn_id": 1, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 1, "timestamp": 1782047000.803013}
+{"txn_id": 1, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 2, "timestamp": 1782047000.8039029}
+{"txn_id": 2, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 3, "timestamp": 1782047000.8040671}
+{"txn_id": 2, "type": "INSERT", "table": "students", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "name": "Alice", "age": 20}, "created_by_txn": 2, "deleted_by_txn": null, "begin_ts": 2, "end_ts": null}, "lsn": 4, "timestamp": 1782047000.8043442}
+{"txn_id": 2, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 5, "timestamp": 1782047000.805425}

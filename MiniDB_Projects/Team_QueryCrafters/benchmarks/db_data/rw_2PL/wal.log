@@ -1,0 +1,777 @@
+{"txn_id": 1, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 1, "timestamp": 1782047583.644722}
+{"txn_id": 1, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 2, "timestamp": 1782047583.644982}
+{"txn_id": 2, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 3, "timestamp": 1782047583.645557}
+{"txn_id": 2, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 100}, "created_by_txn": 2, "deleted_by_txn": null, "begin_ts": 2, "end_ts": null}, "lsn": 4, "timestamp": 1782047583.6457}
+{"txn_id": 2, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 5, "timestamp": 1782047583.6457138}
+{"txn_id": 3, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 6, "timestamp": 1782047583.6459498}
+{"txn_id": 3, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 7, "timestamp": 1782047583.646067}
+{"txn_id": 4, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 8, "timestamp": 1782047583.658554}
+{"txn_id": 4, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 100}, "created_by_txn": 2, "deleted_by_txn": null, "begin_ts": 2, "end_ts": null}, "new_value": null, "lsn": 9, "timestamp": 1782047583.6586182}
+{"txn_id": 4, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 947}, "created_by_txn": 4, "deleted_by_txn": null, "begin_ts": 4, "end_ts": null}, "lsn": 10, "timestamp": 1782047583.6586728}
+{"txn_id": 4, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 11, "timestamp": 1782047583.65869}
+{"txn_id": 5, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 12, "timestamp": 1782047583.6712599}
+{"txn_id": 5, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 13, "timestamp": 1782047583.671351}
+{"txn_id": 6, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 14, "timestamp": 1782047583.683956}
+{"txn_id": 6, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 947}, "created_by_txn": 4, "deleted_by_txn": null, "begin_ts": 4, "end_ts": null}, "new_value": null, "lsn": 15, "timestamp": 1782047583.684009}
+{"txn_id": 6, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 729}, "created_by_txn": 6, "deleted_by_txn": null, "begin_ts": 6, "end_ts": null}, "lsn": 16, "timestamp": 1782047583.684067}
+{"txn_id": 6, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 17, "timestamp": 1782047583.684086}
+{"txn_id": 7, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 18, "timestamp": 1782047583.684173}
+{"txn_id": 7, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 19, "timestamp": 1782047583.684236}
+{"txn_id": 8, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 20, "timestamp": 1782047583.696958}
+{"txn_id": 8, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 21, "timestamp": 1782047583.6970901}
+{"txn_id": 9, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 22, "timestamp": 1782047583.707595}
+{"txn_id": 9, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 729}, "created_by_txn": 6, "deleted_by_txn": null, "begin_ts": 6, "end_ts": null}, "new_value": null, "lsn": 23, "timestamp": 1782047583.707681}
+{"txn_id": 9, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 872}, "created_by_txn": 9, "deleted_by_txn": null, "begin_ts": 9, "end_ts": null}, "lsn": 24, "timestamp": 1782047583.7077482}
+{"txn_id": 9, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 25, "timestamp": 1782047583.7077692}
+{"txn_id": 10, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 26, "timestamp": 1782047583.7098932}
+{"txn_id": 10, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 27, "timestamp": 1782047583.709955}
+{"txn_id": 11, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 28, "timestamp": 1782047583.7187252}
+{"txn_id": 11, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 872}, "created_by_txn": 9, "deleted_by_txn": null, "begin_ts": 9, "end_ts": null}, "new_value": null, "lsn": 29, "timestamp": 1782047583.7188008}
+{"txn_id": 11, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 786}, "created_by_txn": 11, "deleted_by_txn": null, "begin_ts": 11, "end_ts": null}, "lsn": 30, "timestamp": 1782047583.7188811}
+{"txn_id": 11, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 31, "timestamp": 1782047583.7189472}
+{"txn_id": 12, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 32, "timestamp": 1782047583.721323}
+{"txn_id": 12, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 33, "timestamp": 1782047583.721401}
+{"txn_id": 13, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 34, "timestamp": 1782047583.731673}
+{"txn_id": 13, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 786}, "created_by_txn": 11, "deleted_by_txn": null, "begin_ts": 11, "end_ts": null}, "new_value": null, "lsn": 35, "timestamp": 1782047583.7317498}
+{"txn_id": 13, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 565}, "created_by_txn": 13, "deleted_by_txn": null, "begin_ts": 13, "end_ts": null}, "lsn": 36, "timestamp": 1782047583.7318048}
+{"txn_id": 13, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 37, "timestamp": 1782047583.731822}
+{"txn_id": 14, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 38, "timestamp": 1782047583.744247}
+{"txn_id": 14, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 39, "timestamp": 1782047583.744318}
+{"txn_id": 15, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 40, "timestamp": 1782047583.7447538}
+{"txn_id": 15, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 565}, "created_by_txn": 13, "deleted_by_txn": null, "begin_ts": 13, "end_ts": null}, "new_value": null, "lsn": 41, "timestamp": 1782047583.744798}
+{"txn_id": 15, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 391}, "created_by_txn": 15, "deleted_by_txn": null, "begin_ts": 15, "end_ts": null}, "lsn": 42, "timestamp": 1782047583.7448452}
+{"txn_id": 15, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 43, "timestamp": 1782047583.7448618}
+{"txn_id": 16, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 44, "timestamp": 1782047583.757088}
+{"txn_id": 16, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 45, "timestamp": 1782047583.757189}
+{"txn_id": 17, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 46, "timestamp": 1782047583.7687}
+{"txn_id": 17, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 47, "timestamp": 1782047583.768796}
+{"txn_id": 18, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 48, "timestamp": 1782047583.769669}
+{"txn_id": 18, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 391}, "created_by_txn": 15, "deleted_by_txn": null, "begin_ts": 15, "end_ts": null}, "new_value": null, "lsn": 49, "timestamp": 1782047583.7697449}
+{"txn_id": 18, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 882}, "created_by_txn": 18, "deleted_by_txn": null, "begin_ts": 18, "end_ts": null}, "lsn": 50, "timestamp": 1782047583.769815}
+{"txn_id": 18, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 51, "timestamp": 1782047583.769838}
+{"txn_id": 19, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 52, "timestamp": 1782047583.781579}
+{"txn_id": 19, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 53, "timestamp": 1782047583.781684}
+{"txn_id": 20, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 54, "timestamp": 1782047583.7826529}
+{"txn_id": 20, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 882}, "created_by_txn": 18, "deleted_by_txn": null, "begin_ts": 18, "end_ts": null}, "new_value": null, "lsn": 55, "timestamp": 1782047583.782725}
+{"txn_id": 20, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 150}, "created_by_txn": 20, "deleted_by_txn": null, "begin_ts": 20, "end_ts": null}, "lsn": 56, "timestamp": 1782047583.7827919}
+{"txn_id": 20, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 57, "timestamp": 1782047583.782816}
+{"txn_id": 21, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 58, "timestamp": 1782047583.794485}
+{"txn_id": 21, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 59, "timestamp": 1782047583.794608}
+{"txn_id": 22, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 60, "timestamp": 1782047583.8070772}
+{"txn_id": 22, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 150}, "created_by_txn": 20, "deleted_by_txn": null, "begin_ts": 20, "end_ts": null}, "new_value": null, "lsn": 61, "timestamp": 1782047583.807147}
+{"txn_id": 22, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 692}, "created_by_txn": 22, "deleted_by_txn": null, "begin_ts": 22, "end_ts": null}, "lsn": 62, "timestamp": 1782047583.807213}
+{"txn_id": 22, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 63, "timestamp": 1782047583.807235}
+{"txn_id": 23, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 64, "timestamp": 1782047583.807432}
+{"txn_id": 23, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 65, "timestamp": 1782047583.80754}
+{"txn_id": 24, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 66, "timestamp": 1782047583.818708}
+{"txn_id": 24, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 692}, "created_by_txn": 22, "deleted_by_txn": null, "begin_ts": 22, "end_ts": null}, "new_value": null, "lsn": 67, "timestamp": 1782047583.818934}
+{"txn_id": 24, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 919}, "created_by_txn": 24, "deleted_by_txn": null, "begin_ts": 24, "end_ts": null}, "lsn": 68, "timestamp": 1782047583.8190348}
+{"txn_id": 24, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 69, "timestamp": 1782047583.819066}
+{"txn_id": 25, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 70, "timestamp": 1782047583.820389}
+{"txn_id": 25, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 71, "timestamp": 1782047583.820506}
+{"txn_id": 26, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 72, "timestamp": 1782047583.8319948}
+{"txn_id": 26, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 919}, "created_by_txn": 24, "deleted_by_txn": null, "begin_ts": 24, "end_ts": null}, "new_value": null, "lsn": 73, "timestamp": 1782047583.832073}
+{"txn_id": 26, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 852}, "created_by_txn": 26, "deleted_by_txn": null, "begin_ts": 26, "end_ts": null}, "lsn": 74, "timestamp": 1782047583.832145}
+{"txn_id": 26, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 75, "timestamp": 1782047583.83217}
+{"txn_id": 27, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 76, "timestamp": 1782047583.8333519}
+{"txn_id": 27, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 77, "timestamp": 1782047583.833466}
+{"txn_id": 28, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 78, "timestamp": 1782047583.8450189}
+{"txn_id": 28, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 852}, "created_by_txn": 26, "deleted_by_txn": null, "begin_ts": 26, "end_ts": null}, "new_value": null, "lsn": 79, "timestamp": 1782047583.845119}
+{"txn_id": 28, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 215}, "created_by_txn": 28, "deleted_by_txn": null, "begin_ts": 28, "end_ts": null}, "lsn": 80, "timestamp": 1782047583.8452091}
+{"txn_id": 28, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 81, "timestamp": 1782047583.84524}
+{"txn_id": 29, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 82, "timestamp": 1782047583.857845}
+{"txn_id": 29, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 83, "timestamp": 1782047583.858013}
+{"txn_id": 30, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 84, "timestamp": 1782047583.868704}
+{"txn_id": 30, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 85, "timestamp": 1782047583.869086}
+{"txn_id": 31, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 86, "timestamp": 1782047583.881408}
+{"txn_id": 31, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 215}, "created_by_txn": 28, "deleted_by_txn": null, "begin_ts": 28, "end_ts": null}, "new_value": null, "lsn": 87, "timestamp": 1782047583.881641}
+{"txn_id": 31, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 502}, "created_by_txn": 31, "deleted_by_txn": null, "begin_ts": 31, "end_ts": null}, "lsn": 88, "timestamp": 1782047583.881782}
+{"txn_id": 31, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 89, "timestamp": 1782047583.881831}
+{"txn_id": 32, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 90, "timestamp": 1782047583.882174}
+{"txn_id": 32, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 91, "timestamp": 1782047583.8823318}
+{"txn_id": 33, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 92, "timestamp": 1782047583.8942988}
+{"txn_id": 33, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 502}, "created_by_txn": 31, "deleted_by_txn": null, "begin_ts": 31, "end_ts": null}, "new_value": null, "lsn": 93, "timestamp": 1782047583.8946}
+{"txn_id": 33, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 994}, "created_by_txn": 33, "deleted_by_txn": null, "begin_ts": 33, "end_ts": null}, "lsn": 94, "timestamp": 1782047583.89479}
+{"txn_id": 33, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 95, "timestamp": 1782047583.89484}
+{"txn_id": 34, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 96, "timestamp": 1782047583.905675}
+{"txn_id": 34, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 97, "timestamp": 1782047583.906025}
+{"txn_id": 35, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 98, "timestamp": 1782047583.906413}
+{"txn_id": 35, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 994}, "created_by_txn": 33, "deleted_by_txn": null, "begin_ts": 33, "end_ts": null}, "new_value": null, "lsn": 99, "timestamp": 1782047583.906549}
+{"txn_id": 35, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 137}, "created_by_txn": 35, "deleted_by_txn": null, "begin_ts": 35, "end_ts": null}, "lsn": 100, "timestamp": 1782047583.906726}
+{"txn_id": 35, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 101, "timestamp": 1782047583.9067898}
+{"txn_id": 36, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 102, "timestamp": 1782047583.917807}
+{"txn_id": 36, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 103, "timestamp": 1782047583.918148}
+{"txn_id": 37, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 104, "timestamp": 1782047583.919942}
+{"txn_id": 37, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 137}, "created_by_txn": 35, "deleted_by_txn": null, "begin_ts": 35, "end_ts": null}, "new_value": null, "lsn": 105, "timestamp": 1782047583.920182}
+{"txn_id": 37, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 453}, "created_by_txn": 37, "deleted_by_txn": null, "begin_ts": 37, "end_ts": null}, "lsn": 106, "timestamp": 1782047583.920397}
+{"txn_id": 37, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 107, "timestamp": 1782047583.92046}
+{"txn_id": 38, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 108, "timestamp": 1782047583.93049}
+{"txn_id": 38, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 109, "timestamp": 1782047583.930926}
+{"txn_id": 39, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 110, "timestamp": 1782047583.931808}
+{"txn_id": 39, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 453}, "created_by_txn": 37, "deleted_by_txn": null, "begin_ts": 37, "end_ts": null}, "new_value": null, "lsn": 111, "timestamp": 1782047583.932071}
+{"txn_id": 39, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 821}, "created_by_txn": 39, "deleted_by_txn": null, "begin_ts": 39, "end_ts": null}, "lsn": 112, "timestamp": 1782047583.932354}
+{"txn_id": 39, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 113, "timestamp": 1782047583.932436}
+{"txn_id": 40, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 114, "timestamp": 1782047583.94369}
+{"txn_id": 40, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 821}, "created_by_txn": 39, "deleted_by_txn": null, "begin_ts": 39, "end_ts": null}, "new_value": null, "lsn": 115, "timestamp": 1782047583.9439528}
+{"txn_id": 40, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 843}, "created_by_txn": 40, "deleted_by_txn": null, "begin_ts": 40, "end_ts": null}, "lsn": 116, "timestamp": 1782047583.944184}
+{"txn_id": 40, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 117, "timestamp": 1782047583.94424}
+{"txn_id": 41, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 118, "timestamp": 1782047583.955057}
+{"txn_id": 41, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 119, "timestamp": 1782047583.955413}
+{"txn_id": 42, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 120, "timestamp": 1782047583.957572}
+{"txn_id": 42, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 843}, "created_by_txn": 40, "deleted_by_txn": null, "begin_ts": 40, "end_ts": null}, "new_value": null, "lsn": 121, "timestamp": 1782047583.957719}
+{"txn_id": 42, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 204}, "created_by_txn": 42, "deleted_by_txn": null, "begin_ts": 42, "end_ts": null}, "lsn": 122, "timestamp": 1782047583.957859}
+{"txn_id": 42, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 123, "timestamp": 1782047583.957906}
+{"txn_id": 43, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 124, "timestamp": 1782047583.968828}
+{"txn_id": 43, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 125, "timestamp": 1782047583.9691572}
+{"txn_id": 44, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 126, "timestamp": 1782047583.971255}
+{"txn_id": 44, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 204}, "created_by_txn": 42, "deleted_by_txn": null, "begin_ts": 42, "end_ts": null}, "new_value": null, "lsn": 127, "timestamp": 1782047583.97137}
+{"txn_id": 44, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 197}, "created_by_txn": 44, "deleted_by_txn": null, "begin_ts": 44, "end_ts": null}, "lsn": 128, "timestamp": 1782047583.971475}
+{"txn_id": 44, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 129, "timestamp": 1782047583.971512}
+{"txn_id": 45, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 130, "timestamp": 1782047583.980726}
+{"txn_id": 45, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 131, "timestamp": 1782047583.981051}
+{"txn_id": 46, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 132, "timestamp": 1782047583.9846}
+{"txn_id": 46, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 197}, "created_by_txn": 44, "deleted_by_txn": null, "begin_ts": 44, "end_ts": null}, "new_value": null, "lsn": 133, "timestamp": 1782047583.984709}
+{"txn_id": 46, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 811}, "created_by_txn": 46, "deleted_by_txn": null, "begin_ts": 46, "end_ts": null}, "lsn": 134, "timestamp": 1782047583.984811}
+{"txn_id": 46, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 135, "timestamp": 1782047583.984847}
+{"txn_id": 47, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 136, "timestamp": 1782047583.993175}
+{"txn_id": 47, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 137, "timestamp": 1782047583.993353}
+{"txn_id": 48, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 138, "timestamp": 1782047583.998165}
+{"txn_id": 48, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 811}, "created_by_txn": 46, "deleted_by_txn": null, "begin_ts": 46, "end_ts": null}, "new_value": null, "lsn": 139, "timestamp": 1782047583.99839}
+{"txn_id": 48, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 834}, "created_by_txn": 48, "deleted_by_txn": null, "begin_ts": 48, "end_ts": null}, "lsn": 140, "timestamp": 1782047583.998534}
+{"txn_id": 48, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 141, "timestamp": 1782047583.9985769}
+{"txn_id": 49, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 142, "timestamp": 1782047584.005471}
+{"txn_id": 49, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 143, "timestamp": 1782047584.0055838}
+{"txn_id": 50, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 144, "timestamp": 1782047584.0118668}
+{"txn_id": 50, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 834}, "created_by_txn": 48, "deleted_by_txn": null, "begin_ts": 48, "end_ts": null}, "new_value": null, "lsn": 145, "timestamp": 1782047584.0120661}
+{"txn_id": 50, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 545}, "created_by_txn": 50, "deleted_by_txn": null, "begin_ts": 50, "end_ts": null}, "lsn": 146, "timestamp": 1782047584.012182}
+{"txn_id": 50, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 147, "timestamp": 1782047584.012219}
+{"txn_id": 51, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 148, "timestamp": 1782047584.016843}
+{"txn_id": 51, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 149, "timestamp": 1782047584.0169878}
+{"txn_id": 52, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 150, "timestamp": 1782047584.025386}
+{"txn_id": 52, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 545}, "created_by_txn": 50, "deleted_by_txn": null, "begin_ts": 50, "end_ts": null}, "new_value": null, "lsn": 151, "timestamp": 1782047584.025629}
+{"txn_id": 52, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 619}, "created_by_txn": 52, "deleted_by_txn": null, "begin_ts": 52, "end_ts": null}, "lsn": 152, "timestamp": 1782047584.0257542}
+{"txn_id": 52, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 153, "timestamp": 1782047584.0257962}
+{"txn_id": 53, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 154, "timestamp": 1782047584.02954}
+{"txn_id": 53, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 155, "timestamp": 1782047584.029759}
+{"txn_id": 54, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 156, "timestamp": 1782047584.039167}
+{"txn_id": 54, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 619}, "created_by_txn": 52, "deleted_by_txn": null, "begin_ts": 52, "end_ts": null}, "new_value": null, "lsn": 157, "timestamp": 1782047584.0393689}
+{"txn_id": 54, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 767}, "created_by_txn": 54, "deleted_by_txn": null, "begin_ts": 54, "end_ts": null}, "lsn": 158, "timestamp": 1782047584.0395079}
+{"txn_id": 54, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 159, "timestamp": 1782047584.039555}
+{"txn_id": 55, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 160, "timestamp": 1782047584.043075}
+{"txn_id": 55, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 161, "timestamp": 1782047584.0433578}
+{"txn_id": 56, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 162, "timestamp": 1782047584.053074}
+{"txn_id": 56, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 767}, "created_by_txn": 54, "deleted_by_txn": null, "begin_ts": 54, "end_ts": null}, "new_value": null, "lsn": 163, "timestamp": 1782047584.0533729}
+{"txn_id": 56, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 814}, "created_by_txn": 56, "deleted_by_txn": null, "begin_ts": 56, "end_ts": null}, "lsn": 164, "timestamp": 1782047584.053529}
+{"txn_id": 56, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 165, "timestamp": 1782047584.053642}
+{"txn_id": 57, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 166, "timestamp": 1782047584.05459}
+{"txn_id": 57, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 167, "timestamp": 1782047584.05476}
+{"txn_id": 58, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 168, "timestamp": 1782047584.066824}
+{"txn_id": 58, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 814}, "created_by_txn": 56, "deleted_by_txn": null, "begin_ts": 56, "end_ts": null}, "new_value": null, "lsn": 169, "timestamp": 1782047584.067041}
+{"txn_id": 58, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 674}, "created_by_txn": 58, "deleted_by_txn": null, "begin_ts": 58, "end_ts": null}, "lsn": 170, "timestamp": 1782047584.0672011}
+{"txn_id": 58, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 171, "timestamp": 1782047584.0672581}
+{"txn_id": 59, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 172, "timestamp": 1782047584.067761}
+{"txn_id": 59, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 173, "timestamp": 1782047584.0679932}
+{"txn_id": 60, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 174, "timestamp": 1782047584.079446}
+{"txn_id": 60, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 674}, "created_by_txn": 58, "deleted_by_txn": null, "begin_ts": 58, "end_ts": null}, "new_value": null, "lsn": 175, "timestamp": 1782047584.079676}
+{"txn_id": 60, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 727}, "created_by_txn": 60, "deleted_by_txn": null, "begin_ts": 60, "end_ts": null}, "lsn": 176, "timestamp": 1782047584.07983}
+{"txn_id": 60, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 177, "timestamp": 1782047584.079884}
+{"txn_id": 61, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 178, "timestamp": 1782047584.081467}
+{"txn_id": 61, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 179, "timestamp": 1782047584.0816572}
+{"txn_id": 62, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 180, "timestamp": 1782047584.0927072}
+{"txn_id": 62, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 727}, "created_by_txn": 60, "deleted_by_txn": null, "begin_ts": 60, "end_ts": null}, "new_value": null, "lsn": 181, "timestamp": 1782047584.092963}
+{"txn_id": 62, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 580}, "created_by_txn": 62, "deleted_by_txn": null, "begin_ts": 62, "end_ts": null}, "lsn": 182, "timestamp": 1782047584.093091}
+{"txn_id": 62, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 183, "timestamp": 1782047584.093132}
+{"txn_id": 63, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 184, "timestamp": 1782047584.093578}
+{"txn_id": 63, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 185, "timestamp": 1782047584.093933}
+{"txn_id": 64, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 186, "timestamp": 1782047584.106383}
+{"txn_id": 64, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 187, "timestamp": 1782047584.106571}
+{"txn_id": 65, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 188, "timestamp": 1782047584.119515}
+{"txn_id": 65, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 580}, "created_by_txn": 62, "deleted_by_txn": null, "begin_ts": 62, "end_ts": null}, "new_value": null, "lsn": 189, "timestamp": 1782047584.1197891}
+{"txn_id": 65, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 426}, "created_by_txn": 65, "deleted_by_txn": null, "begin_ts": 65, "end_ts": null}, "lsn": 190, "timestamp": 1782047584.1199412}
+{"txn_id": 65, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 191, "timestamp": 1782047584.119992}
+{"txn_id": 66, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 192, "timestamp": 1782047584.131671}
+{"txn_id": 66, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 193, "timestamp": 1782047584.131935}
+{"txn_id": 67, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 194, "timestamp": 1782047584.144445}
+{"txn_id": 67, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 426}, "created_by_txn": 65, "deleted_by_txn": null, "begin_ts": 65, "end_ts": null}, "new_value": null, "lsn": 195, "timestamp": 1782047584.1446981}
+{"txn_id": 67, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 928}, "created_by_txn": 67, "deleted_by_txn": null, "begin_ts": 67, "end_ts": null}, "lsn": 196, "timestamp": 1782047584.1448572}
+{"txn_id": 67, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 197, "timestamp": 1782047584.144904}
+{"txn_id": 68, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 198, "timestamp": 1782047584.145248}
+{"txn_id": 68, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 199, "timestamp": 1782047584.1454349}
+{"txn_id": 69, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 200, "timestamp": 1782047584.15773}
+{"txn_id": 69, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 928}, "created_by_txn": 67, "deleted_by_txn": null, "begin_ts": 67, "end_ts": null}, "new_value": null, "lsn": 201, "timestamp": 1782047584.157957}
+{"txn_id": 69, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 833}, "created_by_txn": 69, "deleted_by_txn": null, "begin_ts": 69, "end_ts": null}, "lsn": 202, "timestamp": 1782047584.1581209}
+{"txn_id": 69, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 203, "timestamp": 1782047584.158169}
+{"txn_id": 70, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 204, "timestamp": 1782047584.158632}
+{"txn_id": 70, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 205, "timestamp": 1782047584.158944}
+{"txn_id": 71, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 206, "timestamp": 1782047584.169834}
+{"txn_id": 71, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 833}, "created_by_txn": 69, "deleted_by_txn": null, "begin_ts": 69, "end_ts": null}, "new_value": null, "lsn": 207, "timestamp": 1782047584.1701062}
+{"txn_id": 71, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 928}, "created_by_txn": 71, "deleted_by_txn": null, "begin_ts": 71, "end_ts": null}, "lsn": 208, "timestamp": 1782047584.170262}
+{"txn_id": 71, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 209, "timestamp": 1782047584.170313}
+{"txn_id": 72, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 210, "timestamp": 1782047584.172199}
+{"txn_id": 72, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 211, "timestamp": 1782047584.172436}
+{"txn_id": 73, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 212, "timestamp": 1782047584.1825569}
+{"txn_id": 73, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 928}, "created_by_txn": 71, "deleted_by_txn": null, "begin_ts": 71, "end_ts": null}, "new_value": null, "lsn": 213, "timestamp": 1782047584.1827252}
+{"txn_id": 73, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 499}, "created_by_txn": 73, "deleted_by_txn": null, "begin_ts": 73, "end_ts": null}, "lsn": 214, "timestamp": 1782047584.182844}
+{"txn_id": 73, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 215, "timestamp": 1782047584.182881}
+{"txn_id": 74, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 216, "timestamp": 1782047584.1843588}
+{"txn_id": 74, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 217, "timestamp": 1782047584.18451}
+{"txn_id": 75, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 218, "timestamp": 1782047584.1959941}
+{"txn_id": 75, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 499}, "created_by_txn": 73, "deleted_by_txn": null, "begin_ts": 73, "end_ts": null}, "new_value": null, "lsn": 219, "timestamp": 1782047584.196159}
+{"txn_id": 75, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 137}, "created_by_txn": 75, "deleted_by_txn": null, "begin_ts": 75, "end_ts": null}, "lsn": 220, "timestamp": 1782047584.196299}
+{"txn_id": 75, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 221, "timestamp": 1782047584.196346}
+{"txn_id": 76, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 222, "timestamp": 1782047584.1967459}
+{"txn_id": 76, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 223, "timestamp": 1782047584.196901}
+{"txn_id": 77, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 224, "timestamp": 1782047584.2094898}
+{"txn_id": 77, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 137}, "created_by_txn": 75, "deleted_by_txn": null, "begin_ts": 75, "end_ts": null}, "new_value": null, "lsn": 225, "timestamp": 1782047584.2096372}
+{"txn_id": 77, "type": "INSERT", "table": "test_rw", "operation": [0, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 888}, "created_by_txn": 77, "deleted_by_txn": null, "begin_ts": 77, "end_ts": null}, "lsn": 226, "timestamp": 1782047584.20975}
+{"txn_id": 77, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 227, "timestamp": 1782047584.209792}
+{"txn_id": 78, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 228, "timestamp": 1782047584.222443}
+{"txn_id": 78, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 229, "timestamp": 1782047584.222622}
+{"txn_id": 79, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 230, "timestamp": 1782047584.2228632}
+{"txn_id": 79, "type": "DELETE", "table": "test_rw", "operation": [0, 0], "old_value": {"_data": {"id": 1, "val": 888}, "created_by_txn": 77, "deleted_by_txn": null, "begin_ts": 77, "end_ts": null}, "new_value": null, "lsn": 231, "timestamp": 1782047584.2231019}
+{"txn_id": 79, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 393}, "created_by_txn": 79, "deleted_by_txn": null, "begin_ts": 79, "end_ts": null}, "lsn": 232, "timestamp": 1782047584.223657}
+{"txn_id": 79, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 233, "timestamp": 1782047584.223718}
+{"txn_id": 80, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 234, "timestamp": 1782047584.2360802}
+{"txn_id": 80, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 235, "timestamp": 1782047584.236342}
+{"txn_id": 81, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 236, "timestamp": 1782047584.236746}
+{"txn_id": 81, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 393}, "created_by_txn": 79, "deleted_by_txn": null, "begin_ts": 79, "end_ts": null}, "new_value": null, "lsn": 237, "timestamp": 1782047584.236919}
+{"txn_id": 81, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 709}, "created_by_txn": 81, "deleted_by_txn": null, "begin_ts": 81, "end_ts": null}, "lsn": 238, "timestamp": 1782047584.237068}
+{"txn_id": 81, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 239, "timestamp": 1782047584.237123}
+{"txn_id": 82, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 240, "timestamp": 1782047584.2480361}
+{"txn_id": 82, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 709}, "created_by_txn": 81, "deleted_by_txn": null, "begin_ts": 81, "end_ts": null}, "new_value": null, "lsn": 241, "timestamp": 1782047584.2483299}
+{"txn_id": 82, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 373}, "created_by_txn": 82, "deleted_by_txn": null, "begin_ts": 82, "end_ts": null}, "lsn": 242, "timestamp": 1782047584.248511}
+{"txn_id": 82, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 243, "timestamp": 1782047584.248571}
+{"txn_id": 83, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 244, "timestamp": 1782047584.249293}
+{"txn_id": 83, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 245, "timestamp": 1782047584.249512}
+{"txn_id": 84, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 246, "timestamp": 1782047584.261131}
+{"txn_id": 84, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 373}, "created_by_txn": 82, "deleted_by_txn": null, "begin_ts": 82, "end_ts": null}, "new_value": null, "lsn": 247, "timestamp": 1782047584.261368}
+{"txn_id": 84, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 242}, "created_by_txn": 84, "deleted_by_txn": null, "begin_ts": 84, "end_ts": null}, "lsn": 248, "timestamp": 1782047584.2615218}
+{"txn_id": 84, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 249, "timestamp": 1782047584.26157}
+{"txn_id": 85, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 250, "timestamp": 1782047584.2626848}
+{"txn_id": 85, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 251, "timestamp": 1782047584.2628841}
+{"txn_id": 86, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 252, "timestamp": 1782047584.274121}
+{"txn_id": 86, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 253, "timestamp": 1782047584.2744782}
+{"txn_id": 87, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 254, "timestamp": 1782047584.2844439}
+{"txn_id": 87, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 242}, "created_by_txn": 84, "deleted_by_txn": null, "begin_ts": 84, "end_ts": null}, "new_value": null, "lsn": 255, "timestamp": 1782047584.284706}
+{"txn_id": 87, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 153}, "created_by_txn": 87, "deleted_by_txn": null, "begin_ts": 87, "end_ts": null}, "lsn": 256, "timestamp": 1782047584.284965}
+{"txn_id": 87, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 257, "timestamp": 1782047584.285033}
+{"txn_id": 88, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 258, "timestamp": 1782047584.287829}
+{"txn_id": 88, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 259, "timestamp": 1782047584.288076}
+{"txn_id": 89, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 260, "timestamp": 1782047584.298292}
+{"txn_id": 89, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 153}, "created_by_txn": 87, "deleted_by_txn": null, "begin_ts": 87, "end_ts": null}, "new_value": null, "lsn": 261, "timestamp": 1782047584.298545}
+{"txn_id": 89, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 235}, "created_by_txn": 89, "deleted_by_txn": null, "begin_ts": 89, "end_ts": null}, "lsn": 262, "timestamp": 1782047584.298748}
+{"txn_id": 89, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 263, "timestamp": 1782047584.29881}
+{"txn_id": 90, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 264, "timestamp": 1782047584.301343}
+{"txn_id": 90, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 265, "timestamp": 1782047584.301568}
+{"txn_id": 91, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 266, "timestamp": 1782047584.312178}
+{"txn_id": 91, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 235}, "created_by_txn": 89, "deleted_by_txn": null, "begin_ts": 89, "end_ts": null}, "new_value": null, "lsn": 267, "timestamp": 1782047584.312468}
+{"txn_id": 91, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 555}, "created_by_txn": 91, "deleted_by_txn": null, "begin_ts": 91, "end_ts": null}, "lsn": 268, "timestamp": 1782047584.312622}
+{"txn_id": 91, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 269, "timestamp": 1782047584.312664}
+{"txn_id": 92, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 270, "timestamp": 1782047584.3139882}
+{"txn_id": 92, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 271, "timestamp": 1782047584.3141592}
+{"txn_id": 93, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 272, "timestamp": 1782047584.326064}
+{"txn_id": 93, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 555}, "created_by_txn": 91, "deleted_by_txn": null, "begin_ts": 91, "end_ts": null}, "new_value": null, "lsn": 273, "timestamp": 1782047584.326296}
+{"txn_id": 93, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 468}, "created_by_txn": 93, "deleted_by_txn": null, "begin_ts": 93, "end_ts": null}, "lsn": 274, "timestamp": 1782047584.326431}
+{"txn_id": 93, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 275, "timestamp": 1782047584.32648}
+{"txn_id": 94, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 276, "timestamp": 1782047584.326878}
+{"txn_id": 94, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 277, "timestamp": 1782047584.327113}
+{"txn_id": 95, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 278, "timestamp": 1782047584.338154}
+{"txn_id": 95, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 279, "timestamp": 1782047584.3384929}
+{"txn_id": 96, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 280, "timestamp": 1782047584.351203}
+{"txn_id": 96, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 468}, "created_by_txn": 93, "deleted_by_txn": null, "begin_ts": 93, "end_ts": null}, "new_value": null, "lsn": 281, "timestamp": 1782047584.351479}
+{"txn_id": 96, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 323}, "created_by_txn": 96, "deleted_by_txn": null, "begin_ts": 96, "end_ts": null}, "lsn": 282, "timestamp": 1782047584.351864}
+{"txn_id": 96, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 283, "timestamp": 1782047584.351925}
+{"txn_id": 97, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 284, "timestamp": 1782047584.363723}
+{"txn_id": 97, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 285, "timestamp": 1782047584.3638778}
+{"txn_id": 98, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 286, "timestamp": 1782047584.364811}
+{"txn_id": 98, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 323}, "created_by_txn": 96, "deleted_by_txn": null, "begin_ts": 96, "end_ts": null}, "new_value": null, "lsn": 287, "timestamp": 1782047584.364913}
+{"txn_id": 98, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 202}, "created_by_txn": 98, "deleted_by_txn": null, "begin_ts": 98, "end_ts": null}, "lsn": 288, "timestamp": 1782047584.365016}
+{"txn_id": 98, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 289, "timestamp": 1782047584.365052}
+{"txn_id": 99, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 290, "timestamp": 1782047584.3768451}
+{"txn_id": 99, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 291, "timestamp": 1782047584.377005}
+{"txn_id": 100, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 292, "timestamp": 1782047584.378017}
+{"txn_id": 100, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 202}, "created_by_txn": 98, "deleted_by_txn": null, "begin_ts": 98, "end_ts": null}, "new_value": null, "lsn": 293, "timestamp": 1782047584.3781388}
+{"txn_id": 100, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 299}, "created_by_txn": 100, "deleted_by_txn": null, "begin_ts": 100, "end_ts": null}, "lsn": 294, "timestamp": 1782047584.378248}
+{"txn_id": 100, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 295, "timestamp": 1782047584.378283}
+{"txn_id": 101, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 296, "timestamp": 1782047584.38995}
+{"txn_id": 101, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 297, "timestamp": 1782047584.390101}
+{"txn_id": 102, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 298, "timestamp": 1782047584.391516}
+{"txn_id": 102, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 299}, "created_by_txn": 100, "deleted_by_txn": null, "begin_ts": 100, "end_ts": null}, "new_value": null, "lsn": 299, "timestamp": 1782047584.39165}
+{"txn_id": 102, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 978}, "created_by_txn": 102, "deleted_by_txn": null, "begin_ts": 102, "end_ts": null}, "lsn": 300, "timestamp": 1782047584.3917708}
+{"txn_id": 102, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 301, "timestamp": 1782047584.391813}
+{"txn_id": 103, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 302, "timestamp": 1782047584.402092}
+{"txn_id": 103, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 303, "timestamp": 1782047584.4028318}
+{"txn_id": 104, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 304, "timestamp": 1782047584.404774}
+{"txn_id": 104, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 978}, "created_by_txn": 102, "deleted_by_txn": null, "begin_ts": 102, "end_ts": null}, "new_value": null, "lsn": 305, "timestamp": 1782047584.404941}
+{"txn_id": 104, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 278}, "created_by_txn": 104, "deleted_by_txn": null, "begin_ts": 104, "end_ts": null}, "lsn": 306, "timestamp": 1782047584.405065}
+{"txn_id": 104, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 307, "timestamp": 1782047584.4051032}
+{"txn_id": 105, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 308, "timestamp": 1782047584.415385}
+{"txn_id": 105, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 309, "timestamp": 1782047584.415636}
+{"txn_id": 106, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 310, "timestamp": 1782047584.42783}
+{"txn_id": 106, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 278}, "created_by_txn": 104, "deleted_by_txn": null, "begin_ts": 104, "end_ts": null}, "new_value": null, "lsn": 311, "timestamp": 1782047584.4280949}
+{"txn_id": 106, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 563}, "created_by_txn": 106, "deleted_by_txn": null, "begin_ts": 106, "end_ts": null}, "lsn": 312, "timestamp": 1782047584.428263}
+{"txn_id": 106, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 313, "timestamp": 1782047584.428311}
+{"txn_id": 107, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 314, "timestamp": 1782047584.428829}
+{"txn_id": 107, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 315, "timestamp": 1782047584.4290292}
+{"txn_id": 108, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 316, "timestamp": 1782047584.441121}
+{"txn_id": 108, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 563}, "created_by_txn": 106, "deleted_by_txn": null, "begin_ts": 106, "end_ts": null}, "new_value": null, "lsn": 317, "timestamp": 1782047584.4413152}
+{"txn_id": 108, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 727}, "created_by_txn": 108, "deleted_by_txn": null, "begin_ts": 108, "end_ts": null}, "lsn": 318, "timestamp": 1782047584.44143}
+{"txn_id": 108, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 319, "timestamp": 1782047584.4414668}
+{"txn_id": 109, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 320, "timestamp": 1782047584.4421911}
+{"txn_id": 109, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 321, "timestamp": 1782047584.4423249}
+{"txn_id": 110, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 322, "timestamp": 1782047584.454706}
+{"txn_id": 110, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 727}, "created_by_txn": 108, "deleted_by_txn": null, "begin_ts": 108, "end_ts": null}, "new_value": null, "lsn": 323, "timestamp": 1782047584.4549189}
+{"txn_id": 110, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 532}, "created_by_txn": 110, "deleted_by_txn": null, "begin_ts": 110, "end_ts": null}, "lsn": 324, "timestamp": 1782047584.455043}
+{"txn_id": 110, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 325, "timestamp": 1782047584.455081}
+{"txn_id": 111, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 326, "timestamp": 1782047584.467702}
+{"txn_id": 111, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 327, "timestamp": 1782047584.4678621}
+{"txn_id": 112, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 328, "timestamp": 1782047584.480479}
+{"txn_id": 112, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 532}, "created_by_txn": 110, "deleted_by_txn": null, "begin_ts": 110, "end_ts": null}, "new_value": null, "lsn": 329, "timestamp": 1782047584.48063}
+{"txn_id": 112, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 327}, "created_by_txn": 112, "deleted_by_txn": null, "begin_ts": 112, "end_ts": null}, "lsn": 330, "timestamp": 1782047584.480761}
+{"txn_id": 112, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 331, "timestamp": 1782047584.480803}
+{"txn_id": 113, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 332, "timestamp": 1782047584.493438}
+{"txn_id": 113, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 333, "timestamp": 1782047584.49369}
+{"txn_id": 114, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 334, "timestamp": 1782047584.506164}
+{"txn_id": 114, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 327}, "created_by_txn": 112, "deleted_by_txn": null, "begin_ts": 112, "end_ts": null}, "new_value": null, "lsn": 335, "timestamp": 1782047584.506453}
+{"txn_id": 114, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 948}, "created_by_txn": 114, "deleted_by_txn": null, "begin_ts": 114, "end_ts": null}, "lsn": 336, "timestamp": 1782047584.506592}
+{"txn_id": 114, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 337, "timestamp": 1782047584.506638}
+{"txn_id": 115, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 338, "timestamp": 1782047584.518801}
+{"txn_id": 115, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 339, "timestamp": 1782047584.519891}
+{"txn_id": 116, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 340, "timestamp": 1782047584.531543}
+{"txn_id": 116, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 341, "timestamp": 1782047584.5318122}
+{"txn_id": 117, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 342, "timestamp": 1782047584.5325289}
+{"txn_id": 117, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 948}, "created_by_txn": 114, "deleted_by_txn": null, "begin_ts": 114, "end_ts": null}, "new_value": null, "lsn": 343, "timestamp": 1782047584.5327392}
+{"txn_id": 117, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 515}, "created_by_txn": 117, "deleted_by_txn": null, "begin_ts": 117, "end_ts": null}, "lsn": 344, "timestamp": 1782047584.5329332}
+{"txn_id": 117, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 345, "timestamp": 1782047584.5329978}
+{"txn_id": 118, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 346, "timestamp": 1782047584.544113}
+{"txn_id": 118, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 347, "timestamp": 1782047584.544399}
+{"txn_id": 119, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 348, "timestamp": 1782047584.546036}
+{"txn_id": 119, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 515}, "created_by_txn": 117, "deleted_by_txn": null, "begin_ts": 117, "end_ts": null}, "new_value": null, "lsn": 349, "timestamp": 1782047584.546226}
+{"txn_id": 119, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 226}, "created_by_txn": 119, "deleted_by_txn": null, "begin_ts": 119, "end_ts": null}, "lsn": 350, "timestamp": 1782047584.5463848}
+{"txn_id": 119, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 351, "timestamp": 1782047584.546437}
+{"txn_id": 120, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 352, "timestamp": 1782047584.557788}
+{"txn_id": 120, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 353, "timestamp": 1782047584.5580769}
+{"txn_id": 121, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 354, "timestamp": 1782047584.569757}
+{"txn_id": 121, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 355, "timestamp": 1782047584.5700748}
+{"txn_id": 122, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 356, "timestamp": 1782047584.581077}
+{"txn_id": 122, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 226}, "created_by_txn": 119, "deleted_by_txn": null, "begin_ts": 119, "end_ts": null}, "new_value": null, "lsn": 357, "timestamp": 1782047584.581375}
+{"txn_id": 122, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 451}, "created_by_txn": 122, "deleted_by_txn": null, "begin_ts": 122, "end_ts": null}, "lsn": 358, "timestamp": 1782047584.5815701}
+{"txn_id": 122, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 359, "timestamp": 1782047584.581629}
+{"txn_id": 123, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 360, "timestamp": 1782047584.582417}
+{"txn_id": 123, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 361, "timestamp": 1782047584.5826612}
+{"txn_id": 124, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 362, "timestamp": 1782047584.595413}
+{"txn_id": 124, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 451}, "created_by_txn": 122, "deleted_by_txn": null, "begin_ts": 122, "end_ts": null}, "new_value": null, "lsn": 363, "timestamp": 1782047584.595766}
+{"txn_id": 124, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 265}, "created_by_txn": 124, "deleted_by_txn": null, "begin_ts": 124, "end_ts": null}, "lsn": 364, "timestamp": 1782047584.5960162}
+{"txn_id": 124, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 365, "timestamp": 1782047584.596076}
+{"txn_id": 125, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 366, "timestamp": 1782047584.608568}
+{"txn_id": 125, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 367, "timestamp": 1782047584.608869}
+{"txn_id": 126, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 368, "timestamp": 1782047584.609347}
+{"txn_id": 126, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 265}, "created_by_txn": 124, "deleted_by_txn": null, "begin_ts": 124, "end_ts": null}, "new_value": null, "lsn": 369, "timestamp": 1782047584.609544}
+{"txn_id": 126, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 220}, "created_by_txn": 126, "deleted_by_txn": null, "begin_ts": 126, "end_ts": null}, "lsn": 370, "timestamp": 1782047584.609689}
+{"txn_id": 126, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 371, "timestamp": 1782047584.609733}
+{"txn_id": 127, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 372, "timestamp": 1782047584.621103}
+{"txn_id": 127, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 373, "timestamp": 1782047584.621481}
+{"txn_id": 128, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 374, "timestamp": 1782047584.623234}
+{"txn_id": 128, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 220}, "created_by_txn": 126, "deleted_by_txn": null, "begin_ts": 126, "end_ts": null}, "new_value": null, "lsn": 375, "timestamp": 1782047584.623441}
+{"txn_id": 128, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 293}, "created_by_txn": 128, "deleted_by_txn": null, "begin_ts": 128, "end_ts": null}, "lsn": 376, "timestamp": 1782047584.6236212}
+{"txn_id": 128, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 377, "timestamp": 1782047584.6236732}
+{"txn_id": 129, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 378, "timestamp": 1782047584.6339169}
+{"txn_id": 129, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 379, "timestamp": 1782047584.634149}
+{"txn_id": 130, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 380, "timestamp": 1782047584.6344771}
+{"txn_id": 130, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 293}, "created_by_txn": 128, "deleted_by_txn": null, "begin_ts": 128, "end_ts": null}, "new_value": null, "lsn": 381, "timestamp": 1782047584.634624}
+{"txn_id": 130, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 624}, "created_by_txn": 130, "deleted_by_txn": null, "begin_ts": 130, "end_ts": null}, "lsn": 382, "timestamp": 1782047584.63483}
+{"txn_id": 130, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 383, "timestamp": 1782047584.634885}
+{"txn_id": 131, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 384, "timestamp": 1782047584.6473331}
+{"txn_id": 131, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 385, "timestamp": 1782047584.647733}
+{"txn_id": 132, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 386, "timestamp": 1782047584.659439}
+{"txn_id": 132, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 387, "timestamp": 1782047584.660098}
+{"txn_id": 133, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 388, "timestamp": 1782047584.671938}
+{"txn_id": 133, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 624}, "created_by_txn": 130, "deleted_by_txn": null, "begin_ts": 130, "end_ts": null}, "new_value": null, "lsn": 389, "timestamp": 1782047584.6722848}
+{"txn_id": 133, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 229}, "created_by_txn": 133, "deleted_by_txn": null, "begin_ts": 133, "end_ts": null}, "lsn": 390, "timestamp": 1782047584.6724758}
+{"txn_id": 133, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 391, "timestamp": 1782047584.6725278}
+{"txn_id": 134, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 392, "timestamp": 1782047584.684499}
+{"txn_id": 134, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 229}, "created_by_txn": 133, "deleted_by_txn": null, "begin_ts": 133, "end_ts": null}, "new_value": null, "lsn": 393, "timestamp": 1782047584.68481}
+{"txn_id": 134, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 555}, "created_by_txn": 134, "deleted_by_txn": null, "begin_ts": 134, "end_ts": null}, "lsn": 394, "timestamp": 1782047584.685863}
+{"txn_id": 134, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 395, "timestamp": 1782047584.685916}
+{"txn_id": 135, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 396, "timestamp": 1782047584.6984022}
+{"txn_id": 135, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 397, "timestamp": 1782047584.698741}
+{"txn_id": 136, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 398, "timestamp": 1782047584.709874}
+{"txn_id": 136, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 555}, "created_by_txn": 134, "deleted_by_txn": null, "begin_ts": 134, "end_ts": null}, "new_value": null, "lsn": 399, "timestamp": 1782047584.710169}
+{"txn_id": 136, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 858}, "created_by_txn": 136, "deleted_by_txn": null, "begin_ts": 136, "end_ts": null}, "lsn": 400, "timestamp": 1782047584.710338}
+{"txn_id": 136, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 401, "timestamp": 1782047584.710391}
+{"txn_id": 137, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 402, "timestamp": 1782047584.710871}
+{"txn_id": 137, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 403, "timestamp": 1782047584.711047}
+{"txn_id": 138, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 404, "timestamp": 1782047584.722783}
+{"txn_id": 138, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 405, "timestamp": 1782047584.723066}
+{"txn_id": 139, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 406, "timestamp": 1782047584.723874}
+{"txn_id": 139, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 858}, "created_by_txn": 136, "deleted_by_txn": null, "begin_ts": 136, "end_ts": null}, "new_value": null, "lsn": 407, "timestamp": 1782047584.724038}
+{"txn_id": 139, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 922}, "created_by_txn": 139, "deleted_by_txn": null, "begin_ts": 139, "end_ts": null}, "lsn": 408, "timestamp": 1782047584.724189}
+{"txn_id": 139, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 409, "timestamp": 1782047584.724233}
+{"txn_id": 140, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 410, "timestamp": 1782047584.736198}
+{"txn_id": 140, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 411, "timestamp": 1782047584.7364402}
+{"txn_id": 141, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 412, "timestamp": 1782047584.7372448}
+{"txn_id": 141, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 922}, "created_by_txn": 139, "deleted_by_txn": null, "begin_ts": 139, "end_ts": null}, "new_value": null, "lsn": 413, "timestamp": 1782047584.737379}
+{"txn_id": 141, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 387}, "created_by_txn": 141, "deleted_by_txn": null, "begin_ts": 141, "end_ts": null}, "lsn": 414, "timestamp": 1782047584.737494}
+{"txn_id": 141, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 415, "timestamp": 1782047584.7375329}
+{"txn_id": 142, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 416, "timestamp": 1782047584.748277}
+{"txn_id": 142, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 387}, "created_by_txn": 141, "deleted_by_txn": null, "begin_ts": 141, "end_ts": null}, "new_value": null, "lsn": 417, "timestamp": 1782047584.748666}
+{"txn_id": 142, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 474}, "created_by_txn": 142, "deleted_by_txn": null, "begin_ts": 142, "end_ts": null}, "lsn": 418, "timestamp": 1782047584.748839}
+{"txn_id": 142, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 419, "timestamp": 1782047584.7488918}
+{"txn_id": 143, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 420, "timestamp": 1782047584.7494159}
+{"txn_id": 143, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 421, "timestamp": 1782047584.749631}
+{"txn_id": 144, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 422, "timestamp": 1782047584.761163}
+{"txn_id": 144, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 423, "timestamp": 1782047584.761473}
+{"txn_id": 145, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 424, "timestamp": 1782047584.762581}
+{"txn_id": 145, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 474}, "created_by_txn": 142, "deleted_by_txn": null, "begin_ts": 142, "end_ts": null}, "new_value": null, "lsn": 425, "timestamp": 1782047584.7627919}
+{"txn_id": 145, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 503}, "created_by_txn": 145, "deleted_by_txn": null, "begin_ts": 145, "end_ts": null}, "lsn": 426, "timestamp": 1782047584.762945}
+{"txn_id": 145, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 427, "timestamp": 1782047584.7629929}
+{"txn_id": 146, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 428, "timestamp": 1782047584.7759411}
+{"txn_id": 146, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 429, "timestamp": 1782047584.77614}
+{"txn_id": 147, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 430, "timestamp": 1782047584.788843}
+{"txn_id": 147, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 503}, "created_by_txn": 145, "deleted_by_txn": null, "begin_ts": 145, "end_ts": null}, "new_value": null, "lsn": 431, "timestamp": 1782047584.789023}
+{"txn_id": 147, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 187}, "created_by_txn": 147, "deleted_by_txn": null, "begin_ts": 147, "end_ts": null}, "lsn": 432, "timestamp": 1782047584.7891688}
+{"txn_id": 147, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 433, "timestamp": 1782047584.789216}
+{"txn_id": 148, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 434, "timestamp": 1782047584.801891}
+{"txn_id": 148, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 435, "timestamp": 1782047584.8021681}
+{"txn_id": 149, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 436, "timestamp": 1782047584.8031511}
+{"txn_id": 149, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 187}, "created_by_txn": 147, "deleted_by_txn": null, "begin_ts": 147, "end_ts": null}, "new_value": null, "lsn": 437, "timestamp": 1782047584.803356}
+{"txn_id": 149, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 800}, "created_by_txn": 149, "deleted_by_txn": null, "begin_ts": 149, "end_ts": null}, "lsn": 438, "timestamp": 1782047584.803521}
+{"txn_id": 149, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 439, "timestamp": 1782047584.8035688}
+{"txn_id": 150, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 440, "timestamp": 1782047584.813965}
+{"txn_id": 150, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 441, "timestamp": 1782047584.814253}
+{"txn_id": 151, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 442, "timestamp": 1782047584.815339}
+{"txn_id": 151, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 800}, "created_by_txn": 149, "deleted_by_txn": null, "begin_ts": 149, "end_ts": null}, "new_value": null, "lsn": 443, "timestamp": 1782047584.815507}
+{"txn_id": 151, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 817}, "created_by_txn": 151, "deleted_by_txn": null, "begin_ts": 151, "end_ts": null}, "lsn": 444, "timestamp": 1782047584.815653}
+{"txn_id": 151, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 445, "timestamp": 1782047584.8156989}
+{"txn_id": 152, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 446, "timestamp": 1782047584.827606}
+{"txn_id": 152, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 447, "timestamp": 1782047584.827892}
+{"txn_id": 153, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 448, "timestamp": 1782047584.839471}
+{"txn_id": 153, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 817}, "created_by_txn": 151, "deleted_by_txn": null, "begin_ts": 151, "end_ts": null}, "new_value": null, "lsn": 449, "timestamp": 1782047584.8397381}
+{"txn_id": 153, "type": "INSERT", "table": "test_rw", "operation": [1, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 647}, "created_by_txn": 153, "deleted_by_txn": null, "begin_ts": 153, "end_ts": null}, "lsn": 450, "timestamp": 1782047584.839902}
+{"txn_id": 153, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 451, "timestamp": 1782047584.839958}
+{"txn_id": 154, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 452, "timestamp": 1782047584.851169}
+{"txn_id": 154, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 453, "timestamp": 1782047584.851531}
+{"txn_id": 155, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 454, "timestamp": 1782047584.852737}
+{"txn_id": 155, "type": "DELETE", "table": "test_rw", "operation": [1, 0], "old_value": {"_data": {"id": 1, "val": 647}, "created_by_txn": 153, "deleted_by_txn": null, "begin_ts": 153, "end_ts": null}, "new_value": null, "lsn": 455, "timestamp": 1782047584.852918}
+{"txn_id": 155, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 454}, "created_by_txn": 155, "deleted_by_txn": null, "begin_ts": 155, "end_ts": null}, "lsn": 456, "timestamp": 1782047584.8535302}
+{"txn_id": 155, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 457, "timestamp": 1782047584.853587}
+{"txn_id": 156, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 458, "timestamp": 1782047584.8639848}
+{"txn_id": 156, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 459, "timestamp": 1782047584.86432}
+{"txn_id": 157, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 460, "timestamp": 1782047584.866712}
+{"txn_id": 157, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 454}, "created_by_txn": 155, "deleted_by_txn": null, "begin_ts": 155, "end_ts": null}, "new_value": null, "lsn": 461, "timestamp": 1782047584.866925}
+{"txn_id": 157, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 265}, "created_by_txn": 157, "deleted_by_txn": null, "begin_ts": 157, "end_ts": null}, "lsn": 462, "timestamp": 1782047584.8670778}
+{"txn_id": 157, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 463, "timestamp": 1782047584.867124}
+{"txn_id": 158, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 464, "timestamp": 1782047584.8771572}
+{"txn_id": 158, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 465, "timestamp": 1782047584.877459}
+{"txn_id": 159, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 466, "timestamp": 1782047584.879906}
+{"txn_id": 159, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 265}, "created_by_txn": 157, "deleted_by_txn": null, "begin_ts": 157, "end_ts": null}, "new_value": null, "lsn": 467, "timestamp": 1782047584.880126}
+{"txn_id": 159, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 356}, "created_by_txn": 159, "deleted_by_txn": null, "begin_ts": 159, "end_ts": null}, "lsn": 468, "timestamp": 1782047584.880307}
+{"txn_id": 159, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 469, "timestamp": 1782047584.880358}
+{"txn_id": 160, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 470, "timestamp": 1782047584.890785}
+{"txn_id": 160, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 471, "timestamp": 1782047584.891083}
+{"txn_id": 161, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 472, "timestamp": 1782047584.893548}
+{"txn_id": 161, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 356}, "created_by_txn": 159, "deleted_by_txn": null, "begin_ts": 159, "end_ts": null}, "new_value": null, "lsn": 473, "timestamp": 1782047584.89378}
+{"txn_id": 161, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 182}, "created_by_txn": 161, "deleted_by_txn": null, "begin_ts": 161, "end_ts": null}, "lsn": 474, "timestamp": 1782047584.8939562}
+{"txn_id": 161, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 475, "timestamp": 1782047584.89401}
+{"txn_id": 162, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 476, "timestamp": 1782047584.9023318}
+{"txn_id": 162, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 477, "timestamp": 1782047584.902653}
+{"txn_id": 163, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 478, "timestamp": 1782047584.907276}
+{"txn_id": 163, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 182}, "created_by_txn": 161, "deleted_by_txn": null, "begin_ts": 161, "end_ts": null}, "new_value": null, "lsn": 479, "timestamp": 1782047584.9075148}
+{"txn_id": 163, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 902}, "created_by_txn": 163, "deleted_by_txn": null, "begin_ts": 163, "end_ts": null}, "lsn": 480, "timestamp": 1782047584.907691}
+{"txn_id": 163, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 481, "timestamp": 1782047584.9077399}
+{"txn_id": 164, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 482, "timestamp": 1782047584.914459}
+{"txn_id": 164, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 483, "timestamp": 1782047584.9147031}
+{"txn_id": 165, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 484, "timestamp": 1782047584.919751}
+{"txn_id": 165, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 902}, "created_by_txn": 163, "deleted_by_txn": null, "begin_ts": 163, "end_ts": null}, "new_value": null, "lsn": 485, "timestamp": 1782047584.920065}
+{"txn_id": 165, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 991}, "created_by_txn": 165, "deleted_by_txn": null, "begin_ts": 165, "end_ts": null}, "lsn": 486, "timestamp": 1782047584.920235}
+{"txn_id": 165, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 487, "timestamp": 1782047584.9202921}
+{"txn_id": 166, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 488, "timestamp": 1782047584.92802}
+{"txn_id": 166, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 489, "timestamp": 1782047584.928343}
+{"txn_id": 167, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 490, "timestamp": 1782047584.933772}
+{"txn_id": 167, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 991}, "created_by_txn": 165, "deleted_by_txn": null, "begin_ts": 165, "end_ts": null}, "new_value": null, "lsn": 491, "timestamp": 1782047584.9340339}
+{"txn_id": 167, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 120}, "created_by_txn": 167, "deleted_by_txn": null, "begin_ts": 167, "end_ts": null}, "lsn": 492, "timestamp": 1782047584.934193}
+{"txn_id": 167, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 493, "timestamp": 1782047584.934247}
+{"txn_id": 168, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 494, "timestamp": 1782047584.9399838}
+{"txn_id": 168, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 495, "timestamp": 1782047584.940157}
+{"txn_id": 169, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 496, "timestamp": 1782047584.946826}
+{"txn_id": 169, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 120}, "created_by_txn": 167, "deleted_by_txn": null, "begin_ts": 167, "end_ts": null}, "new_value": null, "lsn": 497, "timestamp": 1782047584.9471009}
+{"txn_id": 169, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 755}, "created_by_txn": 169, "deleted_by_txn": null, "begin_ts": 169, "end_ts": null}, "lsn": 498, "timestamp": 1782047584.947259}
+{"txn_id": 169, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 499, "timestamp": 1782047584.947304}
+{"txn_id": 170, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 500, "timestamp": 1782047584.953216}
+{"txn_id": 170, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 501, "timestamp": 1782047584.95337}
+{"txn_id": 171, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 502, "timestamp": 1782047584.95984}
+{"txn_id": 171, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 755}, "created_by_txn": 169, "deleted_by_txn": null, "begin_ts": 169, "end_ts": null}, "new_value": null, "lsn": 503, "timestamp": 1782047584.960017}
+{"txn_id": 171, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 907}, "created_by_txn": 171, "deleted_by_txn": null, "begin_ts": 171, "end_ts": null}, "lsn": 504, "timestamp": 1782047584.960164}
+{"txn_id": 171, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 505, "timestamp": 1782047584.960212}
+{"txn_id": 172, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 506, "timestamp": 1782047584.96663}
+{"txn_id": 172, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 507, "timestamp": 1782047584.966951}
+{"txn_id": 173, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 508, "timestamp": 1782047584.973166}
+{"txn_id": 173, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 907}, "created_by_txn": 171, "deleted_by_txn": null, "begin_ts": 171, "end_ts": null}, "new_value": null, "lsn": 509, "timestamp": 1782047584.973495}
+{"txn_id": 173, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 515}, "created_by_txn": 173, "deleted_by_txn": null, "begin_ts": 173, "end_ts": null}, "lsn": 510, "timestamp": 1782047584.973666}
+{"txn_id": 173, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 511, "timestamp": 1782047584.973724}
+{"txn_id": 174, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 512, "timestamp": 1782047584.980472}
+{"txn_id": 174, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 513, "timestamp": 1782047584.980717}
+{"txn_id": 175, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 514, "timestamp": 1782047584.985961}
+{"txn_id": 175, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 515}, "created_by_txn": 173, "deleted_by_txn": null, "begin_ts": 173, "end_ts": null}, "new_value": null, "lsn": 515, "timestamp": 1782047584.986326}
+{"txn_id": 175, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 716}, "created_by_txn": 175, "deleted_by_txn": null, "begin_ts": 175, "end_ts": null}, "lsn": 516, "timestamp": 1782047584.986503}
+{"txn_id": 175, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 517, "timestamp": 1782047584.9865441}
+{"txn_id": 176, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 518, "timestamp": 1782047584.99193}
+{"txn_id": 176, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 519, "timestamp": 1782047584.992218}
+{"txn_id": 177, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 520, "timestamp": 1782047584.9981718}
+{"txn_id": 177, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 716}, "created_by_txn": 175, "deleted_by_txn": null, "begin_ts": 175, "end_ts": null}, "new_value": null, "lsn": 521, "timestamp": 1782047584.998433}
+{"txn_id": 177, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 268}, "created_by_txn": 177, "deleted_by_txn": null, "begin_ts": 177, "end_ts": null}, "lsn": 522, "timestamp": 1782047584.998602}
+{"txn_id": 177, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 523, "timestamp": 1782047584.998654}
+{"txn_id": 178, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 524, "timestamp": 1782047585.005596}
+{"txn_id": 178, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 525, "timestamp": 1782047585.005823}
+{"txn_id": 179, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 526, "timestamp": 1782047585.0118232}
+{"txn_id": 179, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 268}, "created_by_txn": 177, "deleted_by_txn": null, "begin_ts": 177, "end_ts": null}, "new_value": null, "lsn": 527, "timestamp": 1782047585.012064}
+{"txn_id": 179, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 651}, "created_by_txn": 179, "deleted_by_txn": null, "begin_ts": 179, "end_ts": null}, "lsn": 528, "timestamp": 1782047585.012223}
+{"txn_id": 179, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 529, "timestamp": 1782047585.012274}
+{"txn_id": 180, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 530, "timestamp": 1782047585.017776}
+{"txn_id": 180, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 531, "timestamp": 1782047585.0181508}
+{"txn_id": 181, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 532, "timestamp": 1782047585.025504}
+{"txn_id": 181, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 651}, "created_by_txn": 179, "deleted_by_txn": null, "begin_ts": 179, "end_ts": null}, "new_value": null, "lsn": 533, "timestamp": 1782047585.026124}
+{"txn_id": 181, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 479}, "created_by_txn": 181, "deleted_by_txn": null, "begin_ts": 181, "end_ts": null}, "lsn": 534, "timestamp": 1782047585.026316}
+{"txn_id": 181, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 535, "timestamp": 1782047585.0263739}
+{"txn_id": 182, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 536, "timestamp": 1782047585.031903}
+{"txn_id": 182, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 537, "timestamp": 1782047585.032168}
+{"txn_id": 183, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 538, "timestamp": 1782047585.0378299}
+{"txn_id": 183, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 479}, "created_by_txn": 181, "deleted_by_txn": null, "begin_ts": 181, "end_ts": null}, "new_value": null, "lsn": 539, "timestamp": 1782047585.038025}
+{"txn_id": 183, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 1000}, "created_by_txn": 183, "deleted_by_txn": null, "begin_ts": 183, "end_ts": null}, "lsn": 540, "timestamp": 1782047585.038173}
+{"txn_id": 183, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 541, "timestamp": 1782047585.0382211}
+{"txn_id": 184, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 542, "timestamp": 1782047585.043036}
+{"txn_id": 184, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 543, "timestamp": 1782047585.043138}
+{"txn_id": 185, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 544, "timestamp": 1782047585.0503428}
+{"txn_id": 185, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 1000}, "created_by_txn": 183, "deleted_by_txn": null, "begin_ts": 183, "end_ts": null}, "new_value": null, "lsn": 545, "timestamp": 1782047585.050411}
+{"txn_id": 185, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 574}, "created_by_txn": 185, "deleted_by_txn": null, "begin_ts": 185, "end_ts": null}, "lsn": 546, "timestamp": 1782047585.0504682}
+{"txn_id": 185, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 547, "timestamp": 1782047585.050486}
+{"txn_id": 186, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 548, "timestamp": 1782047585.056553}
+{"txn_id": 186, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 549, "timestamp": 1782047585.056828}
+{"txn_id": 187, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 550, "timestamp": 1782047585.063304}
+{"txn_id": 187, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 574}, "created_by_txn": 185, "deleted_by_txn": null, "begin_ts": 185, "end_ts": null}, "new_value": null, "lsn": 551, "timestamp": 1782047585.063532}
+{"txn_id": 187, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 755}, "created_by_txn": 187, "deleted_by_txn": null, "begin_ts": 187, "end_ts": null}, "lsn": 552, "timestamp": 1782047585.063654}
+{"txn_id": 187, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 553, "timestamp": 1782047585.063692}
+{"txn_id": 188, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 554, "timestamp": 1782047585.070233}
+{"txn_id": 188, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 555, "timestamp": 1782047585.070486}
+{"txn_id": 189, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 556, "timestamp": 1782047585.076917}
+{"txn_id": 189, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 755}, "created_by_txn": 187, "deleted_by_txn": null, "begin_ts": 187, "end_ts": null}, "new_value": null, "lsn": 557, "timestamp": 1782047585.077177}
+{"txn_id": 189, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 645}, "created_by_txn": 189, "deleted_by_txn": null, "begin_ts": 189, "end_ts": null}, "lsn": 558, "timestamp": 1782047585.0773098}
+{"txn_id": 189, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 559, "timestamp": 1782047585.07735}
+{"txn_id": 190, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 560, "timestamp": 1782047585.083303}
+{"txn_id": 190, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 561, "timestamp": 1782047585.0834801}
+{"txn_id": 191, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 562, "timestamp": 1782047585.090704}
+{"txn_id": 191, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 645}, "created_by_txn": 189, "deleted_by_txn": null, "begin_ts": 189, "end_ts": null}, "new_value": null, "lsn": 563, "timestamp": 1782047585.0910442}
+{"txn_id": 191, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 963}, "created_by_txn": 191, "deleted_by_txn": null, "begin_ts": 191, "end_ts": null}, "lsn": 564, "timestamp": 1782047585.091207}
+{"txn_id": 191, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 565, "timestamp": 1782047585.09125}
+{"txn_id": 192, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 566, "timestamp": 1782047585.094432}
+{"txn_id": 192, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 567, "timestamp": 1782047585.094623}
+{"txn_id": 193, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 568, "timestamp": 1782047585.106248}
+{"txn_id": 193, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 963}, "created_by_txn": 191, "deleted_by_txn": null, "begin_ts": 191, "end_ts": null}, "new_value": null, "lsn": 569, "timestamp": 1782047585.106418}
+{"txn_id": 193, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 899}, "created_by_txn": 193, "deleted_by_txn": null, "begin_ts": 193, "end_ts": null}, "lsn": 570, "timestamp": 1782047585.106573}
+{"txn_id": 193, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 571, "timestamp": 1782047585.106622}
+{"txn_id": 194, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 572, "timestamp": 1782047585.119652}
+{"txn_id": 194, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 573, "timestamp": 1782047585.119979}
+{"txn_id": 195, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 574, "timestamp": 1782047585.130989}
+{"txn_id": 195, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 899}, "created_by_txn": 193, "deleted_by_txn": null, "begin_ts": 193, "end_ts": null}, "new_value": null, "lsn": 575, "timestamp": 1782047585.131234}
+{"txn_id": 195, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 286}, "created_by_txn": 195, "deleted_by_txn": null, "begin_ts": 195, "end_ts": null}, "lsn": 576, "timestamp": 1782047585.1313841}
+{"txn_id": 195, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 577, "timestamp": 1782047585.131433}
+{"txn_id": 196, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 578, "timestamp": 1782047585.132942}
+{"txn_id": 196, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 579, "timestamp": 1782047585.133156}
+{"txn_id": 197, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 580, "timestamp": 1782047585.1438122}
+{"txn_id": 197, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 286}, "created_by_txn": 195, "deleted_by_txn": null, "begin_ts": 195, "end_ts": null}, "new_value": null, "lsn": 581, "timestamp": 1782047585.144098}
+{"txn_id": 197, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 928}, "created_by_txn": 197, "deleted_by_txn": null, "begin_ts": 197, "end_ts": null}, "lsn": 582, "timestamp": 1782047585.1442611}
+{"txn_id": 197, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 583, "timestamp": 1782047585.144404}
+{"txn_id": 198, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 584, "timestamp": 1782047585.145053}
+{"txn_id": 198, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 585, "timestamp": 1782047585.145322}
+{"txn_id": 199, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 586, "timestamp": 1782047585.155945}
+{"txn_id": 199, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 928}, "created_by_txn": 197, "deleted_by_txn": null, "begin_ts": 197, "end_ts": null}, "new_value": null, "lsn": 587, "timestamp": 1782047585.1561222}
+{"txn_id": 199, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 714}, "created_by_txn": 199, "deleted_by_txn": null, "begin_ts": 199, "end_ts": null}, "lsn": 588, "timestamp": 1782047585.156259}
+{"txn_id": 199, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 589, "timestamp": 1782047585.1563032}
+{"txn_id": 200, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 590, "timestamp": 1782047585.158438}
+{"txn_id": 200, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 591, "timestamp": 1782047585.158679}
+{"txn_id": 201, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 592, "timestamp": 1782047585.169075}
+{"txn_id": 201, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 714}, "created_by_txn": 199, "deleted_by_txn": null, "begin_ts": 199, "end_ts": null}, "new_value": null, "lsn": 593, "timestamp": 1782047585.169297}
+{"txn_id": 201, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 606}, "created_by_txn": 201, "deleted_by_txn": null, "begin_ts": 201, "end_ts": null}, "lsn": 594, "timestamp": 1782047585.1694531}
+{"txn_id": 201, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 595, "timestamp": 1782047585.1694999}
+{"txn_id": 202, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 596, "timestamp": 1782047585.170711}
+{"txn_id": 202, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 597, "timestamp": 1782047585.170879}
+{"txn_id": 203, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 598, "timestamp": 1782047585.181563}
+{"txn_id": 203, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 599, "timestamp": 1782047585.1817842}
+{"txn_id": 204, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 600, "timestamp": 1782047585.182477}
+{"txn_id": 204, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 606}, "created_by_txn": 201, "deleted_by_txn": null, "begin_ts": 201, "end_ts": null}, "new_value": null, "lsn": 601, "timestamp": 1782047585.182671}
+{"txn_id": 204, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 622}, "created_by_txn": 204, "deleted_by_txn": null, "begin_ts": 204, "end_ts": null}, "lsn": 602, "timestamp": 1782047585.182792}
+{"txn_id": 204, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 603, "timestamp": 1782047585.1828322}
+{"txn_id": 205, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 604, "timestamp": 1782047585.1943622}
+{"txn_id": 205, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 622}, "created_by_txn": 204, "deleted_by_txn": null, "begin_ts": 204, "end_ts": null}, "new_value": null, "lsn": 605, "timestamp": 1782047585.194519}
+{"txn_id": 205, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 176}, "created_by_txn": 205, "deleted_by_txn": null, "begin_ts": 205, "end_ts": null}, "lsn": 606, "timestamp": 1782047585.194653}
+{"txn_id": 205, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 607, "timestamp": 1782047585.194697}
+{"txn_id": 206, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 608, "timestamp": 1782047585.194923}
+{"txn_id": 206, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 609, "timestamp": 1782047585.195086}
+{"txn_id": 207, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 610, "timestamp": 1782047585.2079942}
+{"txn_id": 207, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 176}, "created_by_txn": 205, "deleted_by_txn": null, "begin_ts": 205, "end_ts": null}, "new_value": null, "lsn": 611, "timestamp": 1782047585.208141}
+{"txn_id": 207, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 711}, "created_by_txn": 207, "deleted_by_txn": null, "begin_ts": 207, "end_ts": null}, "lsn": 612, "timestamp": 1782047585.2082748}
+{"txn_id": 207, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 613, "timestamp": 1782047585.208321}
+{"txn_id": 208, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 614, "timestamp": 1782047585.221007}
+{"txn_id": 208, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 711}, "created_by_txn": 207, "deleted_by_txn": null, "begin_ts": 207, "end_ts": null}, "new_value": null, "lsn": 615, "timestamp": 1782047585.221318}
+{"txn_id": 208, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 698}, "created_by_txn": 208, "deleted_by_txn": null, "begin_ts": 208, "end_ts": null}, "lsn": 616, "timestamp": 1782047585.2214699}
+{"txn_id": 208, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 617, "timestamp": 1782047585.221519}
+{"txn_id": 209, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 618, "timestamp": 1782047585.2331269}
+{"txn_id": 209, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 619, "timestamp": 1782047585.2334259}
+{"txn_id": 210, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 620, "timestamp": 1782047585.2348301}
+{"txn_id": 210, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 698}, "created_by_txn": 208, "deleted_by_txn": null, "begin_ts": 208, "end_ts": null}, "new_value": null, "lsn": 621, "timestamp": 1782047585.235013}
+{"txn_id": 210, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 323}, "created_by_txn": 210, "deleted_by_txn": null, "begin_ts": 210, "end_ts": null}, "lsn": 622, "timestamp": 1782047585.23522}
+{"txn_id": 210, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 623, "timestamp": 1782047585.235272}
+{"txn_id": 211, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 624, "timestamp": 1782047585.245055}
+{"txn_id": 211, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 625, "timestamp": 1782047585.245332}
+{"txn_id": 212, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 626, "timestamp": 1782047585.247593}
+{"txn_id": 212, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 323}, "created_by_txn": 210, "deleted_by_txn": null, "begin_ts": 210, "end_ts": null}, "new_value": null, "lsn": 627, "timestamp": 1782047585.2477849}
+{"txn_id": 212, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 755}, "created_by_txn": 212, "deleted_by_txn": null, "begin_ts": 212, "end_ts": null}, "lsn": 628, "timestamp": 1782047585.247953}
+{"txn_id": 212, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 629, "timestamp": 1782047585.248013}
+{"txn_id": 213, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 630, "timestamp": 1782047585.257698}
+{"txn_id": 213, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 631, "timestamp": 1782047585.2578628}
+{"txn_id": 214, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 632, "timestamp": 1782047585.260737}
+{"txn_id": 214, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 755}, "created_by_txn": 212, "deleted_by_txn": null, "begin_ts": 212, "end_ts": null}, "new_value": null, "lsn": 633, "timestamp": 1782047585.26086}
+{"txn_id": 214, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 254}, "created_by_txn": 214, "deleted_by_txn": null, "begin_ts": 214, "end_ts": null}, "lsn": 634, "timestamp": 1782047585.260967}
+{"txn_id": 214, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 635, "timestamp": 1782047585.261003}
+{"txn_id": 215, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 636, "timestamp": 1782047585.2712839}
+{"txn_id": 215, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 637, "timestamp": 1782047585.271425}
+{"txn_id": 216, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 638, "timestamp": 1782047585.273887}
+{"txn_id": 216, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 254}, "created_by_txn": 214, "deleted_by_txn": null, "begin_ts": 214, "end_ts": null}, "new_value": null, "lsn": 639, "timestamp": 1782047585.2739909}
+{"txn_id": 216, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 745}, "created_by_txn": 216, "deleted_by_txn": null, "begin_ts": 216, "end_ts": null}, "lsn": 640, "timestamp": 1782047585.27409}
+{"txn_id": 216, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 641, "timestamp": 1782047585.2741241}
+{"txn_id": 217, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 642, "timestamp": 1782047585.284039}
+{"txn_id": 217, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 643, "timestamp": 1782047585.284179}
+{"txn_id": 218, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 644, "timestamp": 1782047585.286293}
+{"txn_id": 218, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 745}, "created_by_txn": 216, "deleted_by_txn": null, "begin_ts": 216, "end_ts": null}, "new_value": null, "lsn": 645, "timestamp": 1782047585.286539}
+{"txn_id": 218, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 176}, "created_by_txn": 218, "deleted_by_txn": null, "begin_ts": 218, "end_ts": null}, "lsn": 646, "timestamp": 1782047585.2866728}
+{"txn_id": 218, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 647, "timestamp": 1782047585.2867148}
+{"txn_id": 219, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 648, "timestamp": 1782047585.297193}
+{"txn_id": 219, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 649, "timestamp": 1782047585.297452}
+{"txn_id": 220, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 650, "timestamp": 1782047585.298816}
+{"txn_id": 220, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 176}, "created_by_txn": 218, "deleted_by_txn": null, "begin_ts": 218, "end_ts": null}, "new_value": null, "lsn": 651, "timestamp": 1782047585.298969}
+{"txn_id": 220, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 448}, "created_by_txn": 220, "deleted_by_txn": null, "begin_ts": 220, "end_ts": null}, "lsn": 652, "timestamp": 1782047585.299099}
+{"txn_id": 220, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 653, "timestamp": 1782047585.299136}
+{"txn_id": 221, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 654, "timestamp": 1782047585.309831}
+{"txn_id": 221, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 655, "timestamp": 1782047585.310109}
+{"txn_id": 222, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 656, "timestamp": 1782047585.321493}
+{"txn_id": 222, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 448}, "created_by_txn": 220, "deleted_by_txn": null, "begin_ts": 220, "end_ts": null}, "new_value": null, "lsn": 657, "timestamp": 1782047585.3218172}
+{"txn_id": 222, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 890}, "created_by_txn": 222, "deleted_by_txn": null, "begin_ts": 222, "end_ts": null}, "lsn": 658, "timestamp": 1782047585.321995}
+{"txn_id": 222, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 659, "timestamp": 1782047585.3220491}
+{"txn_id": 223, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 660, "timestamp": 1782047585.323217}
+{"txn_id": 223, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 661, "timestamp": 1782047585.323424}
+{"txn_id": 224, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 662, "timestamp": 1782047585.335127}
+{"txn_id": 224, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 890}, "created_by_txn": 222, "deleted_by_txn": null, "begin_ts": 222, "end_ts": null}, "new_value": null, "lsn": 663, "timestamp": 1782047585.3354099}
+{"txn_id": 224, "type": "INSERT", "table": "test_rw", "operation": [2, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 400}, "created_by_txn": 224, "deleted_by_txn": null, "begin_ts": 224, "end_ts": null}, "lsn": 664, "timestamp": 1782047585.336087}
+{"txn_id": 224, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 665, "timestamp": 1782047585.336131}
+{"txn_id": 225, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 666, "timestamp": 1782047585.3365319}
+{"txn_id": 225, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 667, "timestamp": 1782047585.3366988}
+{"txn_id": 226, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 668, "timestamp": 1782047585.348255}
+{"txn_id": 226, "type": "DELETE", "table": "test_rw", "operation": [2, 0], "old_value": {"_data": {"id": 1, "val": 400}, "created_by_txn": 224, "deleted_by_txn": null, "begin_ts": 224, "end_ts": null}, "new_value": null, "lsn": 669, "timestamp": 1782047585.34852}
+{"txn_id": 226, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 853}, "created_by_txn": 226, "deleted_by_txn": null, "begin_ts": 226, "end_ts": null}, "lsn": 670, "timestamp": 1782047585.3493}
+{"txn_id": 226, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 671, "timestamp": 1782047585.34935}
+{"txn_id": 227, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 672, "timestamp": 1782047585.361106}
+{"txn_id": 227, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 673, "timestamp": 1782047585.3613498}
+{"txn_id": 228, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 674, "timestamp": 1782047585.373745}
+{"txn_id": 228, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 853}, "created_by_txn": 226, "deleted_by_txn": null, "begin_ts": 226, "end_ts": null}, "new_value": null, "lsn": 675, "timestamp": 1782047585.373934}
+{"txn_id": 228, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 612}, "created_by_txn": 228, "deleted_by_txn": null, "begin_ts": 228, "end_ts": null}, "lsn": 676, "timestamp": 1782047585.374072}
+{"txn_id": 228, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 677, "timestamp": 1782047585.3741162}
+{"txn_id": 229, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 678, "timestamp": 1782047585.374635}
+{"txn_id": 229, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 679, "timestamp": 1782047585.3748171}
+{"txn_id": 230, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 680, "timestamp": 1782047585.3853178}
+{"txn_id": 230, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 612}, "created_by_txn": 228, "deleted_by_txn": null, "begin_ts": 228, "end_ts": null}, "new_value": null, "lsn": 681, "timestamp": 1782047585.386752}
+{"txn_id": 230, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 124}, "created_by_txn": 230, "deleted_by_txn": null, "begin_ts": 230, "end_ts": null}, "lsn": 682, "timestamp": 1782047585.387962}
+{"txn_id": 230, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 683, "timestamp": 1782047585.388007}
+{"txn_id": 231, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 684, "timestamp": 1782047585.4006789}
+{"txn_id": 231, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 685, "timestamp": 1782047585.400958}
+{"txn_id": 232, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 686, "timestamp": 1782047585.4137468}
+{"txn_id": 232, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 124}, "created_by_txn": 230, "deleted_by_txn": null, "begin_ts": 230, "end_ts": null}, "new_value": null, "lsn": 687, "timestamp": 1782047585.414148}
+{"txn_id": 232, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 641}, "created_by_txn": 232, "deleted_by_txn": null, "begin_ts": 232, "end_ts": null}, "lsn": 688, "timestamp": 1782047585.414371}
+{"txn_id": 232, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 689, "timestamp": 1782047585.414436}
+{"txn_id": 233, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 690, "timestamp": 1782047585.4259892}
+{"txn_id": 233, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 691, "timestamp": 1782047585.426359}
+{"txn_id": 234, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 692, "timestamp": 1782047585.4379}
+{"txn_id": 234, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 693, "timestamp": 1782047585.438359}
+{"txn_id": 235, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 694, "timestamp": 1782047585.451016}
+{"txn_id": 235, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 641}, "created_by_txn": 232, "deleted_by_txn": null, "begin_ts": 232, "end_ts": null}, "new_value": null, "lsn": 695, "timestamp": 1782047585.451275}
+{"txn_id": 235, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 290}, "created_by_txn": 235, "deleted_by_txn": null, "begin_ts": 235, "end_ts": null}, "lsn": 696, "timestamp": 1782047585.451488}
+{"txn_id": 235, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 697, "timestamp": 1782047585.45155}
+{"txn_id": 236, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 698, "timestamp": 1782047585.461854}
+{"txn_id": 236, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 699, "timestamp": 1782047585.4622452}
+{"txn_id": 237, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 700, "timestamp": 1782047585.463688}
+{"txn_id": 237, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 290}, "created_by_txn": 235, "deleted_by_txn": null, "begin_ts": 235, "end_ts": null}, "new_value": null, "lsn": 701, "timestamp": 1782047585.463915}
+{"txn_id": 237, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 923}, "created_by_txn": 237, "deleted_by_txn": null, "begin_ts": 237, "end_ts": null}, "lsn": 702, "timestamp": 1782047585.464109}
+{"txn_id": 237, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 703, "timestamp": 1782047585.46417}
+{"txn_id": 238, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 704, "timestamp": 1782047585.4756439}
+{"txn_id": 238, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 705, "timestamp": 1782047585.475923}
+{"txn_id": 239, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 706, "timestamp": 1782047585.477227}
+{"txn_id": 239, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 923}, "created_by_txn": 237, "deleted_by_txn": null, "begin_ts": 237, "end_ts": null}, "new_value": null, "lsn": 707, "timestamp": 1782047585.477392}
+{"txn_id": 239, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 555}, "created_by_txn": 239, "deleted_by_txn": null, "begin_ts": 239, "end_ts": null}, "lsn": 708, "timestamp": 1782047585.477528}
+{"txn_id": 239, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 709, "timestamp": 1782047585.477568}
+{"txn_id": 240, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 710, "timestamp": 1782047585.487932}
+{"txn_id": 240, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 711, "timestamp": 1782047585.488239}
+{"txn_id": 241, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 712, "timestamp": 1782047585.489475}
+{"txn_id": 241, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 555}, "created_by_txn": 239, "deleted_by_txn": null, "begin_ts": 239, "end_ts": null}, "new_value": null, "lsn": 713, "timestamp": 1782047585.4896472}
+{"txn_id": 241, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 751}, "created_by_txn": 241, "deleted_by_txn": null, "begin_ts": 241, "end_ts": null}, "lsn": 714, "timestamp": 1782047585.489795}
+{"txn_id": 241, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 715, "timestamp": 1782047585.4898372}
+{"txn_id": 242, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 716, "timestamp": 1782047585.499416}
+{"txn_id": 242, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 717, "timestamp": 1782047585.499818}
+{"txn_id": 243, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 718, "timestamp": 1782047585.501309}
+{"txn_id": 243, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 751}, "created_by_txn": 241, "deleted_by_txn": null, "begin_ts": 241, "end_ts": null}, "new_value": null, "lsn": 719, "timestamp": 1782047585.50152}
+{"txn_id": 243, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 708}, "created_by_txn": 243, "deleted_by_txn": null, "begin_ts": 243, "end_ts": null}, "lsn": 720, "timestamp": 1782047585.5016818}
+{"txn_id": 243, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 721, "timestamp": 1782047585.501751}
+{"txn_id": 244, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 722, "timestamp": 1782047585.51325}
+{"txn_id": 244, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 723, "timestamp": 1782047585.513569}
+{"txn_id": 245, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 724, "timestamp": 1782047585.52607}
+{"txn_id": 245, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 725, "timestamp": 1782047585.52645}
+{"txn_id": 246, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 726, "timestamp": 1782047585.536407}
+{"txn_id": 246, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 708}, "created_by_txn": 243, "deleted_by_txn": null, "begin_ts": 243, "end_ts": null}, "new_value": null, "lsn": 727, "timestamp": 1782047585.536756}
+{"txn_id": 246, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 701}, "created_by_txn": 246, "deleted_by_txn": null, "begin_ts": 246, "end_ts": null}, "lsn": 728, "timestamp": 1782047585.536937}
+{"txn_id": 246, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 729, "timestamp": 1782047585.536991}
+{"txn_id": 247, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 730, "timestamp": 1782047585.5392199}
+{"txn_id": 247, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 731, "timestamp": 1782047585.539422}
+{"txn_id": 248, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 732, "timestamp": 1782047585.549814}
+{"txn_id": 248, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 701}, "created_by_txn": 246, "deleted_by_txn": null, "begin_ts": 246, "end_ts": null}, "new_value": null, "lsn": 733, "timestamp": 1782047585.5502322}
+{"txn_id": 248, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 287}, "created_by_txn": 248, "deleted_by_txn": null, "begin_ts": 248, "end_ts": null}, "lsn": 734, "timestamp": 1782047585.550434}
+{"txn_id": 248, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 735, "timestamp": 1782047585.550497}
+{"txn_id": 249, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 736, "timestamp": 1782047585.551728}
+{"txn_id": 249, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 737, "timestamp": 1782047585.552263}
+{"txn_id": 250, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 738, "timestamp": 1782047585.563408}
+{"txn_id": 250, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 287}, "created_by_txn": 248, "deleted_by_txn": null, "begin_ts": 248, "end_ts": null}, "new_value": null, "lsn": 739, "timestamp": 1782047585.563665}
+{"txn_id": 250, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 145}, "created_by_txn": 250, "deleted_by_txn": null, "begin_ts": 250, "end_ts": null}, "lsn": 740, "timestamp": 1782047585.563849}
+{"txn_id": 250, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 741, "timestamp": 1782047585.563901}
+{"txn_id": 251, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 742, "timestamp": 1782047585.565312}
+{"txn_id": 251, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 743, "timestamp": 1782047585.565485}
+{"txn_id": 252, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 744, "timestamp": 1782047585.574813}
+{"txn_id": 252, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 145}, "created_by_txn": 250, "deleted_by_txn": null, "begin_ts": 250, "end_ts": null}, "new_value": null, "lsn": 745, "timestamp": 1782047585.575073}
+{"txn_id": 252, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 388}, "created_by_txn": 252, "deleted_by_txn": null, "begin_ts": 252, "end_ts": null}, "lsn": 746, "timestamp": 1782047585.575238}
+{"txn_id": 252, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 747, "timestamp": 1782047585.575284}
+{"txn_id": 253, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 748, "timestamp": 1782047585.578044}
+{"txn_id": 253, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 749, "timestamp": 1782047585.578296}
+{"txn_id": 254, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 750, "timestamp": 1782047585.588437}
+{"txn_id": 254, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 388}, "created_by_txn": 252, "deleted_by_txn": null, "begin_ts": 252, "end_ts": null}, "new_value": null, "lsn": 751, "timestamp": 1782047585.588589}
+{"txn_id": 254, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 811}, "created_by_txn": 254, "deleted_by_txn": null, "begin_ts": 254, "end_ts": null}, "lsn": 752, "timestamp": 1782047585.588715}
+{"txn_id": 254, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 753, "timestamp": 1782047585.588757}
+{"txn_id": 255, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 754, "timestamp": 1782047585.592351}
+{"txn_id": 255, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 755, "timestamp": 1782047585.592499}
+{"txn_id": 256, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 756, "timestamp": 1782047585.601772}
+{"txn_id": 256, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 811}, "created_by_txn": 254, "deleted_by_txn": null, "begin_ts": 254, "end_ts": null}, "new_value": null, "lsn": 757, "timestamp": 1782047585.6019268}
+{"txn_id": 256, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 895}, "created_by_txn": 256, "deleted_by_txn": null, "begin_ts": 256, "end_ts": null}, "lsn": 758, "timestamp": 1782047585.6020539}
+{"txn_id": 256, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 759, "timestamp": 1782047585.602099}
+{"txn_id": 257, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 760, "timestamp": 1782047585.6071239}
+{"txn_id": 257, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 761, "timestamp": 1782047585.607342}
+{"txn_id": 258, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 762, "timestamp": 1782047585.6243289}
+{"txn_id": 258, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 895}, "created_by_txn": 256, "deleted_by_txn": null, "begin_ts": 256, "end_ts": null}, "new_value": null, "lsn": 763, "timestamp": 1782047585.624615}
+{"txn_id": 258, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 526}, "created_by_txn": 258, "deleted_by_txn": null, "begin_ts": 258, "end_ts": null}, "lsn": 764, "timestamp": 1782047585.624779}
+{"txn_id": 258, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 765, "timestamp": 1782047585.624824}
+{"txn_id": 259, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 766, "timestamp": 1782047585.635357}
+{"txn_id": 259, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 767, "timestamp": 1782047585.63551}
+{"txn_id": 260, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 768, "timestamp": 1782047585.6379762}
+{"txn_id": 260, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 526}, "created_by_txn": 258, "deleted_by_txn": null, "begin_ts": 258, "end_ts": null}, "new_value": null, "lsn": 769, "timestamp": 1782047585.6380649}
+{"txn_id": 260, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 696}, "created_by_txn": 260, "deleted_by_txn": null, "begin_ts": 260, "end_ts": null}, "lsn": 770, "timestamp": 1782047585.638125}
+{"txn_id": 260, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 771, "timestamp": 1782047585.638144}
+{"txn_id": 261, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 772, "timestamp": 1782047585.646985}
+{"txn_id": 261, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 773, "timestamp": 1782047585.647091}
+{"txn_id": 262, "type": "BEGIN", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 774, "timestamp": 1782047585.65099}
+{"txn_id": 262, "type": "DELETE", "table": "test_rw", "operation": [3, 0], "old_value": {"_data": {"id": 1, "val": 696}, "created_by_txn": 260, "deleted_by_txn": null, "begin_ts": 260, "end_ts": null}, "new_value": null, "lsn": 775, "timestamp": 1782047585.651073}
+{"txn_id": 262, "type": "INSERT", "table": "test_rw", "operation": [3, 0], "old_value": null, "new_value": {"_data": {"id": 1, "val": 819}, "created_by_txn": 262, "deleted_by_txn": null, "begin_ts": 262, "end_ts": null}, "lsn": 776, "timestamp": 1782047585.651145}
+{"txn_id": 262, "type": "COMMIT", "table": null, "operation": null, "old_value": null, "new_value": null, "lsn": 777, "timestamp": 1782047585.651167}
