@@ -10,12 +10,12 @@ WAL recovery, and MVCC as the extension track.
 
 **Team Name:** AnimeLovers
 
-| Name | Scaler Email | Roll Number |
+| Name | Github Handle | Roll Number |
 |------|-------------|-------------|
-| Navjeet Singh | amrinder.singh@scalerailabs.com | SCALER_NJ_01 |
-| Yash (heavycoderyash) | yashisyash13112004@gmail.com | SCALER_YS_02 |
-| Aadi (ARRY7686) | aadi.24bcs10167@sst.scaler.com | SCALER_AD_03 |
-| Kavya Dhyani | kavyadhyani10@gmail.com | SCALER_KD_04 |
+| Navjeet Singh | MadaraUchiha-tech | 24BCS10281 |
+| Yash Solanki | heavycoderyash | 24BCS10291 |
+| Aadi Gupta | ARRY7686 | 24BCS10167 |
+| Kavya Dhyani | KavyaDhyani | 24BCS10216 |
 
 ---
 
