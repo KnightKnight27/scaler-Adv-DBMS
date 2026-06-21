@@ -88,6 +88,11 @@ public:
     BPlusTree&         index()        { return index_; }
     const BPlusTree&   index() const  { return index_; }
 
+    // Estimated number of live rows — used by the optimizer for join ordering.
+    // Uses the primary-key index size when available (O(n) walk, cheap at our
+    // scale); falls back to a page-based estimate otherwise.
+    size_t approx_row_count() const;
+
 private:
     TableSchema                 schema_;
     std::string                 db_dir_;
@@ -113,11 +118,31 @@ struct QueryPlan {
     bool        has_hi = false;
 };
 
+// Result of join-order selection: which input is the OUTER (streamed) relation
+// of the nested-loop join, and the estimated cardinalities behind the decision.
+struct JoinPlan {
+    bool   from_is_outer;          // true → stream FROM, materialise JOIN table
+    size_t from_rows;              // estimated rows of FROM table (after WHERE)
+    size_t join_rows;              // estimated rows of JOIN table
+};
+
 class Optimizer {
 public:
     // Decide how to execute the WHERE clause for the given table
     QueryPlan plan(const TableSchema& schema, const HeapTable& table,
                    bool has_where, const Condition& cond);
+
+    // Estimated rows matching `cond` on this table (base rows × selectivity).
+    size_t estimate_cardinality(const TableSchema& schema, const HeapTable& table,
+                                bool has_where, const Condition& cond) const;
+
+    // Join-order selection: materialise the SMALLER relation as the inner side
+    // of the nested-loop join and stream the larger one. For a nested-loop join
+    // this minimises the materialised set (memory) and the number of outer
+    // iterations that each re-scan the inner.
+    JoinPlan plan_join(const TableSchema& from_s, const HeapTable& from_t, bool from_has_where,
+                       const Condition& where,
+                       const TableSchema& join_s, const HeapTable& join_t);
 private:
     // Rough selectivity: fraction of rows expected to match this condition
     double selectivity(const Condition& cond, const TableSchema& schema) const;

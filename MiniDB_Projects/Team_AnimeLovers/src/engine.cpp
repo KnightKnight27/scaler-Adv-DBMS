@@ -175,6 +175,16 @@ std::vector<std::pair<RID, Row>> HeapTable::index_range(const Value& lo, const V
     return result;
 }
 
+size_t HeapTable::approx_row_count() const {
+    // With a primary-key index, every live row has exactly one index entry.
+    if (schema_.pk_col >= 0 && !index_.empty())
+        return index_.scan_all().size();
+    // No index: count live rows by scanning (fine at teaching scale).
+    size_t n = 0;
+    scan([&](RID, const Row&) { ++n; });
+    return n;
+}
+
 // ─── Optimizer ────────────────────────────────────────────────────────────────
 //
 // Cost model (pages read):
@@ -222,6 +232,25 @@ QueryPlan Optimizer::plan(const TableSchema& schema, const HeapTable& table,
         }
     }
     return {ScanType::TABLE_SCAN, schema.table_name};
+}
+
+size_t Optimizer::estimate_cardinality(const TableSchema& schema, const HeapTable& table,
+                                       bool has_where, const Condition& cond) const {
+    size_t base = table.approx_row_count();
+    if (!has_where) return base;
+    double est = base * selectivity(cond, schema);
+    return est < 1.0 ? 1 : static_cast<size_t>(est);
+}
+
+JoinPlan Optimizer::plan_join(const TableSchema& from_s, const HeapTable& from_t,
+                              bool from_has_where, const Condition& where,
+                              const TableSchema& join_s, const HeapTable& join_t) {
+    size_t from_rows = estimate_cardinality(from_s, from_t, from_has_where, where);
+    size_t join_rows = estimate_cardinality(join_s, join_t, false, where);
+    // Stream the larger relation, materialise the smaller one as the inner side
+    // of the nested-loop join. (Equal sizes → keep FROM as outer, deterministic.)
+    bool from_is_outer = from_rows >= join_rows;
+    return {from_is_outer, from_rows, join_rows};
 }
 
 // ─── Executor helpers ────────────────────────────────────────────────────────
@@ -324,37 +353,54 @@ ResultSet Executor::execute_select(const SelectStmt& s) {
         return rs;
     }
 
-    // JOIN: nested-loop join with the right table
+    // ── JOIN: nested-loop join ────────────────────────────────────────────
+    // `left_rows` already holds the FROM table filtered by WHERE. We also
+    // materialise the JOIN table, then let the optimizer pick the join order:
+    // the smaller relation becomes the inner (build) side, the larger the outer.
     auto& rschema = catalog_.get(s.join_table);
     auto& rtbl    = *tables_.at(s.join_table);
 
-    // Prepend right-table column names to output list
+    std::vector<Row> join_rows;
+    rtbl.scan([&](RID, const Row& row) { join_rows.push_back(row); });
+
+    JoinPlan jp = opt_.plan_join(schema, tbl, s.has_where, s.where_cond, rschema, rtbl);
+
+    // Output columns are always FROM-table columns first, then JOIN-table
+    // columns, regardless of which relation we physically stream.
     if (s.star) for (auto& c : rschema.columns) rs.columns.push_back(c.name);
 
-    rtbl.scan([&](RID /*rrid*/, const Row& rrow) {
-        for (auto& [lid, lrow] : left_rows) {
-            if (eval_cond(s.join_cond, schema, lrow, &rschema, &rrow)) {
-                // Apply WHERE on the joined row if present
-                Row combined = lrow;
-                combined.insert(combined.end(), rrow.begin(), rrow.end());
-                // Build output
-                Row out;
-                for (auto& cn : (s.star ? std::vector<std::string>{} : rs.columns)) {
-                    // Try left schema then right schema
-                    int i = schema.col_index(cn);
-                    if (i >= 0) { out.push_back(lrow[i]); continue; }
-                    i = rschema.col_index(cn);
-                    if (i >= 0) { out.push_back(rrow[i]); continue; }
-                    throw std::runtime_error("Column not found: " + cn);
-                }
-                if (s.star) {
-                    out = lrow;
-                    out.insert(out.end(), rrow.begin(), rrow.end());
-                }
-                rs.rows.push_back(std::move(out));
-            }
+    // Emit one combined result row from a (FROM row, JOIN row) match.
+    auto emit = [&](const Row& frow, const Row& jrow) {
+        if (s.star) {
+            Row out = frow;
+            out.insert(out.end(), jrow.begin(), jrow.end());
+            rs.rows.push_back(std::move(out));
+            return;
         }
-    });
+        Row out;
+        for (auto& cn : rs.columns) {
+            int i = schema.col_index(cn);
+            if (i >= 0) { out.push_back(frow[i]); continue; }
+            i = rschema.col_index(cn);
+            if (i >= 0) { out.push_back(jrow[i]); continue; }
+            throw std::runtime_error("Column not found: " + cn);
+        }
+        rs.rows.push_back(std::move(out));
+    };
+
+    // Always evaluate the join condition with (FROM schema, JOIN schema) so
+    // qualifier resolution is independent of the chosen loop order.
+    if (jp.from_is_outer) {
+        for (auto& [lid, frow] : left_rows)
+            for (auto& jrow : join_rows)
+                if (eval_cond(s.join_cond, schema, frow, &rschema, &jrow))
+                    emit(frow, jrow);
+    } else {
+        for (auto& jrow : join_rows)
+            for (auto& [lid, frow] : left_rows)
+                if (eval_cond(s.join_cond, schema, frow, &rschema, &jrow))
+                    emit(frow, jrow);
+    }
     return rs;
 }
 
