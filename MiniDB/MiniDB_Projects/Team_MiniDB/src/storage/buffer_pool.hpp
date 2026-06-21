@@ -20,6 +20,11 @@ class BufferPool {
 public:
     explicit BufferPool(DiskManager& disk, std::size_t num_frames = DEFAULT_POOL_FRAMES);
 
+    // Flush all dirty frames on destruction so a clean shutdown is durable
+    // without the caller having to remember flush_all(). Safe because the pool
+    // is declared before — so destroyed after — the DiskManager it writes to.
+    ~BufferPool();
+
     // Bring page `id` into a frame (loading from disk on a miss) and pin it.
     // Returns a pointer to its PAGE_SIZE bytes, valid until the matching unpin.
     char* fetch_page(PageID id);

@@ -9,6 +9,8 @@ constexpr std::uint8_t MAX_USAGE = 5;  // usage cap (same as lab 3 / PostgreSQL)
 BufferPool::BufferPool(DiskManager& disk, std::size_t num_frames)
     : disk_(disk), frames_(num_frames) {}
 
+BufferPool::~BufferPool() { flush_all(); }
+
 char* BufferPool::fetch_page(PageID id) {
     // Hit: page already resident. Pin it and bump its usage ("hotness").
     auto it = table_.find(id);

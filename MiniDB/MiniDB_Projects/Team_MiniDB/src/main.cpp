@@ -1,63 +1,61 @@
-#include <cstdio>
 #include <iostream>
+#include <iterator>
+#include <stdexcept>
 #include <string>
-#include <vector>
 
-#include "storage/buffer_pool.hpp"
-#include "storage/disk_manager.hpp"
-#include "storage/heap_file.hpp"
+#include "catalog/catalog.hpp"
+#include "query/executor.hpp"
+#include "query/lexer.hpp"
+#include "query/parser.hpp"
 
-// Phase 1 driver: proves the storage spine persists tuples to disk.
-// Later phases replace this with a SQL REPL.
+// MiniDB REPL. Reads SQL from stdin, splits on ';', and runs each statement
+// against a Catalog. Per-table data files live in the directory given as argv[1]
+// (default "."). Each statement's plan and result print below it.
 
-static const char* kDbFile = "minidb_data.db";
+namespace {
 
-static void write_phase() {
-    DiskManager disk(kDbFile);
-    BufferPool pool(disk);
-    HeapFile heap(pool, disk);
-
-    const std::vector<std::string> rows = {
-        "1|Kartik|20", "2|Krishank|30", "3|Sandip|15", "4|Nitish|17", "5|Kp|20",
-    };
-    for (const std::string& r : rows) {
-        RowID rid = heap.insert(r);
-        std::cout << "  insert '" << r << "' -> (page=" << rid.page_id
-                  << ", slot=" << rid.slot << ")\n";
-    }
-    pool.flush_all();  // push dirty pages to disk so they outlive this process
-    std::cout << "  flushed " << disk.num_pages() << " page(s) to " << kDbFile << "\n";
+bool has_content(const std::string& s) {
+    for (char c : s) if (!std::isspace(static_cast<unsigned char>(c))) return true;
+    return false;
 }
 
-static void scan_phase() {
-    DiskManager disk(kDbFile);
-    BufferPool pool(disk);
-    HeapFile heap(pool, disk);
-
-    std::cout << "  reading " << disk.num_pages() << " page(s) back from disk:\n";
-    for (const auto& [rid, tuple] : heap.scan()) {
-        std::cout << "    (page=" << rid.page_id << ", slot=" << rid.slot
-                  << ") -> " << tuple << "\n";
-    }
+std::string trim(const std::string& s) {
+    std::size_t a = 0, b = s.size();
+    while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
+    while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
+    return s.substr(a, b - a);
 }
+
+void run_statement(const std::string& sql, Catalog& cat) {
+    std::cout << "minidb> " << trim(sql) << ";\n";
+    try {
+        Lexer lexer(sql);
+        Parser parser(lexer.tokenize());
+        Statement stmt = parser.parse();
+        execute_statement(stmt, cat, std::cout);
+    } catch (const std::exception& e) {
+        std::cout << "ERROR: " << e.what() << "\n";
+    }
+    std::cout << "\n";
+}
+
+}  // namespace
 
 int main(int argc, char** argv) {
-    std::string cmd = (argc > 1) ? argv[1] : "demo";
+    std::string dir = (argc > 1) ? argv[1] : ".";
+    Catalog catalog(dir);
 
-    if (cmd == "init") {
-        write_phase();
-    } else if (cmd == "scan") {
-        scan_phase();
-    } else {
-        // Self-contained demo: start from a clean file, write, then read it
-        // back through brand-new objects so the data can only have come from
-        // disk — not from anything cached in memory.
-        std::remove(kDbFile);
-        std::cout << "== WRITE phase ==\n";
-        write_phase();
-        std::cout << "\n== READ phase (fresh objects, reopened file) ==\n";
-        scan_phase();
-        std::cout << "\nTip: run './minidb init' then './minidb scan' to prove it across two processes.\n";
+    // Read all of stdin, then execute one statement per ';'-separated chunk.
+    std::string input((std::istreambuf_iterator<char>(std::cin)),
+                      std::istreambuf_iterator<char>());
+
+    std::size_t i = 0;
+    while (i < input.size()) {
+        std::size_t semi = input.find(';', i);
+        std::string chunk = (semi == std::string::npos) ? input.substr(i) : input.substr(i, semi - i);
+        if (has_content(chunk)) run_statement(chunk, catalog);
+        if (semi == std::string::npos) break;
+        i = semi + 1;
     }
     return 0;
 }
