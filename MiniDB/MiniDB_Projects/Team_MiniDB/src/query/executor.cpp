@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "../catalog/catalog.hpp"
+#include "../catalog/database.hpp"
 #include "optimizer.hpp"
 
 namespace {
@@ -308,8 +309,8 @@ void exec_create(const CreateStmt& s, Catalog& cat, std::ostream& out) {
     out << "table '" << s.table << "' created\n";
 }
 
-void exec_insert(const InsertStmt& s, Catalog& cat, std::ostream& out) {
-    Table* t = cat.get_table(s.table);
+void exec_insert(const InsertStmt& s, Database& db, std::ostream& out) {
+    Table* t = db.catalog().get_table(s.table);
     if (!t) throw std::runtime_error("no such table: " + s.table);
     if (s.values.size() != t->schema.columns.size())
         throw std::runtime_error("column count mismatch");
@@ -321,26 +322,37 @@ void exec_insert(const InsertStmt& s, Catalog& cat, std::ostream& out) {
     }
     int key = std::get<int>(s.values[static_cast<std::size_t>(t->pk_col)]);
     if (t->index->search(key)) throw std::runtime_error("duplicate primary key");
-    RowID rid = t->heap->insert(t->schema.serialize(s.values));
+
+    std::string bytes = t->schema.serialize(s.values);
+    TxID tx = db.begin_stmt();
+    db.wal().append({LogType::INSERT, tx, s.table, key, bytes});  // write-ahead, before the heap page
+    RowID rid = t->heap->insert(bytes);
     t->index->insert(key, rid);
     ++t->row_count;
+    db.track_insert(s.table, key, rid);
+    db.end_stmt(true);
     out << "1 row inserted\n";
 }
 
-void exec_delete(const DeleteStmt& s, Catalog& cat, std::ostream& out) {
-    Table* t = cat.get_table(s.table);
+void exec_delete(const DeleteStmt& s, Database& db, std::ostream& out) {
+    Table* t = db.catalog().get_table(s.table);
     if (!t) throw std::runtime_error("no such table: " + s.table);
     ExecSchema sch = schema_of(*t);
+    TxID tx = db.begin_stmt();
     int n = 0;
     for (auto& [rid, bytes] : t->heap->scan()) {  // scan() is a snapshot; safe to erase
         Row row = t->schema.deserialize(bytes);
         if (!s.where || eval_pred(s.where.get(), row, sch)) {
+            int pk = std::get<int>(row[static_cast<std::size_t>(t->pk_col)]);
+            db.wal().append({LogType::DELETE, tx, s.table, pk, bytes});  // before-image, for UNDO
             t->heap->erase(rid);
-            t->index->remove(std::get<int>(row[static_cast<std::size_t>(t->pk_col)]));
+            t->index->remove(pk);
+            if (t->row_count) --t->row_count;
+            db.track_delete(s.table, pk, bytes);
             ++n;
         }
     }
-    t->row_count -= static_cast<std::size_t>(n);
+    db.end_stmt(true);
     out << n << " row(s) deleted\n";
 }
 
@@ -359,9 +371,12 @@ void exec_select(const SelectStmt& s, Catalog& cat, std::ostream& out) {
 
 }  // namespace
 
-void execute_statement(const Statement& stmt, Catalog& catalog, std::ostream& out) {
-    if (auto* c = std::get_if<CreateStmt>(&stmt)) exec_create(*c, catalog, out);
-    else if (auto* i = std::get_if<InsertStmt>(&stmt)) exec_insert(*i, catalog, out);
-    else if (auto* s = std::get_if<SelectStmt>(&stmt)) exec_select(*s, catalog, out);
-    else if (auto* d = std::get_if<DeleteStmt>(&stmt)) exec_delete(*d, catalog, out);
+void execute_statement(const Statement& stmt, Database& db, std::ostream& out) {
+    if (auto* c = std::get_if<CreateStmt>(&stmt)) exec_create(*c, db.catalog(), out);
+    else if (auto* i = std::get_if<InsertStmt>(&stmt)) exec_insert(*i, db, out);
+    else if (auto* s = std::get_if<SelectStmt>(&stmt)) exec_select(*s, db.catalog(), out);
+    else if (auto* d = std::get_if<DeleteStmt>(&stmt)) exec_delete(*d, db, out);
+    else if (std::get_if<BeginStmt>(&stmt)) { db.begin(); out << "BEGIN\n"; }
+    else if (std::get_if<CommitStmt>(&stmt)) { db.commit(); out << "COMMIT\n"; }
+    else if (std::get_if<RollbackStmt>(&stmt)) { db.rollback(); out << "ROLLBACK\n"; }
 }

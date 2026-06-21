@@ -70,5 +70,11 @@ struct DeleteStmt {
     std::unique_ptr<Expr> where;            // null = delete all
 };
 
+// Transaction-control statements (no fields).
+struct BeginStmt {};
+struct CommitStmt {};
+struct RollbackStmt {};
+
 // A parsed statement is exactly one of these.
-using Statement = std::variant<CreateStmt, InsertStmt, SelectStmt, DeleteStmt>;
+using Statement = std::variant<CreateStmt, InsertStmt, SelectStmt, DeleteStmt,
+                               BeginStmt, CommitStmt, RollbackStmt>;

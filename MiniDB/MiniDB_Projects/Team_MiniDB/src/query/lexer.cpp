@@ -14,6 +14,7 @@ const std::unordered_map<std::string, Tok>& keywords() {
         {"JOIN", Tok::JOIN}, {"ON", Tok::ON}, {"AND", Tok::AND}, {"OR", Tok::OR},
         {"INT", Tok::INT_KW}, {"TEXT", Tok::TEXT_KW},
         {"PRIMARY", Tok::PRIMARY}, {"KEY", Tok::KEY},
+        {"BEGIN", Tok::BEGIN}, {"COMMIT", Tok::COMMIT}, {"ROLLBACK", Tok::ROLLBACK},
     };
     return kw;
 }

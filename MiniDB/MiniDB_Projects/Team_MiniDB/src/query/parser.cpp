@@ -11,10 +11,13 @@ const Token& Parser::expect(Tok t, const char* what) {
 Statement Parser::parse() {
     Statement stmt;
     switch (peek().type) {
-        case Tok::CREATE: stmt = parse_create(); break;
-        case Tok::INSERT: stmt = parse_insert(); break;
-        case Tok::SELECT: stmt = parse_select(); break;
-        case Tok::DELETE: stmt = parse_delete(); break;
+        case Tok::CREATE:   stmt = parse_create(); break;
+        case Tok::INSERT:   stmt = parse_insert(); break;
+        case Tok::SELECT:   stmt = parse_select(); break;
+        case Tok::DELETE:   stmt = parse_delete(); break;
+        case Tok::BEGIN:    advance(); stmt = BeginStmt{};    break;
+        case Tok::COMMIT:   advance(); stmt = CommitStmt{};   break;
+        case Tok::ROLLBACK: advance(); stmt = RollbackStmt{}; break;
         default: throw std::runtime_error("parse error: expected a statement keyword");
     }
     match(Tok::SEMI);  // optional trailing ';'
