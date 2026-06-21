@@ -1,0 +1,50 @@
+{
+  "index_vs_scan": {
+    "rows": 5000,
+    "queries": 2000,
+    "index_scan_ms": 0.6475,
+    "seq_scan_ms": 14.7246,
+    "speedup_x": 22.7
+  },
+  "insert_throughput": {
+    "rows": 5000,
+    "autocommit_rows_per_sec": 1672,
+    "batched_txn_rows_per_sec": 24190,
+    "batch_speedup_x": 14.5
+  },
+  "buffer_pool": {
+    "rows": 5000,
+    "data_pages": 120,
+    "by_pool_size": [
+      {
+        "pool_frames": 4,
+        "hit_ratio": 0.0,
+        "five_scans_ms": 65.3
+      },
+      {
+        "pool_frames": 16,
+        "hit_ratio": 0.0,
+        "five_scans_ms": 85.5
+      },
+      {
+        "pool_frames": 64,
+        "hit_ratio": 0.011,
+        "five_scans_ms": 64.7
+      },
+      {
+        "pool_frames": 256,
+        "hit_ratio": 0.833,
+        "five_scans_ms": 63.6
+      }
+    ]
+  },
+  "replication": {
+    "rows": 5000,
+    "log_records_shipped": 5004,
+    "apply_seconds": 0.0224,
+    "records_per_sec": 223485,
+    "primary_rows": 5000,
+    "replica_rows": 5000,
+    "consistent": true
+  }
+}
