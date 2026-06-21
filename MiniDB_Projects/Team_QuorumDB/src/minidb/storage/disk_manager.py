@@ -50,11 +50,16 @@ class DiskManager:
             self._f.write(page.to_bytes())
 
     def allocate_page(self) -> int:
-        """Grow the file by one page and return the new page id."""
+        """Grow the file by one page and return the new page id.
+
+        The new page is written as a *valid empty page* (proper header) rather
+        than raw zeros, so that even if it is never written again before a
+        crash, recovery reads a well-formed page it can redo onto.
+        """
         with self._lock:
             page_id = self.num_pages
             self._f.seek(page_id * PAGE_SIZE)
-            self._f.write(bytes(PAGE_SIZE))
+            self._f.write(Page(page_id).to_bytes())
             self.num_pages += 1
             return page_id
 
