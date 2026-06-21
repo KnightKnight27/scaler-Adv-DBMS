@@ -11,12 +11,14 @@ write-ahead-logging crash recovery — wired together behind a SQL REPL.
 
 ## Team
 
-> **Team name:** `Team_MiniDB` &nbsp;_(rename before final submission)_
+> **Team name:** `Team_B+inC++`
 
 | Full Name | Scaler Email | Roll Number |
 | --------- | ------------ | ----------- |
-| _FILL IN_ | _FILL IN_    | _FILL IN_   |
-| _FILL IN_ | _FILL IN_    | _FILL IN_   |
+| Ankur Kalita    | ankur.23bcs10185@sst.scaler.com    | 23BCS10185 |
+| Manjari Rathore | manjari.23bcs10192@sst.scaler.com  | 23BCS10192 |
+| Kushagra Sharma | kushagra.23bcs10165@sst.scaler.com | 23BCS10165 |
+| Sandip Dey      | sandip.23bcs10114@sst.scaler.com   | 23BCS10114 |
 
 ---
 
