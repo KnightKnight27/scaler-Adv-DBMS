@@ -8,7 +8,10 @@ SRCS     := $(shell find src -name '*.cpp')
 OBJS     := $(SRCS:.cpp=.o)
 BIN      := minidb
 
-.PHONY: all run clean
+BENCH_SRC := benchmarks/bench_mvcc_vs_2pl.cpp src/txn/transaction_manager.cpp
+BENCH_BIN := benchmarks/bench
+
+.PHONY: all run bench clean
 
 all: $(BIN)
 
@@ -21,5 +24,10 @@ $(BIN): $(OBJS)
 run: $(BIN)
 	./$(BIN)
 
+# Track B benchmark: MVCC vs 2PL under contention.
+bench: $(BENCH_SRC)
+	$(CXX) $(CXXFLAGS) -o $(BENCH_BIN) $(BENCH_SRC) $(LDFLAGS)
+	./$(BENCH_BIN)
+
 clean:
-	rm -f $(OBJS) $(BIN) minidb_data.db
+	rm -f $(OBJS) $(BIN) $(BENCH_BIN) minidb_data.db *.db

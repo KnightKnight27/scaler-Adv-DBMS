@@ -20,6 +20,7 @@ struct Table {
     std::string                   name;
     Schema                        schema;
     int                           pk_col = 0;   // primary-key column (must be INT)
+    std::size_t                   row_count = 0;  // live rows; used by the optimizer
     std::unique_ptr<DiskManager>  disk;
     std::unique_ptr<BufferPool>   pool;
     std::unique_ptr<HeapFile>     heap;

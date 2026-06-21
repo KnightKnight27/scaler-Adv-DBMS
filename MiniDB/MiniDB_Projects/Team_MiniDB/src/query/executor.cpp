@@ -1,6 +1,7 @@
 #include "executor.hpp"
 
 #include <climits>
+#include <cmath>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -9,6 +10,7 @@
 #include <vector>
 
 #include "../catalog/catalog.hpp"
+#include "optimizer.hpp"
 
 namespace {
 
@@ -215,15 +217,29 @@ std::optional<std::pair<int, int>> detect_pk_range(const Expr* where, const Tabl
     return std::nullopt;
 }
 
+// Cost-based scan choice. A SeqScan reads every row (cost = N). An IndexScan is
+// possible only when WHERE has a sargable predicate on the PK; its cost is the
+// estimated matching rows plus the B+ descent (~log N). We pick the cheaper —
+// so a selective `pk = k` uses the index, while `pk != k` (matches almost all)
+// or a non-PK predicate falls back to a sequential scan.
 std::unique_ptr<Operator> scan_for(Table& t, const Expr* where, std::ostream& out) {
-    if (where) {
-        if (auto rng = detect_pk_range(where, t)) {
-            out << "  [plan] index scan on " << t.name << "." << t.schema.columns[static_cast<std::size_t>(t.pk_col)].name
-                << " over [" << rng->first << ", " << rng->second << "]\n";
+    double n = std::max(1.0, static_cast<double>(t.row_count));
+    std::optional<std::pair<int, int>> rng = where ? detect_pk_range(where, t) : std::nullopt;
+
+    if (rng) {
+        double matched = estimate_cardinality(t, where);
+        double cost_index = matched + std::log2(n + 1.0);
+        double cost_seq = n;
+        out << "  [opt] " << t.name << ": seqscan=" << static_cast<long>(cost_seq)
+            << " vs indexscan=" << static_cast<long>(cost_index);
+        if (cost_index < cost_seq) {
+            out << " -> INDEX SCAN over [" << rng->first << ", " << rng->second << "]\n";
             return std::make_unique<IndexScan>(&t, rng->first, rng->second);
         }
+        out << " -> SEQ SCAN\n";
+        return std::make_unique<SeqScan>(&t);
     }
-    out << "  [plan] sequential scan on " << t.name << "\n";
+    out << "  [opt] " << t.name << ": no PK predicate -> SEQ SCAN (cost=" << static_cast<long>(n) << ")\n";
     return std::make_unique<SeqScan>(&t);
 }
 
@@ -235,16 +251,27 @@ std::unique_ptr<Operator> plan_select(const SelectStmt& s, Catalog& cat, std::os
     if (s.has_join) {
         Table* t2 = cat.get_table(s.join_table);
         if (!t2) throw std::runtime_error("no such table: " + s.join_table);
-        // join inputs are full scans; index-assisted joins are future work
-        out << "  [plan] nested-loop join " << t->name << " x " << t2->name << "\n";
+
+        // Cost-based join order. We materialize the inner side, so the nA*nB
+        // comparison work is order-independent; the tie-break is materialization
+        // cost, so we make the SMALLER relation the inner. (Pushing the WHERE
+        // into the join inputs is future work — inputs are full scans for now.)
+        double nA = std::max(1.0, static_cast<double>(t->row_count));
+        double nB = std::max(1.0, static_cast<double>(t2->row_count));
+        Table* outer = t; Table* inner = t2;       // default keeps B as inner
+        if (nA < nB) { outer = t2; inner = t; }     // smaller relation becomes inner
+        out << "  [opt] join " << t->name << "(" << static_cast<long>(nA) << ") x "
+            << t2->name << "(" << static_cast<long>(nB) << "): outer=" << outer->name
+            << ", inner=" << inner->name << " (smaller side materialized)\n";
+
         auto on = std::make_unique<BinaryExpr>();
         on->op = "=";
         auto l = std::make_unique<ColumnRef>(); l->table = s.jl_table; l->name = s.jl_col;
         auto r = std::make_unique<ColumnRef>(); r->table = s.jr_table; r->name = s.jr_col;
         on->left = std::move(l);
         on->right = std::move(r);
-        root = std::make_unique<NestedLoopJoin>(std::make_unique<SeqScan>(t),
-                                                std::make_unique<SeqScan>(t2),
+        root = std::make_unique<NestedLoopJoin>(std::make_unique<SeqScan>(outer),
+                                                std::make_unique<SeqScan>(inner),
                                                 std::move(on));
         if (s.where) root = std::make_unique<Filter>(std::move(root), s.where.get());
     } else {
@@ -296,6 +323,7 @@ void exec_insert(const InsertStmt& s, Catalog& cat, std::ostream& out) {
     if (t->index->search(key)) throw std::runtime_error("duplicate primary key");
     RowID rid = t->heap->insert(t->schema.serialize(s.values));
     t->index->insert(key, rid);
+    ++t->row_count;
     out << "1 row inserted\n";
 }
 
@@ -312,6 +340,7 @@ void exec_delete(const DeleteStmt& s, Catalog& cat, std::ostream& out) {
             ++n;
         }
     }
+    t->row_count -= static_cast<std::size_t>(n);
     out << n << " row(s) deleted\n";
 }
 

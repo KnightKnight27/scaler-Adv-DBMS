@@ -29,6 +29,7 @@ Table& Catalog::create_table(const std::string& name, const Schema& schema, int 
             std::vector<Value> row = schema.deserialize(bytes);
             int key = std::get<int>(row[pk_col]);
             table->index->insert(key, rid);
+            ++table->row_count;
         }
     }
 
