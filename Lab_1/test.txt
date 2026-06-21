@@ -1,0 +1,2 @@
+Hello, this is Lab 1 - File I/O tracing
+Learning inode → VFS → page cache → syscall flow
