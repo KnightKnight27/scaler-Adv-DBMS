@@ -1,0 +1,19 @@
+MiniDB Track B benchmark — MVCC vs 2PL under read/write contention
+Generated on a dev laptop (numbers are relative, not absolute SLAs).
+Each run: identical workload in both modes; counts reads completed in the window.
+
+### Config A — light contention (8 readers, 2 writers, 2 keys, 500ms, 200us write-hold)
+MVCC vs 2PL  |  8 readers, 2 writers, 2 hot keys, 500ms window, 200us write-hold
+-----------------------------------------------------------
+mode    reads      writes    read_throughput(ops/s)
+MVCC    793938	  129024	    1587876
+2PL     260997	  25093	    521994
+=> MVCC completed 3.04194x more reads under write contention
+
+### Config B — heavy contention (12 readers, 4 writers, 4 keys, 500ms, 500us write-hold)
+MVCC vs 2PL  |  12 readers, 4 writers, 4 hot keys, 500ms window, 500us write-hold
+-----------------------------------------------------------
+mode    reads      writes    read_throughput(ops/s)
+MVCC    845630	  185803	    1691260
+2PL     113842	  42846	    227684
+=> MVCC completed 7.4281x more reads under write contention

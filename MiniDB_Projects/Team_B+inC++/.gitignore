@@ -1,0 +1,11 @@
+# build artifacts
+*.o
+*.exe
+minidb
+
+# local database / log files produced at runtime
+*.db
+*.wal
+
+# OS noise
+.DS_Store
