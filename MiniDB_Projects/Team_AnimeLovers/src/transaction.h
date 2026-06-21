@@ -1,121 +1,217 @@
 #pragma once
-// transaction.h — Two-Phase Locking (core requirement) and MVCC (Track B).
-//
-// ── 2PL (LockManager) ──────────────────────────────────────────────────────
-// Implements strict two-phase locking at the row level.
-// Lock key = "tablename:pk_value" (e.g. "users:42").
-//
-// Growing phase: acquire shared (S) or exclusive (X) locks as needed.
-// Shrinking phase: all locks released together at COMMIT or ABORT.
-//
-// Deadlock handling: a transaction that cannot acquire a lock within
-// a timeout is aborted (victim selection by timeout simplicity).
-// The exception Deadlock is thrown and the caller must roll back.
-//
-// ── MVCC (MvccStore) ─────────────────────────────────────────────────────────
-// Used in the benchmark to contrast with 2PL.
-// Each integer key carries a version chain (newest-first).
-// A reader gets its snapshot timestamp at BEGIN and sees only versions
-// committed before that timestamp — no locks taken, no waiting.
-// Writers detect write-write conflicts (first-committer-wins) and abort
-// the loser if two transactions modify the same key concurrently.
 #include "value.h"
+#include "engine.h"
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <map>
+#include <memory>
 #include <mutex>
-#include <stdexcept>
+#include <set>
 #include <string>
+#include <thread>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
-namespace minidb {
+// ─── Transaction IDs and timestamps ─────────────────────────────────────────
+using TxnId = uint64_t;
+using Timestamp = uint64_t;    // logical clock; monotonically increasing
 
-// ── Undo record — stored per transaction for ABORT rollback ──────────────────
-struct UndoRecord {
-    enum { INSERT, DELETE } op;
+// ─── WAL log record types ─────────────────────────────────────────────────────
+enum class LogType : uint8_t {
+    BEGIN   = 0,
+    INSERT  = 1,
+    DELETE  = 2,
+    COMMIT  = 3,
+    ABORT   = 4,
+};
+
+struct LogRecord {
+    LogType    type;
+    TxnId      txn_id;
     std::string table;
-    Value       key;
-    std::string encoded_row;   // only used by DELETE undo (to re-insert)
+    Row        row;     // the row affected (before-image for DELETE, after for INSERT)
+    RID        rid;
 };
 
-// ── Transaction descriptor ────────────────────────────────────────────────────
-struct Txn {
-    long                    id;
-    std::vector<std::string> locks;        // lock keys held under 2PL
-    std::vector<UndoRecord>  undo;         // for ABORT rollback
-    bool                    active = true;
+// ─── WAL (Write-Ahead Log) ───────────────────────────────────────────────────
+// Appends log records to a file before applying changes to the heap.
+// On recovery, REDO all committed txns and UNDO all aborted/in-flight txns.
+class WAL {
+public:
+    explicit WAL(const std::string& path);
+    ~WAL();
+
+    void append(const LogRecord& rec);
+    void flush();
+
+    // Read all records in order for crash recovery
+    std::vector<LogRecord> read_all() const;
+
+private:
+    std::string   path_;
+    std::ofstream out_;
 };
 
-// ── Deadlock exception ────────────────────────────────────────────────────────
-struct DeadlockError : std::runtime_error {
-    DeadlockError() : std::runtime_error("deadlock detected: transaction aborted") {}
+// ─── 2PL Lock Manager ────────────────────────────────────────────────────────
+//
+// Strict two-phase locking: transactions acquire locks during execution and
+// release ALL locks only at commit or abort.
+//
+// Resources are identified by (table, pk_value) strings.
+// Lock modes: SHARED (read) and EXCLUSIVE (write).
+// Deadlock is detected by building a waits-for graph and checking for cycles.
+// ─────────────────────────────────────────────────────────────────────────────
+enum class LockMode { SHARED, EXCLUSIVE };
+
+struct LockRequest {
+    TxnId    txn_id;
+    LockMode mode;
+    bool     granted = false;
 };
 
-// ── LockManager (strict 2PL) ──────────────────────────────────────────────────
+struct LockTable {
+    std::vector<LockRequest> queue;   // granted requests come first
+    std::mutex               mu;
+    std::condition_variable  cv;
+};
+
 class LockManager {
 public:
-    // Acquire a lock on `key` for transaction `t`.
-    // exclusive=true  → X lock (only one holder allowed, no shared holders)
-    // exclusive=false → S lock (multiple readers allowed)
-    // Throws DeadlockError if the lock cannot be acquired within the timeout.
-    void acquire(Txn* t, const std::string& key, bool exclusive);
+    // Acquire lock; blocks if a conflicting lock is held.
+    // Throws DeadlockException if a cycle is detected.
+    void lock(TxnId txn_id, const std::string& resource, LockMode mode);
 
-    // Release all locks held by transaction `t` (called on COMMIT or ABORT).
-    void release_all(Txn* t);
+    // Release all locks held by txn_id (called on commit or abort)
+    void unlock_all(TxnId txn_id);
 
-    std::atomic<long> deadlock_count{0};   // for benchmark reporting
-
-private:
-    struct LockEntry {
-        std::unordered_set<long> shared_holders;  // transaction IDs with S locks
-        long excl_holder = -1;                    // transaction ID with X lock; -1 = none
-    };
-
-    std::mutex              mu_;
-    std::condition_variable cv_;
-    std::unordered_map<std::string, LockEntry> table_;
-};
-
-// ── MVCC — used by the benchmark (Track B) ────────────────────────────────────
-
-// One committed version of a key.
-struct Version {
-    long  commit_ts;  // timestamp when this version was committed
-    bool  deleted;    // true if this version is a deletion marker
-    Value val;
-};
-
-// An MVCC transaction: holds its snapshot timestamp and a private write buffer.
-// The write buffer is not visible to other transactions until commit().
-class MvccTxn {
-public:
-    explicit MvccTxn(long read_ts) : read_ts_(read_ts) {}
-    long read_ts() const { return read_ts_; }
+    // Returns resources locked by this transaction (for diagnostics)
+    std::vector<std::string> held_by(TxnId txn_id) const;
 
 private:
-    friend class MvccStore;
-    long                           read_ts_;
-    std::map<long, std::pair<bool, Value>> writes_;  // key → (deleted, value)
+    std::map<std::string, LockTable>  lock_tables_;  // resource → lock table
+    std::mutex                         global_mu_;    // guards lock_tables_
+
+    // Waits-for tracking for deadlock detection
+    std::unordered_map<TxnId, std::set<TxnId>> waits_for_;
+    std::mutex                                   wf_mu_;
+
+    void add_waits_for(TxnId waiter, TxnId holder);
+    void remove_waits_for(TxnId waiter);
+    bool has_cycle(TxnId start);                       // DFS cycle check
+
+    bool conflicts(LockMode held, LockMode requested) const;
 };
 
-// Key-value store with snapshot isolation.
-// Integer keys only (fine for the benchmark which uses account IDs).
+struct DeadlockException : std::exception {
+    TxnId victim;
+    explicit DeadlockException(TxnId v) : victim(v) {}
+    const char* what() const noexcept override { return "Deadlock detected"; }
+};
+
+// ─── MVCC version chain ──────────────────────────────────────────────────────
+//
+// Each row has a version chain: a list of (value, begin_ts, end_ts) entries.
+// A transaction with snapshot timestamp T sees versions where begin_ts <= T
+// and end_ts > T.
+// ─────────────────────────────────────────────────────────────────────────────
+struct RowVersion {
+    Row        data;
+    Timestamp  begin_ts;    // the commit timestamp of the txn that created it
+    Timestamp  end_ts;      // UINT64_MAX means "still current"
+    TxnId      creator;     // which txn wrote this version
+};
+
 class MvccStore {
 public:
-    MvccTxn begin_txn();                       // snapshot at current time
-    bool    get(MvccTxn& t, long key, Value& out);  // reads as-of snapshot
-    void    put(MvccTxn& t, long key, const Value& v);
-    void    erase(MvccTxn& t, long key);
-    bool    commit(MvccTxn& t);                // false = write-write conflict
+    // Called when a transaction commits a new version of a row.
+    // old_end_ts is set on the previous version; begin_ts on the new one.
+    void put_version(const std::string& table, RID rid,
+                     const Row& new_data, Timestamp begin_ts, TxnId creator);
 
-    std::atomic<long> conflict_count{0};
+    // Mark the current visible version of (table,rid) as deleted.
+    void delete_version(const std::string& table, RID rid,
+                        Timestamp end_ts);
+
+    // Read the version of (table, rid) visible to snapshot_ts.
+    // Returns nullopt if the row was never written or was deleted before snapshot_ts.
+    std::optional<Row> read(const std::string& table, RID rid,
+                            Timestamp snapshot_ts) const;
+
+    // Scan all current versions visible to snapshot_ts for a table
+    std::vector<std::pair<RID, Row>> scan(const std::string& table,
+                                          Timestamp snapshot_ts) const;
+
+    void add_rid_for_table(const std::string& table, RID rid);
 
 private:
-    std::atomic<long>   clock_{1};
-    std::mutex          mu_;
-    std::unordered_map<long, std::vector<Version>> chains_;  // key → versions (newest first)
+    // table → {rid → version_chain}
+    std::map<std::string,
+             std::map<RID, std::vector<RowVersion>>> chains_;
+    // table → ordered list of all RIDs seen (for scan)
+    std::map<std::string, std::vector<RID>> rids_;
+    mutable std::mutex mu_;
 };
 
-} // namespace minidb
+// ─── Transaction descriptor ──────────────────────────────────────────────────
+enum class TxnState { ACTIVE, COMMITTED, ABORTED };
+
+struct Transaction {
+    TxnId       id;
+    Timestamp   snapshot_ts;   // MVCC snapshot (begin timestamp)
+    TxnState    state = TxnState::ACTIVE;
+    // Undo log for abort: list of (table, rid, before-image) pairs
+    std::vector<std::tuple<std::string, RID, Row>> undo_log;
+};
+
+// ─── TransactionManager ──────────────────────────────────────────────────────
+// Provides two concurrency control modes that can be compared:
+//   MODE_2PL  — strict two-phase locking (readers block writers and vice-versa)
+//   MODE_MVCC — multi-version concurrency control (readers never block writers)
+enum class ConcurrencyMode { TWO_PL, MVCC };
+
+class TransactionManager {
+public:
+    explicit TransactionManager(Database& db, const std::string& wal_path,
+                                ConcurrencyMode mode = ConcurrencyMode::TWO_PL);
+
+    // Start a new transaction; returns its TxnId
+    TxnId begin();
+
+    // Execute a SQL statement within transaction txn_id.
+    // In 2PL mode: acquires locks before reading/writing.
+    // In MVCC mode: reads from the snapshot, buffers writes.
+    ResultSet execute(TxnId txn_id, const std::string& sql);
+
+    void commit(TxnId txn_id);
+    void abort(TxnId txn_id);
+
+    ConcurrencyMode mode() const { return mode_; }
+
+private:
+    Database&         db_;
+    LockManager       lm_;
+    MvccStore         mvcc_;
+    WAL               wal_;
+    ConcurrencyMode   mode_;
+
+    std::atomic<TxnId>      next_txn_id_{1};
+    std::atomic<Timestamp>  clock_{1};
+    std::map<TxnId, Transaction>  active_;
+    std::mutex                     mu_;
+
+    // 2PL helpers
+    void tpl_execute_insert(TxnId txn_id, const InsertStmt& s, Transaction& txn);
+    void tpl_execute_delete(TxnId txn_id, const DeleteStmt& s, Transaction& txn);
+
+    // MVCC helpers
+    ResultSet mvcc_execute_select(TxnId txn_id, const SelectStmt& s, Transaction& txn);
+    void      mvcc_execute_insert(TxnId txn_id, const InsertStmt& s, Transaction& txn);
+    void      mvcc_execute_delete(TxnId txn_id, const DeleteStmt& s, Transaction& txn);
+
+    Timestamp next_ts() { return clock_.fetch_add(1); }
+    std::string resource_key(const std::string& table, const Value& pk) const;
+};
+
+// Crash recovery: reads the WAL and replays/undoes as needed
+void recover(Database& db, const std::string& wal_path);
