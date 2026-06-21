@@ -1,264 +1,321 @@
 #include "parser.h"
-#include <algorithm>
 #include <cctype>
+#include <algorithm>
 #include <sstream>
+#include <stdexcept>
 
-namespace minidb {
+// ─── Tokenizer ────────────────────────────────────────────────────────────────
 
-// ── Tokenizer ─────────────────────────────────────────────────────────────────
-// Splits SQL into tokens: words, integer literals, quoted strings, punctuation.
-// We keep it simple: one character at a time, no regex.
-
-struct Token {
-    enum Kind { WORD, INT_LIT, STR_LIT, PUNCT, END } kind;
-    std::string text;
-    int         ival = 0;
-};
-
-static std::vector<Token> tokenize(const std::string& sql) {
-    std::vector<Token> toks;
-    size_t i = 0;
-
-    while (i < sql.size()) {
-        char c = sql[i];
-
-        if (std::isspace(c)) { i++; continue; }
-
-        if (c == '\'') {
-            // Single-quoted string literal.
-            std::string s;
-            i++;
-            while (i < sql.size() && sql[i] != '\'') s += sql[i++];
-            if (i < sql.size()) i++;  // consume closing quote
-            toks.push_back({Token::STR_LIT, s});
-            continue;
-        }
-
-        if (std::isdigit(c) || (c == '-' && i + 1 < sql.size() && std::isdigit(sql[i+1]))) {
-            std::string n;
-            if (c == '-') { n += c; i++; }
-            while (i < sql.size() && std::isdigit(sql[i])) n += sql[i++];
-            toks.push_back({Token::INT_LIT, n, std::stoi(n)});
-            continue;
-        }
-
-        if (std::isalpha(c) || c == '_') {
-            std::string w;
-            while (i < sql.size() && (std::isalnum(sql[i]) || sql[i] == '_' || sql[i] == '.'))
-                w += sql[i++];
-            // Normalize keywords to uppercase for case-insensitive matching.
-            std::string upper = w;
-            for (char& ch : upper) ch = static_cast<char>(std::toupper(ch));
-            toks.push_back({Token::WORD, upper});
-            // Keep original text as well for identifiers (column / table names).
-            // We store the uppercased version; since our identifiers are
-            // case-insensitive anyway this is fine.
-            continue;
-        }
-
-        // Single-character punctuation: ( ) , = ! < > *
-        toks.push_back({Token::PUNCT, std::string(1, c)});
-        i++;
-    }
-
-    toks.push_back({Token::END, ""});
-    return toks;
+static std::string to_upper(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(), ::toupper);
+    return s;
 }
 
-// ── Parser state ──────────────────────────────────────────────────────────────
+static TokenType keyword_type(const std::string& upper) {
+    if (upper == "SELECT")   return TokenType::SELECT;
+    if (upper == "FROM")     return TokenType::FROM;
+    if (upper == "WHERE")    return TokenType::WHERE;
+    if (upper == "JOIN")     return TokenType::JOIN;
+    if (upper == "ON")       return TokenType::ON;
+    if (upper == "INSERT")   return TokenType::INSERT;
+    if (upper == "INTO")     return TokenType::INTO;
+    if (upper == "VALUES")   return TokenType::VALUES;
+    if (upper == "DELETE")   return TokenType::DELETE;
+    if (upper == "CREATE")   return TokenType::CREATE;
+    if (upper == "TABLE")    return TokenType::TABLE;
+    if (upper == "DROP")     return TokenType::DROP;
+    if (upper == "BEGIN")    return TokenType::BEGIN;
+    if (upper == "COMMIT")   return TokenType::COMMIT;
+    if (upper == "ROLLBACK") return TokenType::ROLLBACK;
+    if (upper == "AND")      return TokenType::AND;
+    if (upper == "OR")       return TokenType::OR;
+    if (upper == "NOT")      return TokenType::NOT;
+    if (upper == "INT")      return TokenType::INT_KW;
+    if (upper == "VARCHAR")  return TokenType::VARCHAR_KW;
+    if (upper == "PRIMARY")  return TokenType::PRIMARY;
+    if (upper == "KEY")      return TokenType::KEY;
+    return TokenType::IDENT;
+}
 
-struct Parser {
+std::vector<Token> Parser::tokenize(const std::string& sql) {
     std::vector<Token> tokens;
-    int pos = 0;
+    size_t i = 0, n = sql.size();
 
-    Token& cur()  { return tokens[pos]; }
-    Token& peek(int offset = 1) { return tokens[pos + offset]; }
+    while (i < n) {
+        // Skip whitespace
+        if (std::isspace(sql[i])) { ++i; continue; }
 
-    void advance() { if (cur().kind != Token::END) pos++; }
-
-    // Consume a token if it matches expected text; throw otherwise.
-    void expect(const std::string& text) {
-        if (cur().text != text)
-            throw ParseError("Expected '" + text + "', got '" + cur().text + "'");
-        advance();
-    }
-
-    std::string word() {
-        if (cur().kind != Token::WORD)
-            throw ParseError("Expected identifier, got '" + cur().text + "'");
-        std::string w = cur().text;
-        advance();
-        return w;
-    }
-
-    bool at(const std::string& text) { return cur().text == text; }
-
-    bool try_consume(const std::string& text) {
-        if (cur().text == text) { advance(); return true; }
-        return false;
-    }
-
-    // Parse a single value literal (INT or VARCHAR).
-    Value value_literal() {
-        if (cur().kind == Token::INT_LIT) {
-            int v = cur().ival; advance();
-            return Value::make_int(v);
+        // Single-line comment
+        if (i+1 < n && sql[i] == '-' && sql[i+1] == '-') {
+            while (i < n && sql[i] != '\n') ++i;
+            continue;
         }
-        if (cur().kind == Token::STR_LIT) {
-            std::string v = cur().text; advance();
-            return Value::make_str(std::move(v));
+
+        // String literal  'hello'
+        if (sql[i] == '\'') {
+            ++i;
+            std::string s;
+            while (i < n && sql[i] != '\'') s += sql[i++];
+            if (i < n) ++i; // consume closing '
+            tokens.push_back({TokenType::STR_LIT, s});
+            continue;
         }
-        throw ParseError("Expected value literal, got '" + cur().text + "'");
-    }
 
-    // Parse a comparison operator.
-    Op parse_op() {
-        std::string s = cur().text;
-        advance();
-        if (s == "=")  return Op::EQ;
-        if (s == "!=") return Op::NE;
-        if (s == "<>") return Op::NE;
-        if (s == "<")  {
-            if (cur().text == "=") { advance(); return Op::LE; }
-            return Op::LT;
+        // Integer literal
+        if (std::isdigit(sql[i]) || (sql[i] == '-' && i+1 < n && std::isdigit(sql[i+1]))) {
+            std::string num;
+            if (sql[i] == '-') num += sql[i++];
+            while (i < n && std::isdigit(sql[i])) num += sql[i++];
+            Token t{TokenType::INT_LIT, num};
+            t.int_val = std::stoll(num);
+            tokens.push_back(t);
+            continue;
         }
-        if (s == ">")  {
-            if (cur().text == "=") { advance(); return Op::GE; }
-            return Op::GT;
+
+        // Identifier or keyword
+        if (std::isalpha(sql[i]) || sql[i] == '_') {
+            std::string word;
+            while (i < n && (std::isalnum(sql[i]) || sql[i] == '_')) word += sql[i++];
+            std::string up = to_upper(word);
+            tokens.push_back({keyword_type(up), word});
+            continue;
         }
-        if (s == "!" && cur().text == "=") { advance(); return Op::NE; }
-        throw ParseError("Expected comparison operator, got '" + s + "'");
-    }
 
-    // Parse one WHERE condition: col OP literal
-    Cond parse_cond() {
-        Cond c;
-        c.col = cur().text; advance();     // may be "table.col"
-        // Handle two-char ops like != <= >=
-        if ((cur().text == "!" || cur().text == "<" || cur().text == ">") &&
-            peek().text == "=") {
-            std::string combined = cur().text + "=";
-            advance(); advance();
-            if (combined == "!=") c.op = Op::NE;
-            else if (combined == "<=") c.op = Op::LE;
-            else c.op = Op::GE;
-        } else {
-            c.op = parse_op();
+        // table.column  — split on dot into two IDENTs separated by a DOT
+        // We represent table.column as two tokens: IDENT '.' IDENT.
+        // The parser handles the dot implicitly via expect(IDENT) twice.
+
+        // Two-char operators
+        if (i+1 < n) {
+            std::string two{sql[i], sql[i+1]};
+            if (two == "!=") { tokens.push_back({TokenType::NEQ, two}); i+=2; continue; }
+            if (two == "<=") { tokens.push_back({TokenType::LTE, two}); i+=2; continue; }
+            if (two == ">=") { tokens.push_back({TokenType::GTE, two}); i+=2; continue; }
+            if (two == "<>") { tokens.push_back({TokenType::NEQ, two}); i+=2; continue; }
         }
-        c.val = value_literal();
-        return c;
-    }
 
-    // Parse a comma-separated WHERE clause (just AND for simplicity).
-    std::vector<Cond> parse_where() {
-        std::vector<Cond> conds;
-        if (!try_consume("WHERE")) return conds;
-        conds.push_back(parse_cond());
-        while (try_consume("AND")) conds.push_back(parse_cond());
-        return conds;
-    }
-};
-
-// ── Statement parsers ─────────────────────────────────────────────────────────
-
-static Stmt parse_create(Parser& p) {
-    Stmt s; s.kind = Kind::CREATE;
-    s.table = p.word();
-    p.expect("(");
-    while (true) {
-        ColDef cd;
-        cd.name = p.word();
-        if      (p.cur().text == "INT")     { cd.type = Type::INT;     p.advance(); }
-        else if (p.cur().text == "VARCHAR") { cd.type = Type::VARCHAR; p.advance(); }
-        else throw ParseError("Unknown type: " + p.cur().text);
-
-        if (p.try_consume("PRIMARY")) {
-            p.expect("KEY");
-            cd.pk = true;
+        // Single-char tokens
+        switch (sql[i]) {
+            case '=': tokens.push_back({TokenType::EQ,     "="}); break;
+            case '<': tokens.push_back({TokenType::LT,     "<"}); break;
+            case '>': tokens.push_back({TokenType::GT,     ">"}); break;
+            case ',': tokens.push_back({TokenType::COMMA,  ","}); break;
+            case '(': tokens.push_back({TokenType::LPAREN, "("}); break;
+            case ')': tokens.push_back({TokenType::RPAREN, ")"}); break;
+            case '*': tokens.push_back({TokenType::STAR,   "*"}); break;
+            case ';': tokens.push_back({TokenType::SEMI,   ";"}); break;
+            case '.': tokens.push_back({TokenType::IDENT,  "."}); break; // dot separator
+            default:
+                throw std::runtime_error(std::string("Unexpected character: ") + sql[i]);
         }
-        s.cols.push_back(cd);
-        if (!p.try_consume(",")) break;
+        ++i;
     }
-    p.expect(")");
-    return s;
+    tokens.push_back({TokenType::END_OF_INPUT, ""});
+    return tokens;
 }
 
-static Stmt parse_insert(Parser& p) {
-    Stmt s; s.kind = Kind::INSERT;
-    p.expect("INTO");
-    s.table = p.word();
-    p.expect("VALUES");
-    p.expect("(");
-    while (true) {
-        s.values.push_back(p.value_literal());
-        if (!p.try_consume(",")) break;
-    }
-    p.expect(")");
-    return s;
+// ─── Token stream helpers ─────────────────────────────────────────────────────
+
+Parser::Parser(const std::string& sql) : tokens_(tokenize(sql)) {}
+
+Token& Parser::peek() { return tokens_[pos_]; }
+
+Token& Parser::advance() { return tokens_[pos_++]; }
+
+Token& Parser::expect(TokenType t, const std::string& msg) {
+    if (peek().type != t)
+        throw std::runtime_error("Parse error: " + msg +
+                                 " (got '" + peek().lexeme + "')");
+    return advance();
 }
 
-static Stmt parse_select(Parser& p) {
-    Stmt s; s.kind = Kind::SELECT;
+bool Parser::match(TokenType t) {
+    if (peek().type == t) { advance(); return true; }
+    return false;
+}
 
-    // Column list or *
-    if (p.try_consume("*")) {
-        s.star = true;
+// ─── Top-level ────────────────────────────────────────────────────────────────
+
+Statement Parser::parse() {
+    Statement stmt = parse_statement();
+    match(TokenType::SEMI); // optional trailing semicolon
+    return stmt;
+}
+
+Statement Parser::parse_statement() {
+    switch (peek().type) {
+        case TokenType::SELECT:   return parse_select();
+        case TokenType::INSERT:   return parse_insert();
+        case TokenType::DELETE:   return parse_delete();
+        case TokenType::CREATE:   return parse_create();
+        case TokenType::DROP:     return parse_drop();
+        case TokenType::BEGIN:    advance(); return BeginStmt{};
+        case TokenType::COMMIT:   advance(); return CommitStmt{};
+        case TokenType::ROLLBACK: advance(); return RollbackStmt{};
+        default:
+            throw std::runtime_error("Unknown statement starting with: " + peek().lexeme);
+    }
+}
+
+// ─── SELECT ───────────────────────────────────────────────────────────────────
+// SELECT * FROM t [JOIN t2 ON cond] [WHERE cond]
+// SELECT c1, c2 FROM t [JOIN t2 ON cond] [WHERE cond]
+SelectStmt Parser::parse_select() {
+    expect(TokenType::SELECT, "SELECT");
+    SelectStmt s;
+
+    if (peek().type == TokenType::STAR) {
+        advance(); s.star = true;
     } else {
-        do {
-            s.sel_cols.push_back(p.cur().text);
-            p.advance();
-        } while (p.try_consume(","));
+        s.columns.push_back(expect(TokenType::IDENT, "column name").lexeme);
+        while (match(TokenType::COMMA))
+            s.columns.push_back(expect(TokenType::IDENT, "column name").lexeme);
     }
 
-    p.expect("FROM");
-    s.table = p.word();
+    expect(TokenType::FROM, "FROM");
+    s.table = expect(TokenType::IDENT, "table name").lexeme;
 
-    // Optional JOIN
-    if (p.try_consume("JOIN")) {
-        s.has_join   = true;
-        s.join_table = p.word();
-        p.expect("ON");
-        // ON t1.col = t2.col
-        s.join_left  = p.cur().text; p.advance();
-        p.expect("=");
-        s.join_right = p.cur().text; p.advance();
+    if (peek().type == TokenType::JOIN) {
+        advance();
+        s.has_join    = true;
+        s.join_table  = expect(TokenType::IDENT, "join table").lexeme;
+        expect(TokenType::ON, "ON");
+        s.join_cond   = parse_condition();
     }
 
-    s.where = p.parse_where();
+    if (peek().type == TokenType::WHERE) {
+        advance();
+        s.has_where  = true;
+        s.where_cond = parse_condition();
+    }
     return s;
 }
 
-static Stmt parse_delete(Parser& p) {
-    Stmt s; s.kind = Kind::DELETE;
-    p.expect("FROM");
-    s.table = p.word();
-    s.where = p.parse_where();
+// ─── INSERT ──────────────────────────────────────────────────────────────────
+// INSERT INTO table VALUES (v1, v2, ...)
+InsertStmt Parser::parse_insert() {
+    expect(TokenType::INSERT, "INSERT");
+    expect(TokenType::INTO,   "INTO");
+    InsertStmt s;
+    s.table = expect(TokenType::IDENT, "table name").lexeme;
+    expect(TokenType::VALUES, "VALUES");
+    expect(TokenType::LPAREN, "(");
+    s.values.push_back(parse_literal());
+    while (match(TokenType::COMMA))
+        s.values.push_back(parse_literal());
+    expect(TokenType::RPAREN, ")");
     return s;
 }
 
-// ── Entry point ───────────────────────────────────────────────────────────────
-
-Stmt parse(const std::string& sql) {
-    Parser p;
-    p.tokens = tokenize(sql);
-
-    Stmt s;
-
-    // EXPLAIN prefix
-    bool explain = p.try_consume("EXPLAIN");
-
-    std::string kw = p.word();
-
-    if      (kw == "CREATE") { p.expect("TABLE"); s = parse_create(p); }
-    else if (kw == "INSERT") { s = parse_insert(p); }
-    else if (kw == "SELECT") { s = parse_select(p); s.explain = explain; }
-    else if (kw == "DELETE") { s = parse_delete(p); }
-    else if (kw == "BEGIN")  { s.kind = Kind::BEGIN; }
-    else if (kw == "COMMIT") { s.kind = Kind::COMMIT; }
-    else if (kw == "ABORT")  { s.kind = Kind::ABORT; }
-    else throw ParseError("Unknown statement: " + kw);
-
+// ─── DELETE ───────────────────────────────────────────────────────────────────
+// DELETE FROM table [WHERE cond]
+DeleteStmt Parser::parse_delete() {
+    expect(TokenType::DELETE, "DELETE");
+    expect(TokenType::FROM,   "FROM");
+    DeleteStmt s;
+    s.table = expect(TokenType::IDENT, "table name").lexeme;
+    if (peek().type == TokenType::WHERE) {
+        advance();
+        s.has_where  = true;
+        s.where_cond = parse_condition();
+    }
     return s;
 }
 
-} // namespace minidb
+// ─── CREATE TABLE ────────────────────────────────────────────────────────────
+// CREATE TABLE name (col type [PRIMARY KEY], ...)
+CreateStmt Parser::parse_create() {
+    expect(TokenType::CREATE, "CREATE");
+    expect(TokenType::TABLE,  "TABLE");
+    CreateStmt s;
+    s.table = expect(TokenType::IDENT, "table name").lexeme;
+    expect(TokenType::LPAREN, "(");
+
+    do {
+        ColDef col;
+        col.name = expect(TokenType::IDENT, "column name").lexeme;
+        if (peek().type == TokenType::INT_KW) {
+            advance(); col.type = Type::INT;
+        } else if (peek().type == TokenType::VARCHAR_KW) {
+            advance(); col.type = Type::VARCHAR;
+            // Optionally consume (size) — we ignore the size
+            if (peek().type == TokenType::LPAREN) {
+                advance();
+                expect(TokenType::INT_LIT, "size");
+                expect(TokenType::RPAREN,  ")");
+            }
+        } else {
+            throw std::runtime_error("Expected column type, got: " + peek().lexeme);
+        }
+        if (peek().type == TokenType::PRIMARY) {
+            advance();
+            expect(TokenType::KEY, "KEY");
+            col.primary_key = true;
+        }
+        s.cols.push_back(col);
+    } while (match(TokenType::COMMA));
+
+    expect(TokenType::RPAREN, ")");
+    return s;
+}
+
+DropStmt Parser::parse_drop() {
+    expect(TokenType::DROP,  "DROP");
+    expect(TokenType::TABLE, "TABLE");
+    return {expect(TokenType::IDENT, "table name").lexeme};
+}
+
+// ─── Condition parser ────────────────────────────────────────────────────────
+// col OP value  |  table.col OP table.col  |  col OP col
+Condition Parser::parse_condition() {
+    Condition c;
+    // Left side: possibly table.col
+    c.left_col = expect(TokenType::IDENT, "column name").lexeme;
+    if (peek().type == TokenType::IDENT && peek().lexeme == ".") {
+        advance(); // consume dot
+        c.left_table = c.left_col;
+        c.left_col   = expect(TokenType::IDENT, "column name").lexeme;
+    }
+
+    // Operator
+    c.op = peek().type;
+    if (c.op != TokenType::EQ  && c.op != TokenType::NEQ &&
+        c.op != TokenType::LT  && c.op != TokenType::LTE &&
+        c.op != TokenType::GT  && c.op != TokenType::GTE)
+        throw std::runtime_error("Expected comparison operator");
+    advance();
+
+    // Right side: literal or column reference
+    if (peek().type == TokenType::INT_LIT) {
+        c.rhs_is_col = false;
+        c.rhs_val = Value::make_int(peek().int_val);
+        advance();
+    } else if (peek().type == TokenType::STR_LIT) {
+        c.rhs_is_col = false;
+        c.rhs_val = Value::make_varchar(peek().lexeme);
+        advance();
+    } else if (peek().type == TokenType::IDENT) {
+        c.rhs_is_col = true;
+        c.rhs_col    = advance().lexeme;
+        if (peek().type == TokenType::IDENT && peek().lexeme == ".") {
+            advance();
+            c.rhs_table = c.rhs_col;
+            c.rhs_col   = expect(TokenType::IDENT, "column name").lexeme;
+        }
+    } else {
+        throw std::runtime_error("Expected value or column in condition");
+    }
+    return c;
+}
+
+Value Parser::parse_literal() {
+    if (peek().type == TokenType::INT_LIT) {
+        auto v = Value::make_int(peek().int_val);
+        advance(); return v;
+    }
+    if (peek().type == TokenType::STR_LIT) {
+        auto v = Value::make_varchar(peek().lexeme);
+        advance(); return v;
+    }
+    throw std::runtime_error("Expected literal value, got: " + peek().lexeme);
+}
