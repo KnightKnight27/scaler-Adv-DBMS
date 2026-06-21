@@ -40,5 +40,13 @@ enable_testing()
 add_executable(lsm_test tests/lsm_test.cpp)
 target_link_libraries(lsm_test PRIVATE minidb_core gtest_main)
 
+add_executable(wal_test tests/wal_test.cpp)
+target_link_libraries(wal_test PRIVATE minidb_core gtest_main)
+
+add_executable(execution_test tests/execution_test.cpp)
+target_link_libraries(execution_test PRIVATE minidb_core gtest_main)
+
 include(GoogleTest)
 gtest_discover_tests(lsm_test)
+gtest_discover_tests(wal_test)
+gtest_discover_tests(execution_test)
