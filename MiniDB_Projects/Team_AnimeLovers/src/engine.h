@@ -131,8 +131,10 @@ public:
                       std::map<std::string, std::unique_ptr<HeapTable>>& tables);
 
     ResultSet execute_select(const SelectStmt& s);
-    void      execute_insert(const InsertStmt& s);
-    void      execute_delete(const DeleteStmt& s);
+    // Returns the RID assigned to the inserted row (needed for undo logging).
+    RID       execute_insert(const InsertStmt& s);
+    // Returns the (rid, before-image) of every row actually deleted.
+    std::vector<std::pair<RID, Row>> execute_delete(const DeleteStmt& s);
     void      execute_create(const CreateStmt& s, const std::string& db_dir);
     void      execute_drop(const DropStmt& s);
 

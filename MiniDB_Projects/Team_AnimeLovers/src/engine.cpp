@@ -104,6 +104,11 @@ PageId HeapTable::get_or_alloc_write_page() {
 }
 
 RID HeapTable::insert_row(const Row& row) {
+    // Enforce the primary-key constraint BEFORE touching a page, otherwise a
+    // rejected insert would leave an orphan physical row behind in the heap.
+    if (schema_.pk_col >= 0 && index_.search(row[schema_.pk_col]))
+        throw std::runtime_error("Duplicate primary key");
+
     auto bytes = serde::encode(row);
     PageId pid = get_or_alloc_write_page();
     Page* page = bp_->fetch(pid);
@@ -228,19 +233,41 @@ Value Executor::get_value_from_row(const std::string& col, const std::string& /*
     return row[i];
 }
 
+// Resolve a (table-qualifier, column) reference to a Value, given up to two
+// (schema, row) pairs. `prefer_second` decides which table to try first when
+// the reference is unqualified and the column name exists in both tables — used
+// so that an unqualified JOIN condition like `did = did` resolves its right-hand
+// side to the RIGHT table instead of comparing the left table against itself.
+static bool resolve_ref(const std::string& tbl, const std::string& col,
+                        const TableSchema& s1, const Row& r1,
+                        const TableSchema* s2, const Row* r2,
+                        bool prefer_second, Value& out) {
+    auto try_one = [&](const TableSchema& sc, const Row& rw) -> bool {
+        if (!tbl.empty() && tbl != sc.table_name) return false; // qualifier mismatch
+        int i = sc.col_index(col);
+        if (i < 0) return false;
+        out = rw[i];
+        return true;
+    };
+    if (prefer_second && s2 && r2) { if (try_one(*s2, *r2)) return true; }
+    if (try_one(s1, r1)) return true;
+    if (s2 && r2) { if (try_one(*s2, *r2)) return true; }
+    return false;
+}
+
 bool Executor::eval_cond(const Condition& c, const TableSchema& s, const Row& row,
                           const TableSchema* s2, const Row* row2) const {
-    Value lhs = get_value_from_row(c.left_col, c.left_table, s, row);
-    Value rhs;
+    Value lhs, rhs;
+    // Left side: a column reference, qualifier honoured, defaults to the left table.
+    if (!resolve_ref(c.left_table, c.left_col, s, row, s2, row2,
+                     /*prefer_second=*/false, lhs))
+        throw std::runtime_error("Column not found: " + c.left_col);
+
     if (c.rhs_is_col) {
-        // Column-vs-column: try left schema first, then right schema
-        int i = s.col_index(c.rhs_col);
-        if (i >= 0) { rhs = row[i]; }
-        else if (s2 && row2) {
-            i = s2->col_index(c.rhs_col);
-            if (i >= 0) rhs = (*row2)[i];
-            else throw std::runtime_error("Column not found: " + c.rhs_col);
-        } else throw std::runtime_error("Column not found: " + c.rhs_col);
+        // Right side defaults to the OTHER table when unqualified (join semantics).
+        if (!resolve_ref(c.rhs_table, c.rhs_col, s, row, s2, row2,
+                         /*prefer_second=*/true, rhs))
+            throw std::runtime_error("Column not found: " + c.rhs_col);
     } else {
         rhs = c.rhs_val;
     }
@@ -333,16 +360,16 @@ ResultSet Executor::execute_select(const SelectStmt& s) {
 
 // ─── Executor::execute_insert ─────────────────────────────────────────────────
 
-void Executor::execute_insert(const InsertStmt& s) {
+RID Executor::execute_insert(const InsertStmt& s) {
     auto& schema = catalog_.get(s.table);
     if (s.values.size() != schema.columns.size())
         throw std::runtime_error("INSERT column count mismatch");
-    tables_.at(s.table)->insert_row(s.values);
+    return tables_.at(s.table)->insert_row(s.values);
 }
 
 // ─── Executor::execute_delete ─────────────────────────────────────────────────
 
-void Executor::execute_delete(const DeleteStmt& s) {
+std::vector<std::pair<RID, Row>> Executor::execute_delete(const DeleteStmt& s) {
     auto& schema = catalog_.get(s.table);
     auto& tbl    = *tables_.at(s.table);
     std::vector<std::pair<RID, Row>> to_delete;
@@ -351,6 +378,7 @@ void Executor::execute_delete(const DeleteStmt& s) {
             to_delete.emplace_back(rid, row);
     });
     for (auto& [rid, row] : to_delete) tbl.delete_row(rid, row);
+    return to_delete; // before-images for undo logging
 }
 
 // ─── Executor::execute_create ─────────────────────────────────────────────────
