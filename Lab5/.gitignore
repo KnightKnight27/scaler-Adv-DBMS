@@ -1,0 +1,12 @@
+# Ignore compiled executables
+Lab5/24bcs10349_Namami_Verma/shunting_yard/shunting_yard
+Lab5/24bcs10349_Namami_Verma/sql_parser/sql_parser
+
+# Object files
+*.o
+
+# Logs
+*.log
+
+# VS Code
+.vscode/
