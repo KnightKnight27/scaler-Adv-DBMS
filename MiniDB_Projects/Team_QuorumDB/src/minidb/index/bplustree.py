@@ -279,5 +279,16 @@ class BPlusTree:
             node = node.children[0]
         return h
 
+    def num_keys(self) -> int:
+        """Number of *distinct* keys (used by the optimizer for selectivity)."""
+        node = self.root
+        while not node.is_leaf:
+            node = node.children[0]
+        total = 0
+        while node is not None:
+            total += len(node.keys)
+            node = node.next
+        return total
+
     def items(self) -> Iterator[Tuple[Any, RID]]:
         yield from self.range()
