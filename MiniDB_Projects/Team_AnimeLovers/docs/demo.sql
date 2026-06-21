@@ -27,7 +27,7 @@ SELECT * FROM students WHERE id = 2;
 SELECT * FROM students WHERE grade >= 85;
 
 -- ── JOIN ─────────────────────────────────────────────────────────────────
-SELECT * FROM enroll JOIN students ON sid = id;
+SELECT * FROM enroll JOIN students ON enroll.sid = students.id;
 
 -- ── DELETE ────────────────────────────────────────────────────────────────
 DELETE FROM students WHERE id = 2;
