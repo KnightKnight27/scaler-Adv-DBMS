@@ -1,118 +1,170 @@
 #pragma once
-// storage.h — Three-layer storage stack.
-//
-//  DiskManager  →  raw page I/O (4 KB pages in a single .db file)
-//  BufferPool   →  LRU in-memory cache of pages
-//  Heap         →  slotted-page row storage on top of the pool
-//
-// This layering matches textbook database architecture: the disk manager is
-// the only code that touches the OS file; the buffer pool hides I/O latency
-// from the rest of the engine; the heap provides record-level semantics.
-#include "value.h"
 #include <array>
+#include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <list>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-namespace minidb {
+#include "value.h"
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-constexpr int PAGE_SIZE = 4096;   // 4 KB, aligns with most OS VM page sizes
+// ─── Constants ──────────────────────────────────────────────────────────────
+constexpr uint32_t PAGE_SIZE   = 4096;       // bytes per page
+constexpr uint32_t INVALID_PID = UINT32_MAX; // sentinel "no page"
+using PageId = uint32_t;
 
-using Page = std::array<char, PAGE_SIZE>;
+// ─── Page ───────────────────────────────────────────────────────────────────
+//
+// Slotted-page layout (all multiples of 1 byte):
+//
+//  [0..1]  num_slots   : number of slot entries
+//  [2..3]  free_end    : byte offset where free space ends (records grow ←)
+//  [4..]   slot_array  : SlotEntry[num_slots], growing →
+//            ...free space...
+//  [...PAGE_SIZE-1] records, growing ←
+//
+// A deleted slot has offset==0 && length==0 (tombstone).
+// ─────────────────────────────────────────────────────────────────────────────
 
-// ── DiskManager ───────────────────────────────────────────────────────────────
-// Reads and writes fixed-size pages to/from a flat binary file.
-// This is the ONLY component that calls the OS file API.
+struct SlotEntry {
+    uint16_t offset;  // byte offset from page start to the record
+    uint16_t length;  // record length in bytes; 0 means deleted
+};
+
+class Page {
+public:
+    std::array<uint8_t, PAGE_SIZE> data{};
+    bool dirty = false; // buffer pool uses this to decide whether to write back
+
+    // Header field accessors — cast into raw bytes for zero-copy reads/writes
+    uint16_t  num_slots()  const { return read16(0); }
+    uint16_t& num_slots()        { return ref16(0);  }
+    uint16_t  free_end()   const { return read16(2); }
+    uint16_t& free_end()         { return ref16(2);  }
+
+    const SlotEntry* slot_array() const {
+        return reinterpret_cast<const SlotEntry*>(data.data() + 4);
+    }
+    SlotEntry* slot_array() {
+        return reinterpret_cast<SlotEntry*>(data.data() + 4);
+    }
+
+    // Reset page to an empty, freshly-allocated state
+    void init() {
+        data.fill(0);
+        free_end() = PAGE_SIZE; // records start from the back
+    }
+
+    // Free bytes remaining between the slot array end and the record area
+    uint16_t free_space() const {
+        uint16_t slot_area_end = static_cast<uint16_t>(4 + num_slots() * sizeof(SlotEntry));
+        return free_end() - slot_area_end;
+    }
+
+    // Append a record; returns the assigned slot id, or UINT16_MAX if no room
+    uint16_t insert(const uint8_t* rec, uint16_t len) {
+        if (free_space() < len + static_cast<uint16_t>(sizeof(SlotEntry)))
+            return UINT16_MAX;
+
+        free_end() -= len;
+        std::memcpy(data.data() + free_end(), rec, len);
+
+        uint16_t sid = num_slots()++;
+        slot_array()[sid] = {free_end(), len};
+        dirty = true;
+        return sid;
+    }
+
+    // Read record at slot into out; returns false for deleted / out-of-range slots
+    bool read(uint16_t slot, std::vector<uint8_t>& out) const {
+        if (slot >= num_slots()) return false;
+        const SlotEntry& s = slot_array()[slot];
+        if (s.length == 0) return false; // tombstone
+        out.assign(data.data() + s.offset, data.data() + s.offset + s.length);
+        return true;
+    }
+
+    // Mark a slot as deleted (tombstone); space is not reclaimed for simplicity
+    void remove(uint16_t slot) {
+        if (slot < num_slots()) {
+            slot_array()[slot] = {0, 0};
+            dirty = true;
+        }
+    }
+
+private:
+    uint16_t  read16(int off) const { uint16_t v; std::memcpy(&v, data.data()+off, 2); return v; }
+    uint16_t& ref16(int off)        { return *reinterpret_cast<uint16_t*>(data.data()+off); }
+};
+
+// ─── DiskManager ─────────────────────────────────────────────────────────────
+//
+// Thin wrapper around a file on disk: reads and writes fixed-size pages.
+// Each table has its own file named "<table_name>.db".
+// ─────────────────────────────────────────────────────────────────────────────
 class DiskManager {
 public:
-    explicit DiskManager(const std::string& path);
+    explicit DiskManager(const std::string& filepath);
     ~DiskManager();
 
-    void read_page (int page_id, Page& out);
-    void write_page(int page_id, const Page& p);
-    int  new_page  ();                    // appends a blank page; returns its id
-    int  page_count() const { return num_pages_; }
+    void     read_page(PageId pid, Page& page);
+    void     write_page(PageId pid, const Page& page);
+    PageId   allocate_page(); // extends the file by one page; returns new page id
+    uint32_t page_count() const { return page_count_; }
 
 private:
     std::fstream file_;
-    int          num_pages_ = 0;
+    uint32_t     page_count_ = 0;
 };
 
-// ── BufferPool ────────────────────────────────────────────────────────────────
-// Keeps a fixed number of "frames" in memory.  When a needed page isn't cached
-// (a miss), the pool evicts the Least-Recently-Used *unpinned* frame, writing
-// it back to disk first if it was modified (dirty).
+// ─── BufferPool ──────────────────────────────────────────────────────────────
 //
-// Callers must call fetch() to get a pointer and unpin() when done.
-// A pinned frame is never evicted—callers must not hold pins indefinitely.
-struct Frame {
-    Page page    = {};
-    int  page_id = -1;   // -1 means this frame is unused
-    bool dirty   = false; // needs write-back before eviction
-    int  pins    = 0;     // reference count; 0 = evictable
-};
-
+// Fixed-size in-memory page cache with LRU eviction.
+//
+// Usage:
+//   Page* p = bp.fetch(pid);   // pin page (won't be evicted while pinned)
+//   ...modify p...
+//   bp.unpin(pid, dirty=true); // allow eviction; dirty=true triggers write-back
+// ─────────────────────────────────────────────────────────────────────────────
 class BufferPool {
 public:
-    explicit BufferPool(DiskManager& disk, int capacity = 64);
-    ~BufferPool();   // flushes all dirty frames on shutdown
+    explicit BufferPool(DiskManager& dm, size_t pool_size = 64);
 
-    Page* fetch(int page_id);              // pins and returns pointer
-    void  unpin(int page_id, bool dirty);  // must be called after every fetch
-    void  flush_all();
+    Page* fetch(PageId pid);          // load page into pool, increment pin count
+    void  unpin(PageId pid, bool dirty = false);
+    void  flush_all();                // write all dirty pages back to disk
 
-    long hits = 0, misses = 0;   // for benchmark/demo reporting
-
-private:
-    int  find_victim();                    // LRU eviction; -1 if all pinned
-    void load(int frame_idx, int page_id); // bring page from disk into frame
-
-    DiskManager&          disk_;
-    std::vector<Frame>    frames_;
-    // LRU list stores frame indices; front = most-recently-used
-    std::list<int>        lru_;
-    std::unordered_map<int,int>  page_to_frame_;   // page_id → frame index
-    std::unordered_map<int, std::list<int>::iterator> lru_pos_; // frame → lru_ iterator
-};
-
-// ── Heap ──────────────────────────────────────────────────────────────────────
-// Stores variable-length records across a collection of slotted pages.
-//
-// Slotted-page internal layout:
-//   Bytes 0–3  : int32  — slot count (number of slots in the directory)
-//   Bytes 4–7  : int32  — free-space pointer (offset of next free byte for records)
-//   Bytes 8+   : slot directory — each entry is 8 bytes: (int32 offset, int32 length)
-//                  length == -1  →  tombstone (row was deleted)
-//   End of page: records packed from PAGE_SIZE downward
-//
-// Records grow from the end toward the middle; the slot directory grows from
-// the beginning toward the middle.  A page is full when they would overlap.
-class Heap {
-public:
-    Heap(BufferPool& pool, DiskManager& disk);
-
-    RID  insert(const std::string& row);              // returns the assigned RID
-    bool fetch (RID rid, std::string& out);           // false if tombstoned
-    void remove(RID rid);                             // marks slot as tombstone
-    std::vector<std::pair<RID, std::string>> scan();  // full sequential scan
+    size_t pool_size() const { return frames_.size(); }
 
 private:
-    int  find_or_alloc(int needed);   // find a page with enough free space
+    struct Frame {
+        Page     page;
+        PageId   pid      = INVALID_PID;
+        int      pin_cnt  = 0;
+        bool     dirty    = false;
+    };
 
-    // Typed accessors into raw page bytes — keeps the Heap logic readable.
-    static int  slot_count(const Page& p);
-    static int  free_top  (const Page& p);
-    static void set_slot_count(Page& p, int n);
-    static void set_free_top  (Page& p, int v);
-    static void read_slot (const Page& p, int slot, int& off, int& len);
-    static void write_slot(Page& p, int slot, int off, int len);
+    // Evict one unpinned frame using LRU order. Throws if all frames pinned.
+    size_t evict();
 
-    BufferPool&      pool_;
-    DiskManager&     disk_;
-    std::vector<int> page_ids_;   // pages belonging to this heap, in order
+    DiskManager&              dm_;
+    std::vector<Frame>        frames_;
+    std::unordered_map<PageId, size_t> page_to_frame_; // pid → frame index
+    std::list<size_t>         lru_list_;               // front = most recently used
+    std::unordered_map<size_t, std::list<size_t>::iterator> lru_pos_;
 };
 
-} // namespace minidb
+// ─── Serialization helpers ────────────────────────────────────────────────────
+// Used by HeapTable to encode/decode a Row (vector<Value>) to/from raw bytes.
+// Format per value:
+//   [1B type][1B is_null]
+//   If INT and not null: [8B int64_t LE]
+//   If VARCHAR and not null: [4B length][<length> bytes]
+// ─────────────────────────────────────────────────────────────────────────────
+namespace serde {
+std::vector<uint8_t>  encode(const std::vector<Value>& row);
+std::vector<Value>    decode(const uint8_t* buf, size_t len, const std::vector<Type>& types);
+} // namespace serde
