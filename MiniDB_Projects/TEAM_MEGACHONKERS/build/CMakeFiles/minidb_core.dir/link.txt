@@ -1,2 +1,0 @@
-/usr/bin/ar qc libminidb_core.a CMakeFiles/minidb_core.dir/src/storage/lsm/memtable.cpp.o CMakeFiles/minidb_core.dir/src/storage/lsm/sstable_writer.cpp.o CMakeFiles/minidb_core.dir/src/storage/lsm/sstable_reader.cpp.o CMakeFiles/minidb_core.dir/src/storage/lsm/compactor.cpp.o CMakeFiles/minidb_core.dir/src/recovery/wal.cpp.o CMakeFiles/minidb_core.dir/src/catalog/catalog.cpp.o CMakeFiles/minidb_core.dir/src/concurrency/lock_manager.cpp.o
-/usr/bin/ranlib libminidb_core.a

@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/lsm_test.dir/tests/lsm_test.cpp.o -o lsm_test  libminidb_core.a lib/libgtest_main.a lib/libgtest.a 

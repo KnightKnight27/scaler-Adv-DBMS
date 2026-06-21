@@ -1,5 +1,0 @@
-if(EXISTS "/mnt/c/Users/Minesh/OneDrive/Desktop/temporary/scaler-Adv-DBMS/MiniDB_Projects/TEAM_MEGACHONKERS/build/lsm_test[1]_tests.cmake")
-  include("/mnt/c/Users/Minesh/OneDrive/Desktop/temporary/scaler-Adv-DBMS/MiniDB_Projects/TEAM_MEGACHONKERS/build/lsm_test[1]_tests.cmake")
-else()
-  add_test(lsm_test_NOT_BUILT lsm_test_NOT_BUILT)
-endif()
