@@ -98,9 +98,16 @@ private:
     std::unordered_map<TxnId, std::set<TxnId>> waits_for_;
     std::mutex                                   wf_mu_;
 
-    void add_waits_for(TxnId waiter, TxnId holder);
     void remove_waits_for(TxnId waiter);
-    bool has_cycle(TxnId start);                       // DFS cycle check
+
+    // Atomically register edges waiter→holder for every holder, then test for a
+    // cycle through `waiter`. Doing both under one lock is essential: otherwise
+    // two transactions deadlocking each other can BOTH observe the cycle and
+    // both abort. Atomic register+check guarantees exactly one victim — the
+    // second transaction to register sees both edges; the first saw only its own.
+    bool register_and_detect(TxnId waiter, const std::vector<TxnId>& holders);
+
+    bool has_cycle_locked(TxnId start);                // DFS; caller holds wf_mu_
 
     bool conflicts(LockMode held, LockMode requested) const;
 };

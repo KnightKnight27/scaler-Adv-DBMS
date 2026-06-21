@@ -129,17 +129,15 @@ void LockManager::lock(TxnId txn_id, const std::string& resource, LockMode mode)
             (mode == LockMode::SHARED || req.mode == LockMode::EXCLUSIVE))
             return;
 
-    // Register waits-for edges to every conflicting current holder, then check
-    // for a deadlock cycle. If found, this transaction is the victim.
-    bool registered = false;
-    for (const auto& req : lt->queue) {
+    // Collect every conflicting current holder, then atomically register the
+    // waits-for edges and check for a cycle. If a cycle exists, we are the victim.
+    std::vector<TxnId> holders;
+    for (const auto& req : lt->queue)
         if (req.txn_id != txn_id &&
-            !(req.mode == LockMode::SHARED && mode == LockMode::SHARED)) {
-            add_waits_for(txn_id, req.txn_id);
-            registered = true;
-        }
-    }
-    if (registered && has_cycle(txn_id)) {
+            !(req.mode == LockMode::SHARED && mode == LockMode::SHARED))
+            holders.push_back(req.txn_id);
+
+    if (!holders.empty() && register_and_detect(txn_id, holders)) {
         remove_waits_for(txn_id);
         throw DeadlockException(txn_id);
     }
@@ -185,22 +183,26 @@ std::vector<std::string> LockManager::held_by(TxnId txn_id) const {
     return res;
 }
 
-void LockManager::add_waits_for(TxnId waiter, TxnId holder) {
-    std::lock_guard<std::mutex> g(wf_mu_);
-    waits_for_[waiter].insert(holder);
-}
 void LockManager::remove_waits_for(TxnId waiter) {
     std::lock_guard<std::mutex> g(wf_mu_);
     waits_for_.erase(waiter);
 }
-bool LockManager::has_cycle(TxnId start) {
-    // DFS on the waits-for graph; lock already held by caller via wf_mu_
+
+bool LockManager::register_and_detect(TxnId waiter, const std::vector<TxnId>& holders) {
+    std::lock_guard<std::mutex> g(wf_mu_);            // register + detect atomically
+    for (TxnId h : holders) waits_for_[waiter].insert(h);
+    return has_cycle_locked(waiter);
+}
+
+bool LockManager::has_cycle_locked(TxnId start) {
+    // DFS over the waits-for graph; caller must hold wf_mu_.
     std::set<TxnId> visited;
     std::stack<TxnId> stack;
-    stack.push(start);
+    for (TxnId next : waits_for_[start]) stack.push(next); // start from successors
     while (!stack.empty()) {
         TxnId cur = stack.top(); stack.pop();
-        if (!visited.insert(cur).second) return true; // revisited → cycle
+        if (cur == start) return true;                // path returns to start → cycle
+        if (!visited.insert(cur).second) continue;
         auto it = waits_for_.find(cur);
         if (it != waits_for_.end())
             for (TxnId next : it->second) stack.push(next);
