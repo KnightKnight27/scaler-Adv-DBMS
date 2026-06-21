@@ -151,6 +151,32 @@ private:
     size_t inner_pos_ = 0;
 };
 
+// ---- Filter ----------------------------------------------------------------
+// Applies a WHERE predicate to a child stream. Used AFTER a join, where the
+// predicate may reference columns from either side (so it can't be pushed down
+// into a single-table scan). For single-table queries the optimizer pushes the
+// filter into the scan instead, and this operator isn't used.
+class FilterExecutor : public Executor {
+public:
+    FilterExecutor(std::unique_ptr<Executor> child, const Expr* pred)
+        : child_(std::move(child)), pred_(pred) {}
+
+    void open() override { child_->open(); }
+
+    bool next(Tuple* out) override {
+        Tuple t;
+        while (child_->next(&t))
+            if (eval_predicate(pred_, t, child_->out_schema())) { *out = std::move(t); return true; }
+        return false;
+    }
+
+    const Schema& out_schema() const override { return child_->out_schema(); }
+
+private:
+    std::unique_ptr<Executor> child_;
+    const Expr* pred_;
+};
+
 // ---- Projection ------------------------------------------------------------
 // Narrows each child tuple to the SELECT list. "*" passes everything through.
 class ProjectionExecutor : public Executor {

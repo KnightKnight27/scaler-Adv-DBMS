@@ -25,6 +25,7 @@ struct TableInfo {
     std::string name;
     Schema      schema;
     int         pk_index;                     // which column is the primary key (col 0)
+    size_t      num_rows = 0;                  // live row count — fed to the optimizer's cost model
     std::unique_ptr<TableHeap> heap;
     std::unique_ptr<BPlusTree> index;         // primary key -> RID
 
