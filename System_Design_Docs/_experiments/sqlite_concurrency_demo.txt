@@ -1,0 +1,59 @@
+SQLite concurrency lab — captured output
+========================================
+Environment: macOS (arm64), SQLite 3.51.0, run on 2026-06-15.
+
+--------------------------------------------------------------------
+1. Setup (sqlite3 /tmp/sqlite-concurrency.db < sqlite_concurrency.sql)
+--------------------------------------------------------------------
+wal
+--- PRAGMA database_list ---
+0|main|/private/tmp/sqlite-concurrency.db
+--- PRAGMA page_size ---
+4096
+--- PRAGMA page_count ---
+2
+--- PRAGMA journal_mode ---
+wal
+
+Files created on disk after setup:
+  /tmp/sqlite-concurrency.db        (8.2 KB, the main database)
+  /tmp/sqlite-concurrency.db-wal    (write-ahead log side file)
+  /tmp/sqlite-concurrency.db-shm    (shared-memory index for WAL)
+
+Interpretation:
+- The database entered WAL journal mode, which is why the -wal and -shm
+  side files appear next to the main database file.
+- The page size is 4096 bytes and the freshly loaded database used 2 pages.
+- The whole database is just ordinary files in the application's filesystem;
+  there is no server process.
+
+--------------------------------------------------------------------
+2. Single-writer behavior with two concurrent connections
+--------------------------------------------------------------------
+Session 1 (held open):  BEGIN IMMEDIATE;
+                        UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+                        -- transaction left open, holding the write lock
+
+Session 2 — READ while the writer holds the lock (busy_timeout = 1500 ms):
+    SELECT balance FROM accounts WHERE id = 1;
+    => 1000        (the last committed value; WAL lets readers proceed)
+
+Session 2 — WRITE while the writer holds the lock:
+    UPDATE accounts SET balance = balance + 100 WHERE id = 1;
+    => Error: stepping, database is locked (5)
+    => exit_code=5, waited ~1.54s (the full busy_timeout) before failing
+
+Session 1 then COMMIT;  (its transcript shows "balance now=900")
+
+Session 2 — retry the WRITE after the lock is released:
+    UPDATE accounts SET balance = balance + 100 WHERE id = 1;
+    => succeeds; final balance = 1000
+
+Interpretation:
+- In WAL mode a reader is NOT blocked by an active writer: session 2's SELECT
+  returned the last committed balance (1000) immediately.
+- SQLite is single-writer: session 2's UPDATE waited for the busy timeout and
+  then returned "database is locked (5)" because session 1 still held the
+  write lock.
+- Once session 1 committed, the second writer succeeded. This file-coordinated,
+  single-writer model is the deliberate embedded-database trade-off.

@@ -1,0 +1,271 @@
+############################################################
+# PostgreSQL internals experiment
+postgres (PostgreSQL) 17.10 (Homebrew)
+############################################################
+The files belonging to this database system will be owned by user "daksh".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /Users/daksh/mySpace/code/ADBMS project/ADBMS – System Design assignment/System_Design_Docs/_experiments/pgdata ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Asia/Kolkata
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+initdb: warning: enabling "trust" authentication for local connections
+initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+
+Success. You can now start the database server using:
+
+    '/opt/homebrew/opt/postgresql@17/bin/pg_ctl' -D '/Users/daksh/mySpace/code/ADBMS project/ADBMS – System Design assignment/System_Design_Docs/_experiments/pgdata' -l logfile start
+
+waiting for server to start.... done
+server started
+CREATE EXTENSION
+CREATE EXTENSION
+CREATE TABLE
+CREATE TABLE
+INSERT 0 50
+INSERT 0 200000
+CREATE INDEX
+CREATE INDEX
+ALTER TABLE
+ALTER TABLE
+ANALYZE
+
+================================================================
+EXPERIMENT 1: EXPLAIN (ANALYZE, BUFFERS) on a multi-table join
+================================================================
+                                                                       QUERY PLAN                                                                        
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=2606.51..2606.52 rows=5 width=31) (actual time=7.601..7.603 rows=5 loops=1)
+   Output: a.name, (count(*)), ((avg(b.year))::numeric(6,1))
+   Buffers: shared hit=1377 read=33 written=33
+   ->  Sort  (cost=2606.51..2606.64 rows=50 width=31) (actual time=7.600..7.601 rows=5 loops=1)
+         Output: a.name, (count(*)), ((avg(b.year))::numeric(6,1))
+         Sort Key: (count(*)) DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=1377 read=33 written=33
+         ->  HashAggregate  (cost=2604.93..2605.68 rows=50 width=31) (actual time=7.589..7.591 rows=9 loops=1)
+               Output: a.name, count(*), (avg(b.year))::numeric(6,1)
+               Group Key: a.name
+               Batches: 1  Memory Usage: 24kB
+               Buffers: shared hit=1374 read=33 written=33
+               ->  Hash Join  (cost=409.42..2334.93 rows=36000 width=13) (actual time=0.640..5.283 rows=36000 loops=1)
+                     Output: a.name, b.year
+                     Inner Unique: true
+                     Hash Cond: (b.author_id = a.id)
+                     Buffers: shared hit=1374 read=33 written=33
+                     ->  Bitmap Heap Scan on public.books b  (cost=407.30..2230.30 rows=36000 width=8) (actual time=0.628..2.867 rows=36000 loops=1)
+                           Output: b.id, b.author_id, b.title, b.year
+                           Recheck Cond: (b.year > 2010)
+                           Heap Blocks: exact=1373
+                           Buffers: shared hit=1373 read=33 written=33
+                           ->  Bitmap Index Scan on idx_books_year  (cost=0.00..398.30 rows=36000 width=0) (actual time=0.551..0.551 rows=36000 loops=1)
+                                 Index Cond: (b.year > 2010)
+                                 Buffers: shared read=33 written=33
+                     ->  Hash  (cost=1.50..1.50 rows=50 width=13) (actual time=0.009..0.009 rows=50 loops=1)
+                           Output: a.name, a.id
+                           Buckets: 1024  Batches: 1  Memory Usage: 11kB
+                           Buffers: shared hit=1
+                           ->  Seq Scan on public.authors a  (cost=0.00..1.50 rows=50 width=13) (actual time=0.003..0.004 rows=50 loops=1)
+                                 Output: a.name, a.id
+                                 Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=249 read=10 written=10
+ Planning Time: 0.444 ms
+ Execution Time: 7.631 ms
+(37 rows)
+
+
+================================================================
+EXPERIMENT 2: planner statistics (pg_stats / pg_statistic source)
+================================================================
+  attname  | n_distinct | null_frac | avg_width | correlation 
+-----------+------------+-----------+-----------+-------------
+ author_id |         50 |         0 |         4 |   0.0202205
+ id        |         -1 |         0 |         4 |           1
+ title     |         -1 |         0 |        12 | -0.39386693
+ year      |         50 |         0 |         4 |   0.0202205
+(4 rows)
+
+     relname      | est_rows | relpages 
+------------------+----------+----------
+ authors          |       50 |        1
+ books            |   200000 |     1373
+ idx_books_author |   200000 |      175
+(3 rows)
+
+
+================================================================
+EXPERIMENT 3: MVCC — xmin/xmax/ctid across an UPDATE
+================================================================
+  ctid   | xmin | xmax | id  |   title   
+---------+------+------+-----+-----------
+ (0,123) |  744 |    0 | 123 | Title 123
+(1 row)
+
+UPDATE 1
+-- after UPDATE: a NEW row version exists at a new ctid, new xmin:
+   ctid    | xmin | xmax | id  |      title       
+-----------+------+------+-----+------------------
+ (1372,34) |  790 |    0 | 123 | Title 123 (rev2)
+(1 row)
+
+-- the SAME logical row, two physical tuple versions on the heap page (pageinspect):
+ lp | t_ctid | t_xmin | t_xmax |     infomask     
+----+--------+--------+--------+------------------
+  1 | (0,1)  |    744 |      0 | 0000100100000010
+  2 | (0,2)  |    744 |      0 | 0000100100000010
+  3 | (0,3)  |    744 |      0 | 0000100100000010
+  4 | (0,4)  |    744 |      0 | 0000100100000010
+  5 | (0,5)  |    744 |      0 | 0000100100000010
+  6 | (0,6)  |    744 |      0 | 0000100100000010
+(6 rows)
+
+-- dead vs live tuples (one UPDATE created one dead tuple):
+ n_live_tup | n_dead_tup | n_tup_upd 
+------------+------------+-----------
+     200000 |          1 |         1
+(1 row)
+
+
+================================================================
+EXPERIMENT 4: VACUUM behaviour and the index-cleanup bypass
+================================================================
+INFO:  vacuuming "lab.public.books"
+INFO:  launched 2 parallel vacuum workers for index cleanup (planned: 2)
+INFO:  finished vacuuming "lab.public.books": index scans: 0
+pages: 0 removed, 1373 remain, 1373 scanned (100.00% of total)
+tuples: 0 removed, 200000 remain, 0 are dead but not yet removable
+removable cutoff: 792, which was 0 XIDs old when operation ended
+new relfrozenxid: 744, which is 2 XIDs ahead of previous value
+frozen: 0 pages from table (0.00% of total) had 0 tuples frozen
+index scan bypassed: 1 pages from table (0.07% of total) have 1 dead item identifiers
+avg read rate: 1.277 MB/s, avg write rate: 3.832 MB/s
+buffer usage: 2820 hits, 1 misses, 3 dirtied
+WAL usage: 1373 records, 1 full page images, 89333 bytes
+system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+INFO:  vacuuming "lab.pg_toast.pg_toast_16446"
+INFO:  finished vacuuming "lab.pg_toast.pg_toast_16446": index scans: 0
+pages: 0 removed, 0 remain, 0 scanned (100.00% of total)
+tuples: 0 removed, 0 remain, 0 are dead but not yet removable
+removable cutoff: 792, which was 0 XIDs old when operation ended
+new relfrozenxid: 792, which is 50 XIDs ahead of previous value
+frozen: 0 pages from table (100.00% of total) had 0 tuples frozen
+index scan not needed: 0 pages from table (100.00% of total) had 0 dead item identifiers removed
+avg read rate: 100.160 MB/s, avg write rate: 0.000 MB/s
+buffer usage: 27 hits, 1 misses, 0 dirtied
+WAL usage: 1 records, 0 full page images, 188 bytes
+system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+INFO:  analyzing "public.books"
+INFO:  "books": scanned 1373 of 1373 pages, containing 200000 live rows and 1 dead rows; 200000 rows in sample, 200000 estimated total rows
+VACUUM
+ n_live_tup | n_dead_tup 
+------------+------------
+     200000 |          1
+(1 row)
+
+
+================================================================
+EXPERIMENT 5: B-tree index internals (pageinspect)
+================================================================
+ magic  | version | root | level | fastroot | fastlevel | last_cleanup_num_delpages | last_cleanup_num_tuples | allequalimage 
+--------+---------+------+-------+----------+-----------+---------------------------+-------------------------+---------------
+ 340322 |       4 |    3 |     1 |        3 |         1 |                         0 |                      -1 | t
+(1 row)
+
+ type | live_items | dead_items | avg_item_size | page_size | free_size 
+------+------------+------------+---------------+-----------+-----------
+ l    |         10 |          0 |           729 |      8192 |       812
+(1 row)
+
+
+================================================================
+EXPERIMENT 6: Buffer manager — what's pinned in shared_buffers
+================================================================
+     relname      | buffers |   cached   | pct_dirty 
+------------------+---------+------------+-----------
+ books            |    1377 | 11 MB      |     100.0
+ idx_books_year   |      35 | 280 kB     |       2.9
+ idx_books_author |       4 | 32 kB      |      25.0
+ authors          |       1 | 8192 bytes |     100.0
+(4 rows)
+
+ usagecount | buffers 
+------------+---------
+          0 |      63
+          1 |     279
+          2 |      55
+          3 |     973
+          4 |     472
+          5 |     206
+(6 rows)
+
+
+================================================================
+EXPERIMENT 7: WAL — LSN advances on writes; checkpoint
+================================================================
+ lsn_before 
+------------
+ 0/38E3808
+(1 row)
+
+UPDATE 1000
+ lsn_after |       wal_segment        
+-----------+--------------------------
+ 0/393CDC0 | 000000010000000000000003
+(1 row)
+
+ total_wal_written 
+-------------------
+ 57 MB
+(1 row)
+
+CHECKPOINT
+
+================================================================
+EXPERIMENT 8: Index vs Seq scan decision flips with selectivity
+================================================================
+                                                    QUERY PLAN                                                     
+-------------------------------------------------------------------------------------------------------------------
+ Index Scan using books_pkey on books  (cost=0.42..8.44 rows=1 width=24) (actual time=0.010..0.011 rows=1 loops=1)
+   Index Cond: (id = 4242)
+   Buffers: shared hit=3 read=1
+ Planning:
+   Buffers: shared hit=96 dirtied=2
+ Planning Time: 0.178 ms
+ Execution Time: 0.024 ms
+(7 rows)
+
+                                                              QUERY PLAN                                                              
+--------------------------------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate  (cost=4116.08..4116.09 rows=1 width=8) (actual time=6.517..7.194 rows=1 loops=1)
+   Buffers: shared hit=1379 dirtied=14
+   ->  Gather  (cost=4115.97..4116.08 rows=1 width=8) (actual time=6.512..7.191 rows=2 loops=1)
+         Workers Planned: 1
+         Workers Launched: 1
+         Buffers: shared hit=1379 dirtied=14
+         ->  Partial Aggregate  (cost=3115.97..3115.98 rows=1 width=8) (actual time=5.457..5.457 rows=1 loops=2)
+               Buffers: shared hit=1379 dirtied=14
+               ->  Parallel Seq Scan on books  (cost=0.00..2856.01 rows=103982 width=0) (actual time=0.022..3.604 rows=88000 loops=2)
+                     Filter: (year > 1975)
+                     Rows Removed by Filter: 12000
+                     Buffers: shared hit=1379 dirtied=14
+ Planning:
+   Buffers: shared hit=94
+ Planning Time: 0.166 ms
+ Execution Time: 7.216 ms
+(16 rows)
+
+waiting for server to shut down.... done
+server stopped

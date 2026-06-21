@@ -1,0 +1,100 @@
+PostgreSQL internals lab — captured output
+==========================================
+Environment: PostgreSQL 17.10 (Homebrew), block_size 8192, run on 2026-06-15.
+Data: 1000 customers, 20000 orders (12000 'paid'), 12000 payments.
+
+--------------------------------------------------------------------
+Experiment A: three-table join plan (EXPLAIN ANALYZE, BUFFERS)
+--------------------------------------------------------------------
+ Sort  (cost=880.08..880.09 rows=4 width=45) (actual time=3.978..3.979 rows=4 loops=1)
+   Sort Key: c.region
+   Buffers: shared hit=233
+   ->  HashAggregate  (cost=879.99..880.04 rows=4) (actual time=3.971..3.972 rows=4)
+         Group Key: c.region
+         ->  Hash Join  (cost=578.50..825.99 rows=7200) (actual rows=12000)
+               Hash Cond: (o.customer_id = c.id)
+               ->  Hash Join  (cost=550.00..778.51 rows=7200) (actual rows=12000)
+                     Hash Cond: (p.order_id = o.id)
+                     ->  Seq Scan on payments p  (actual rows=12000)  Buffers: shared hit=77
+                     ->  Hash (rows=12000)  Memory Usage: 691kB
+                           ->  Seq Scan on orders o  (actual rows=12000)
+                                 Filter: (status = 'paid'::text)
+                                 Rows Removed by Filter: 8000   Buffers: shared hit=150
+               ->  Hash (rows=1000)  Memory Usage: 55kB
+                     ->  Seq Scan on customers c  (actual rows=1000)  Buffers: shared hit=6
+ Planning Time: 0.246 ms
+ Execution Time: 4.201 ms
+
+Notes:
+- Planner chose two Hash Joins fed by sequential scans (the result set is large,
+  so hashing beats index nested loops here).
+- All access was from cache: "Buffers: shared hit=233", no "read=" at execution.
+- Estimate vs actual: the join estimated 7200 rows but produced 12000. The
+  per-table estimates were exact; the join under-estimate comes from selectivity
+  multiplication, a classic place where estimates drift.
+
+--------------------------------------------------------------------
+Planner statistics for orders (pg_stats)
+--------------------------------------------------------------------
+   attname   | null_frac | n_distinct | most_common_vals
+-------------+-----------+------------+--------------------------------------
+ created_at  |         0 |        730 | {730 daily timestamps...}
+ customer_id |         0 |       1000 | {1,2,3,...,100,...}
+ id          |         0 |         -1 | (none; n_distinct=-1 means unique)
+ status      |         0 |          3 | {paid,pending,cancelled}
+
+Notes:
+- status has only 3 distinct values with MCVs {paid,pending,cancelled}; this is
+  what lets the planner estimate selectivity for status predicates.
+- id has n_distinct = -1, PostgreSQL's marker for a column that is unique
+  (distinct count scales with row count).
+
+--------------------------------------------------------------------
+Experiment B: selective vs non-selective predicate
+--------------------------------------------------------------------
+-- non-selective: status = 'paid' (12000 of 20000 rows) -> Seq Scan
+ Seq Scan on orders (rows=12000) (actual time=0.002..0.631 rows=12000)
+   Filter: (status = 'paid'::text)   Rows Removed by Filter: 8000
+   Buffers: shared hit=150     Execution Time: 0.828 ms
+
+-- selective: customer_id = 42 AND status = 'paid' (13 rows) -> Bitmap Index Scan
+ Bitmap Heap Scan on orders (rows=12) (actual rows=13)
+   Recheck Cond: ((customer_id = 42) AND (status = 'paid'::text))
+   Heap Blocks: exact=13
+   ->  Bitmap Index Scan on orders_customer_status_idx (actual rows=13)
+         Index Cond: ((customer_id = 42) AND (status = 'paid'::text))
+   Execution Time: 0.013 ms
+
+Notes:
+- The same table, queried two ways: the low-selectivity predicate took a
+  sequential scan, the high-selectivity predicate used the composite index.
+- The planner's choice follows the estimated selectivity, exactly as the
+  cost model intends.
+
+--------------------------------------------------------------------
+Experiment C: MVCC dead tuples and VACUUM
+--------------------------------------------------------------------
+Important nuance: pg_stat_user_tables.n_dead_tup is maintained by the
+cumulative statistics system and lags slightly. Immediately after an UPDATE it
+can still read 0. pgstattuple() physically scans the heap and reports the truth
+right away, so it is used here for the authoritative count.
+
+(autovacuum disabled on orders for this measurement)
+
+phase        | tuple_count | dead_tuple_count | dead_tuple_percent | free_percent
+-------------+-------------+------------------+--------------------+-------------
+baseline     |       20000 |                0 |               0.00 |        31.56
+after UPDATE |       20000 |             6000 |              19.04 |          --     (UPDATE 6000 rows)
+after VACUUM |       20000 |                0 |               0.00 |        32.92
+
+Cumulative-stats view (pg_stat_user_tables), after the collector caught up:
+  after UPDATE : n_live_tup=20000  n_dead_tup=6000
+  after VACUUM : n_dead_tup=0, last_vacuum set
+
+Notes:
+- The UPDATE created 6000 new row versions and left 6000 dead tuples (19.04% of
+  the heap), visible immediately via pgstattuple.
+- VACUUM reclaimed them: dead tuples back to 0 and free space rose from 31.56%
+  to 32.92% (space made reusable in place).
+- This is why VACUUM is part of PostgreSQL's MVCC design, not an optional extra:
+  every update/delete leaves dead tuples that something must reclaim.

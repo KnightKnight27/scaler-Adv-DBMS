@@ -1,0 +1,110 @@
+MySQL / InnoDB lab — captured output
+====================================
+Environment: MySQL 9.5.0 (Homebrew), database adbms_lab, run on 2026-06-15.
+Data: 10000 sequential-PK rows (orders_seq) and the same rows re-keyed by
+random UUID (orders_uuid). orders_seq has TWO secondary indexes
+(status, (customer_id,status)); orders_uuid has ONE (status).
+
+--------------------------------------------------------------------
+Experiment A: clustered-index size / primary-key width
+--------------------------------------------------------------------
+SHOW TABLE STATUS (selected columns):
+
+ Name        | Rows  | Data_length | Index_length | Row_format
+-------------+-------+-------------+--------------+-----------
+ orders_seq  |  9773 |   1,589,248 |      753,664 | Dynamic
+ orders_uuid | 10098 |   1,589,248 |    1,589,248 | Dynamic
+
+EXPLAIN SELECT * FROM orders_seq WHERE id BETWEEN 1000 AND 2000:
+ -> Filter: (orders_seq.id between 1000 and 2000)  (cost=201 rows=1001)
+    -> Index range scan on orders_seq using PRIMARY over (1000 <= id <= 2000)
+
+EXPLAIN ANALYZE SELECT * FROM orders_uuid
+  WHERE id BETWEEN '15deed7e-68ad-11f1-8ce3-47ad8db9f9b5'
+              AND '15df9abc-68ad-11f1-8ce3-47ad8db9f9b5':
+ -> Index range scan on orders_uuid using PRIMARY over (...)  (cost=201 rows=1001)
+       (actual time=0.0266..0.185 rows=1001 loops=1)
+
+UUID distribution check (orders_uuid):
+  distinct first-8-hex prefixes = 10000   (all 10000 rows differ in the leading field)
+  min id = 15deed7e-68ad-11f1-8ce3-47ad8db9f9b5
+  max id = 15e6bc34-68ad-11f1-8ce3-47ad8db9f9b5
+
+Notes:
+- Both tables hold the same row data (Data_length 1,589,248 each).
+- The UUID table's SINGLE secondary index (Index_length 1,589,248) is more than
+  2x the size of the sequential table's TWO secondary indexes combined (753,664).
+  Because an InnoDB secondary index stores the primary key in every entry, the
+  wide CHAR(36) UUID key inflates every secondary index. This is the clearest
+  practical evidence that "the primary key is table layout" in InnoDB. It is a
+  key-WIDTH effect, independent of insertion order.
+- IMPORTANT CORRECTION: MySQL's UUID() returns version-1 (time-based) UUIDs, so
+  these IDs are time-ORDERED, not random. The leading time field increments
+  monotonically (min 15deed7e... -> max 15e6bc34...). A PK range scan over real
+  UUID bounds therefore returns a contiguous block (1001 rows in 0.185 ms),
+  exactly like the sequential table. The "random UUID = clustered-index scatter
+  / page splits" penalty applies to RANDOM v4 UUIDs, which this experiment does
+  NOT use. Reproducing scatter would require v4-random keys.
+- Either way, a primary-key range scan uses an "Index range scan ... using
+  PRIMARY", i.e. it walks the clustered index directly (range locality).
+
+--------------------------------------------------------------------
+Experiment B: covering vs non-covering secondary index
+--------------------------------------------------------------------
+EXPLAIN SELECT id, status FROM orders_seq WHERE status = 'paid':
+ -> Covering index lookup on orders_seq using orders_seq_status_idx (status='paid')  (cost=617 rows=6002)
+
+EXPLAIN SELECT * FROM orders_seq WHERE status = 'paid':
+ -> Index lookup on orders_seq using orders_seq_status_idx (status='paid')  (cost=673 rows=6002)
+
+Quantified: the same 6002-row secondary scan is priced at cost 617 when the
+index covers the query vs 673 when InnoDB must fall back to the clustered index
+for the remaining columns. The difference is the estimated cost of those extra
+primary-key lookups; it widens sharply once the table no longer fits in the
+buffer pool (each fallback becomes a potential random page read).
+
+Notes:
+- "Covering index lookup": id and status are both available inside the secondary
+  index (status is the key, id is the clustered PK stored in every secondary
+  entry), so InnoDB never touches the clustered index.
+- Plain "Index lookup": SELECT * needs the other columns, so InnoDB uses the
+  primary key from the secondary index to look up the full row in the clustered
+  index — the extra hop that secondary lookups can cost.
+
+--------------------------------------------------------------------
+Experiment C: gap / next-key locking (two sessions, REPEATABLE READ)
+--------------------------------------------------------------------
+Setup: DELETE id=1500 to open a real gap inside 1000..2000 (PKs are sequential).
+
+Session 1:
+    SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+    START TRANSACTION;
+    SELECT id FROM orders_seq WHERE id BETWEEN 1000 AND 2000 FOR UPDATE;
+    -- transaction left open
+
+Locks held (performance_schema.data_locks summary):
+    LOCK_TYPE | LOCK_MODE     | n
+    ----------+---------------+------
+    TABLE     | IX            |    1
+    RECORD    | X             | 1003   (next-key locks on the range)
+    RECORD    | X,REC_NOT_GAP |    1
+    RECORD    | X,GAP         |    1    (a pure gap lock)
+
+Session 2 — INSERT into the LOCKED gap (innodb_lock_wait_timeout = 2s):
+    INSERT INTO orders_seq (id,...) VALUES (1500, ...);
+    => ERROR 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+    => blocked ~2.06s
+
+Session 2 — INSERT OUTSIDE the locked range:
+    INSERT INTO orders_seq (id,...) VALUES (50000, ...);
+    => succeeds immediately
+
+After session 1 COMMIT, retry INSERT id=1500:
+    => succeeds
+
+Notes:
+- The FOR UPDATE range took next-key locks (record + gap) across 1000..2000,
+  including a gap lock covering the spot where id=1500 used to be.
+- An INSERT into that locked gap had to wait and timed out; an INSERT outside
+  the range proceeded at once. This is next-key/gap locking preventing phantoms
+  under REPEATABLE READ.
