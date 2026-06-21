@@ -1,58 +1,89 @@
 #pragma once
-// bplustree.h — In-memory B+ Tree used as the primary-key index.
-//
-// Key properties:
-//   • Internal nodes store separator keys and child pointers only.
-//   • Leaf nodes store (key, RID) pairs and are linked in sorted order
-//     so range scans walk the leaf level without touching internal nodes.
-//   • A configurable `order` controls the maximum keys per node.
-//     A node splits when it overflows during insert.
-//   • Deletes are lazy: the key is removed from the leaf but no
-//     rebalancing is done (acceptable for our teaching scope; noted in Limitations).
 #include "value.h"
+#include <array>
+#include <memory>
+#include <optional>
 #include <vector>
 
-namespace minidb {
+// ─── B+ Tree (in-memory, order 4) ─────────────────────────────────────────
+//
+// Used as the primary key index.  Maps a Value key to a RID so the query
+// executor can do O(log n) point lookups instead of full heap scans.
+//
+// Order = 4 means:
+//   Internal node: up to 3 separator keys, up to 4 children
+//   Leaf node    : up to 3 (key, RID) pairs; linked to next leaf for scans
+//
+// We keep the implementation in-memory for clarity.  On disk a real database
+// would serialise these nodes to pages managed by the buffer pool.
+// ─────────────────────────────────────────────────────────────────────────────
 
-class BPlusTree {
-public:
-    // order = max keys per leaf node.  Internal nodes use order+1 children.
-    explicit BPlusTree(int order = 32);
-    ~BPlusTree();
+constexpr int ORDER = 4; // fan-out; leaf/internal capacity = ORDER-1 keys
 
-    void insert(const Value& key, RID rid);       // may split nodes
-    bool search(const Value& key, RID& out) const; // exact lookup; false = not found
-    bool erase (const Value& key);                 // lazy delete; false = not found
-    std::vector<RID> range(const Value& lo, const Value& hi) const;
+struct BPTNode {
+    bool is_leaf = true;
 
-    int height() const;    // useful for EXPLAIN output
-    int count()  const { return count_; }
+    // Keys stored in this node (up to ORDER-1)
+    std::vector<Value> keys;
 
-private:
-    struct Node {
-        bool          leaf;
-        std::vector<Value> keys;
-        // Internal nodes: children[i] is the subtree for keys < keys[i]
-        //                  children[keys.size()] is the right-most subtree
-        std::vector<Node*> children;
-        // Leaf nodes: rids[i] corresponds to keys[i]
-        std::vector<RID>   rids;
-        Node*              next = nullptr;  // leaf-chain for range scans
+    // Leaf: RID values parallel to keys
+    std::vector<RID> rids;
 
-        explicit Node(bool l) : leaf(l) {}
-    };
+    // Internal: child pointers (one more than keys)
+    std::vector<BPTNode*> children;
 
-    // Recursive insert; returns a new child to push up if a split happened.
-    // split_key and split_child are output params set when a split occurs.
-    bool insert_rec(Node* node, const Value& key, RID rid,
-                    Value& split_key, Node*& split_child);  // NOLINT: Node visible inside class
+    // Leaf-level linked list for efficient range scans
+    BPTNode* next = nullptr;
 
-    Node* find_leaf(const Value& key) const;  // descend to the correct leaf
-    void  destroy  (Node* n);                  // recursive free
-
-    Node* root_;
-    int   order_;   // max keys per leaf node
-    int   count_ = 0;
+    BPTNode() = default;
+    ~BPTNode() {
+        // Only delete children if this is an internal node — leaf rids are POD
+        if (!is_leaf)
+            for (auto* c : children) delete c;
+    }
+    // Non-copyable; ownership is through raw pointers for simplicity
+    BPTNode(const BPTNode&)            = delete;
+    BPTNode& operator=(const BPTNode&) = delete;
 };
 
-} // namespace minidb
+// ─── BPlusTree ────────────────────────────────────────────────────────────────
+class BPlusTree {
+public:
+    BPlusTree() = default;
+    ~BPlusTree() { delete root_; }
+
+    // Insert a (key, rid) pair.  Duplicate keys are rejected (primary key
+    // semantics) — returns false if the key already exists.
+    bool insert(const Value& key, RID rid);
+
+    // Point lookup: returns the RID if key is found, else nullopt
+    std::optional<RID> search(const Value& key) const;
+
+    // Delete the entry for key; returns false if not found
+    bool remove(const Value& key);
+
+    // Range scan: collect all RIDs where key ∈ [lo, hi] (inclusive bounds)
+    std::vector<RID> range_scan(const Value& lo, const Value& hi) const;
+
+    // Full scan in key order — used by the executor for index-order scans
+    std::vector<std::pair<Value, RID>> scan_all() const;
+
+    bool empty() const { return root_ == nullptr; }
+
+private:
+    BPTNode* root_ = nullptr;
+
+    // Returns the leaf that should contain key (creates root if empty)
+    BPTNode* find_leaf(const Value& key) const;
+
+    // Split helpers — return the new right-sibling node and the key pushed up
+    struct SplitResult { BPTNode* right; Value push_up_key; };
+    SplitResult split_leaf(BPTNode* leaf);
+    SplitResult split_internal(BPTNode* node);
+
+    // Recursive insert; returns non-null SplitResult if the node was split
+    std::optional<SplitResult> insert_recursive(BPTNode* node, const Value& key, RID rid);
+
+    // Recursive delete; returns true if entry was removed
+    bool remove_from_leaf(BPTNode* leaf, const Value& key);
+};
