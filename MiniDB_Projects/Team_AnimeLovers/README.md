@@ -351,7 +351,8 @@ reader threads can proceed in parallel regardless of writer activity.
 | Storage compaction | Deleted slots never reclaimed | Page compaction / vacuum |
 | Index persistence | B+ Tree rebuilt from heap on start | Serialize nodes to pages |
 | SQL coverage | No UPDATE, no aggregates (SUM/AVG), no subqueries | Extend grammar |
-| Crash recovery | UNDO path is simplified (no before-image replay) | Full ARIES undo |
+| JOIN columns | Same-named join columns must be table-qualified (`a.x = b.x`) | Full name resolution |
+| Crash recovery | REDO of committed txns only; no LSN/checkpoint | Full ARIES with LSNs |
 | Join algorithm | Nested-loop only | Hash join / sort-merge join |
 | Statistics | Hardcoded selectivity heuristics | Column histograms |
 
