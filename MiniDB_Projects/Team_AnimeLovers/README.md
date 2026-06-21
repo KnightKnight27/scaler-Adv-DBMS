@@ -210,9 +210,15 @@ Heuristic table (no statistics collected):
 
 ### Join Ordering
 
-For our two-table JOIN scope, the left table is always the FROM table. A
-production optimizer would use dynamic programming (Selinger algorithm) over
-all join orderings.
+For a two-table nested-loop join, the optimizer estimates each input's
+cardinality (`base rows × selectivity`, via `Optimizer::plan_join` +
+`HeapTable::approx_row_count`) and **materialises the smaller relation as the
+inner side while streaming the larger one** (`JoinPlan::from_is_outer`). This
+minimises both the materialised set and the number of outer iterations that
+re-scan the inner. The output column order (FROM columns then JOIN columns) is
+preserved regardless of which relation is physically streamed. A production
+optimizer would extend this to N tables with dynamic programming (the Selinger
+algorithm) over all join orderings.
 
 ---
 
@@ -241,9 +247,14 @@ snapshot version through the index with no locking at all.
 ### Deadlock Handling
 
 A waits-for graph is maintained: when a transaction T₁ blocks on a lock held
-by T₂, edge T₁→T₂ is added. Before blocking, DFS checks for a cycle. If a
-cycle is detected, the waiting transaction is chosen as the victim and a
-`DeadlockException` is thrown (no timeout needed).
+by T₂, edge T₁→T₂ is added. Edge registration and the DFS cycle check happen
+**atomically under one lock** (`register_and_detect`), which guarantees that two
+mutually-deadlocked transactions cannot both detect the cycle — exactly one is
+chosen as the victim and thrown a `DeadlockException` (no timeout needed).
+
+This is demonstrated by `./build/deadlock_demo`: two threads lock resources
+A and B in opposite order; the program shows exactly one transaction aborted as
+the victim while the other commits, on every run.
 
 ### Isolation Guarantees
 
@@ -426,6 +437,12 @@ make -j$(nproc)
 ```bash
 ./bench             # 4 readers, 5 seconds each
 ./bench 8 10        # 8 readers, 10 seconds each
+```
+
+### Run the deadlock demonstration
+
+```bash
+./deadlock_demo     # two threads deadlock; one is chosen as victim and aborts
 ```
 
 ### Example REPL session
