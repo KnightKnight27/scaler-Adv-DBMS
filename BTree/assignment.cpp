@@ -87,7 +87,7 @@ private:
 
         int i = 0;
 
-        while (i < (int)node->keys.size() && key > node->keys[i]) {
+        while (i < static_cast<int>(node->keys.size()) && key > node->keys[i]) {
             i++;
         }
 
