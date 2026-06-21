@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { DatabaseSystem } from './engine/DatabaseSystem';
 import { Transaction, LogRecord } from './engine/types';
-import { Terminal, Database, ShieldAlert, Cpu, Award, Play, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Terminal, Database, ShieldAlert, Cpu, Award, RotateCcw, AlertTriangle, Activity, Zap } from 'lucide-react';
+import { PerformanceSuite } from './benchmarks/PerformanceSuite';
 
 export default function App() {
   const [db] = useState(() => new DatabaseSystem());
@@ -20,6 +21,27 @@ export default function App() {
   const [diskPages, setDiskPages] = useState<any[]>([]);
   const [recoveryLog, setRecoveryLog] = useState<string[]>([]);
   const [bTreeNodes, setBTreeNodes] = useState<any>(null);
+  const [benchmarkResults, setBenchmarkResults] = useState<{
+    writesPerSecond: number;
+    readsPerSecond: number;
+    latencyWithIndexMs: number;
+    latencyWithoutIndexMs: number;
+  } | null>(null);
+  const [runningBenchmark, setRunningBenchmark] = useState(false);
+
+  const runBenchmark = () => {
+    setRunningBenchmark(true);
+    setTimeout(() => {
+      try {
+        const res = PerformanceSuite.runBenchmark();
+        setBenchmarkResults(res);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setRunningBenchmark(false);
+      }
+    }, 100);
+  };
 
   const refreshEngineState = () => {
     setSysLogs([...db.logManager.getLogs()]);
@@ -103,7 +125,7 @@ export default function App() {
 
   return (
     <div style={{ padding: '2rem', maxWidth: '1440px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem' }} className="glass-panel" p="1rem">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', padding: '1rem' }} className="glass-panel">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
           <Database size={40} color="#6366f1" />
           <div>
@@ -115,7 +137,7 @@ export default function App() {
         </div>
         <div style={{ display: 'flex', gap: '1rem', paddingRight: '1rem' }}>
           <span style={{ fontSize: '0.85rem', color: '#6366f1', border: '1px solid rgba(99,102,241,0.4)', borderRadius: '20px', padding: '0.3rem 0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Award size={14} /> Team ConcurrencyMasters
+            <Award size={14} /> Team groupby
           </span>
         </div>
       </div>
@@ -170,22 +192,41 @@ export default function App() {
                 <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Write-Ahead Logging (WAL) & Crash Recovery</h2>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button onClick={handleCrash} className="glow-btn-danger" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <AlertTriangle size={16} /> Crash System
+                <button onClick={handleCrash} className="glow-btn-danger" style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
+                  <AlertTriangle size={14} /> Crash System
                 </button>
-                <button onClick={handleRecovery} className="glow-btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <RotateCcw size={16} /> WAL Recovery
+                <button onClick={handleRecovery} className="glow-btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
+                  <RotateCcw size={14} /> WAL Recovery
                 </button>
               </div>
             </div>
-            <div style={{ flex: 1, backgroundColor: '#020617', borderRadius: '8px', padding: '1rem', overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.8rem', border: '1px solid #1e293b', color: '#fca5a5' }}>
-              {recoveryLog.length === 0 ? (
-                <div style={{ color: '#64748b' }}>System healthy. Trigger a crash or insert transactions to write WAL log records, then click recover to view ARIES replay details.</div>
-              ) : (
-                recoveryLog.map((log, idx) => (
-                  <div key={idx} style={{ marginBottom: '4px' }}>{log}</div>
-                ))
-              )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', flex: 1, minHeight: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#818cf8', marginBottom: '0.25rem' }}>Live WAL Log Buffer</div>
+                <div style={{ flex: 1, backgroundColor: '#020617', borderRadius: '8px', padding: '0.75rem', overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.75rem', border: '1px solid #1e293b', color: '#94a3b8' }}>
+                  {sysLogs.length === 0 ? (
+                    <div style={{ color: '#64748b' }}>No WAL records. Run queries to append logs.</div>
+                  ) : (
+                    sysLogs.map((log, idx) => (
+                      <div key={idx} style={{ marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '2px' }}>
+                        <span style={{ color: '#6366f1' }}>LSN #{log.lsn}</span> [Tx {log.txnId}] <span style={{ color: '#34d399', fontWeight: 'bold' }}>{log.type}</span>{log.tableName ? ` on ${log.tableName}` : ''}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#fca5a5', marginBottom: '0.25rem' }}>ARIES Recovery Phase Outputs</div>
+                <div style={{ flex: 1, backgroundColor: '#020617', borderRadius: '8px', padding: '0.75rem', overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.75rem', border: '1px solid #1e293b', color: '#fca5a5' }}>
+                  {recoveryLog.length === 0 ? (
+                    <div style={{ color: '#64748b' }}>System healthy. Trigger a crash or run txns, then click WAL Recovery.</div>
+                  ) : (
+                    recoveryLog.map((log, idx) => (
+                      <div key={idx} style={{ marginBottom: '4px' }}>{log}</div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -245,6 +286,97 @@ export default function App() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Engine Performance Benchmarks Panel */}
+      <div className="glass-panel" style={{ padding: '1.5rem', marginTop: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Activity size={22} color="#6366f1" />
+            <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Engine Performance Benchmarks</h2>
+          </div>
+          <button 
+            onClick={runBenchmark} 
+            disabled={runningBenchmark}
+            className="glow-btn-primary" 
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0.5rem 1.5rem' }}
+          >
+            {runningBenchmark ? (
+              <>
+                <span className="spinner" style={{
+                  display: 'inline-block',
+                  width: '14px',
+                  height: '14px',
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  borderTopColor: '#fff',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite'
+                }} />
+                Running Benchmarks...
+              </>
+            ) : (
+              <>
+                <Zap size={16} /> Run Performance Suite
+              </>
+            )}
+          </button>
+        </div>
+
+        {benchmarkResults ? (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+              {/* Card 1: Writes */}
+              <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '10px', padding: '1.2rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.85rem', color: '#a7f3d0', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem', fontWeight: 600 }}>Writes Throughput</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#10b981' }}>{benchmarkResults.writesPerSecond.toLocaleString()} <span style={{ fontSize: '0.9rem', fontWeight: 'normal', color: '#64748b' }}>op/s</span></div>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.3rem' }}>1,000 INSERT operations</div>
+              </div>
+              
+              {/* Card 2: Reads */}
+              <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '10px', padding: '1.2rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.85rem', color: '#bfdbfe', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem', fontWeight: 600 }}>Reads Throughput</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#3b82f6' }}>{benchmarkResults.readsPerSecond.toLocaleString()} <span style={{ fontSize: '0.9rem', fontWeight: 'normal', color: '#64748b' }}>op/s</span></div>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.3rem' }}>2,000 Point SELECT lookups</div>
+              </div>
+
+              {/* Card 3: Latency with Index */}
+              <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '10px', padding: '1.2rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.85rem', color: '#fde68a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem', fontWeight: 600 }}>Index Scan Latency</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#f59e0b' }}>{benchmarkResults.latencyWithIndexMs} <span style={{ fontSize: '0.9rem', fontWeight: 'normal', color: '#64748b' }}>ms</span></div>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.3rem' }}>B+ Tree Primary Key search</div>
+              </div>
+
+              {/* Card 4: Latency without Index */}
+              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px', padding: '1.2rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.85rem', color: '#fca5a5', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem', fontWeight: 600 }}>Table Scan Latency</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#ef4444' }}>{benchmarkResults.latencyWithoutIndexMs} <span style={{ fontSize: '0.9rem', fontWeight: 'normal', color: '#64748b' }}>ms</span></div>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.3rem' }}>Full Table scan comparison</div>
+              </div>
+            </div>
+
+            {/* Performance Comparison Indicator */}
+            <div style={{ background: 'rgba(30,41,59,0.5)', border: '1px solid #334155', borderRadius: '8px', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Zap size={20} color="#fbbf24" style={{ animation: 'pulse 1.5s infinite' }} />
+                <span style={{ fontSize: '0.95rem' }}>
+                  Index-based lookup resolves query requests approximately{' '}
+                  <strong style={{ color: '#fbbf24', fontSize: '1.1rem' }}>
+                    {Math.round(benchmarkResults.latencyWithoutIndexMs / benchmarkResults.latencyWithIndexMs) || 1}x
+                  </strong>{' '}
+                  faster than full sequential table scans.
+                </span>
+              </div>
+              <div style={{ width: '200px', height: '10px', backgroundColor: '#1e293b', borderRadius: '5px', overflow: 'hidden', display: 'flex' }}>
+                <div style={{ width: '95%', backgroundColor: '#f59e0b' }} />
+                <div style={{ width: '5%', backgroundColor: '#ef4444' }} />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b', background: '#020617', borderRadius: '8px', border: '1px solid #1e293b' }}>
+            Click the "Run Performance Suite" button above to run throughput and latency benchmarks directly on the engine.
+          </div>
+        )}
       </div>
     </div>
   );
