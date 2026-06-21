@@ -294,18 +294,17 @@ void TransactionManager::tpl_execute_insert(TxnId txn_id, const InsertStmt& s,
     if (schema.pk_col >= 0)
         lm_.lock(txn_id, resource_key(s.table, s.values[schema.pk_col]),
                  LockMode::EXCLUSIVE);
-    db_.executor().execute_insert(s);
-    // Record in WAL; RID is not tracked per-row here for simplicity
-    wal_.append({LogType::INSERT, txn_id, s.table, s.values, {}});
-    txn.undo_log.emplace_back(s.table, RID{}, s.values);
+    RID rid = db_.executor().execute_insert(s);
+    wal_.append({LogType::INSERT, txn_id, s.table, s.values, rid});
+    // To undo an insert we delete the row again (op = INSERT).
+    txn.undo_log.push_back({LogType::INSERT, s.table, rid, s.values});
 }
 
 void TransactionManager::tpl_execute_delete(TxnId txn_id, const DeleteStmt& s,
                                              Transaction& txn) {
     auto& schema = db_.catalog().get(s.table);
     auto& tbl    = db_.tables().at(s.table);
-    // First pass: collect rows to delete (evaluated in Executor::execute_delete)
-    // Here we acquire exclusive locks on each row's primary key before deleting.
+    // Acquire exclusive locks on every row's primary key before deleting.
     std::vector<std::pair<RID, Row>> to_lock;
     tbl->scan([&](RID rid, const Row& row) {
         to_lock.emplace_back(rid, row);
@@ -315,8 +314,13 @@ void TransactionManager::tpl_execute_delete(TxnId txn_id, const DeleteStmt& s,
             lm_.lock(txn_id, resource_key(s.table, row[schema.pk_col]),
                      LockMode::EXCLUSIVE);
     }
-    db_.executor().execute_delete(s);
-    wal_.append({LogType::DELETE, txn_id, s.table, {}, {}});
+    // execute_delete returns the rows it actually removed (after WHERE filtering),
+    // so we can re-insert them on abort. Record one undo entry per deleted row.
+    auto deleted = db_.executor().execute_delete(s);
+    for (auto& [rid, row] : deleted) {
+        wal_.append({LogType::DELETE, txn_id, s.table, row, rid});
+        txn.undo_log.push_back({LogType::DELETE, s.table, rid, row});
+    }
 }
 
 // ─── MVCC mode helpers ───────────────────────────────────────────────────────
@@ -381,7 +385,7 @@ void TransactionManager::mvcc_execute_insert(TxnId txn_id, const InsertStmt& s,
     Timestamp write_ts = next_ts();
     mvcc_.put_version(s.table, rid, s.values, write_ts, txn_id);
     wal_.append({LogType::INSERT, txn_id, s.table, s.values, rid});
-    txn.undo_log.emplace_back(s.table, rid, s.values);
+    txn.undo_log.push_back({LogType::INSERT, s.table, rid, s.values});
 }
 
 void TransactionManager::mvcc_execute_delete(TxnId txn_id, const DeleteStmt& s,
@@ -393,7 +397,7 @@ void TransactionManager::mvcc_execute_delete(TxnId txn_id, const DeleteStmt& s,
         // Seal version as of end_ts
         mvcc_.delete_version(s.table, rid, end_ts);
         wal_.append({LogType::DELETE, txn_id, s.table, row, rid});
-        txn.undo_log.emplace_back(s.table, rid, row);
+        txn.undo_log.push_back({LogType::DELETE, s.table, rid, row});
     }
     // Also delete from heap for simplicity
     db_.executor().execute_delete(s);
@@ -434,10 +438,13 @@ ResultSet TransactionManager::execute(TxnId txn_id, const std::string& sql) {
 
         } else if constexpr (std::is_same_v<T, CreateStmt>) {
             db_.executor().execute_create(s, db_.db_dir());
-            // Populate MVCC store with the table's initial (empty) state
+            // Persist the schema so the table is found again after a restart.
+            // (DDL is auto-committed: it takes effect immediately, not at COMMIT.)
+            db_.catalog().save(db_.db_dir() + "/catalog.cat");
             return {};
         } else if constexpr (std::is_same_v<T, DropStmt>) {
             db_.executor().execute_drop(s);
+            db_.catalog().save(db_.db_dir() + "/catalog.cat");
             return {};
         } else {
             return {}; // BEGIN/COMMIT/ROLLBACK handled at outer level
@@ -458,13 +465,35 @@ void TransactionManager::commit(TxnId txn_id) {
 void TransactionManager::abort(TxnId txn_id) {
     std::lock_guard<std::mutex> g(mu_);
     auto& txn = active_.at(txn_id);
-    // Undo in reverse order
+
+    // Apply undo entries in REVERSE order so the heap returns to its pre-txn state.
     for (auto it = txn.undo_log.rbegin(); it != txn.undo_log.rend(); ++it) {
-        auto& [table, rid, row] = *it;
-        // For MVCC: seal the aborted version so it's never visible
-        mvcc_.delete_version(table, rid, 0); // end_ts=0 → never visible
-        // For the heap: we'd need before-images; simplified here
+        const UndoEntry& u = *it;
+
+        if (mode_ == ConcurrencyMode::MVCC) {
+            // MVCC reads consult the version store, so it is enough to make the
+            // aborted version invisible: seal it with end_ts = 0 (before any snapshot).
+            mvcc_.delete_version(u.table, u.rid, 0);
+            continue;
+        }
+
+        // 2PL: physically reverse the heap change.
+        if (!db_.catalog().exists(u.table)) continue;
+        auto& tbl    = db_.tables().at(u.table);
+        auto& schema = db_.catalog().get(u.table);
+
+        if (u.op == LogType::INSERT) {
+            // Undo an insert → delete the row. Locate its current RID by PK.
+            if (schema.pk_col >= 0) {
+                auto rid = tbl->index().search(u.row[schema.pk_col]);
+                if (rid) tbl->delete_row(*rid, u.row);
+            }
+        } else if (u.op == LogType::DELETE) {
+            // Undo a delete → re-insert the before-image.
+            tbl->insert_row(u.row);
+        }
     }
+
     txn.state = TxnState::ABORTED;
     wal_.append({LogType::ABORT, txn_id, "", {}, {}});
     wal_.flush();
@@ -499,16 +528,20 @@ void recover(Database& db, const std::string& wal_path) {
     for (TxnId t : began)
         if (!committed.count(t) && !aborted.count(t)) inflight.insert(t);
 
-    // REDO phase: replay INSERT records of committed txns
+    // REDO phase: replay INSERT records of committed txns.
+    // REDO must be IDEMPOTENT: heap pages are usually already durable (we flush
+    // on commit), so the row may already exist. We skip those by checking the
+    // primary-key index first, and only re-insert rows lost to an unflushed crash.
     for (auto& rec : records) {
         if (!committed.count(rec.txn_id)) continue;
         if (rec.type == LogType::INSERT && !rec.table.empty()) {
-            try {
-                if (db.catalog().exists(rec.table))
-                    db.tables().at(rec.table)->insert_row(rec.row);
-            } catch (...) {
-                // Row may already exist from a previous recovery run — skip
-            }
+            if (!db.catalog().exists(rec.table)) continue;
+            auto& tbl    = db.tables().at(rec.table);
+            auto& schema = db.catalog().get(rec.table);
+            // Already present? Then this insert is already durable — nothing to do.
+            if (schema.pk_col >= 0 && tbl->index().search(rec.row[schema.pk_col]))
+                continue;
+            try { tbl->insert_row(rec.row); } catch (...) { /* defensive */ }
         }
     }
 

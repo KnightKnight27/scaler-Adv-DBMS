@@ -156,12 +156,21 @@ private:
 // ─── Transaction descriptor ──────────────────────────────────────────────────
 enum class TxnState { ACTIVE, COMMITTED, ABORTED };
 
+// One reversible action recorded during a transaction.
+//   op == INSERT  → to undo, DELETE this row
+//   op == DELETE  → to undo, re-INSERT this row (before-image stored in `row`)
+struct UndoEntry {
+    LogType     op;
+    std::string table;
+    RID         rid;
+    Row         row;
+};
+
 struct Transaction {
     TxnId       id;
     Timestamp   snapshot_ts;   // MVCC snapshot (begin timestamp)
     TxnState    state = TxnState::ACTIVE;
-    // Undo log for abort: list of (table, rid, before-image) pairs
-    std::vector<std::tuple<std::string, RID, Row>> undo_log;
+    std::vector<UndoEntry> undo_log;  // applied in reverse on abort
 };
 
 // ─── TransactionManager ──────────────────────────────────────────────────────
