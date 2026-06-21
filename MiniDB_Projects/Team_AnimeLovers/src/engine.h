@@ -86,6 +86,7 @@ public:
 
     const TableSchema& schema() const { return schema_; }
     BPlusTree&         index()        { return index_; }
+    const BPlusTree&   index() const  { return index_; }
 
 private:
     TableSchema                 schema_;
@@ -162,6 +163,7 @@ public:
     // (used for MVCC / 2PL wrapping in transaction.cpp)
     Executor& executor() { return *executor_; }
     Catalog&  catalog()  { return catalog_;   }
+    const std::string& db_dir() const { return db_dir_; }
     std::map<std::string, std::unique_ptr<HeapTable>>& tables() { return tables_; }
 
 private:

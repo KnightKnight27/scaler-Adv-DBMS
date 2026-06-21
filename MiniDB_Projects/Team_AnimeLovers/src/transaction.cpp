@@ -304,15 +304,13 @@ void TransactionManager::tpl_execute_delete(TxnId txn_id, const DeleteStmt& s,
                                              Transaction& txn) {
     auto& schema = db_.catalog().get(s.table);
     auto& tbl    = db_.tables().at(s.table);
-    // Scan first to find targets, then acquire locks and delete
-    std::vector<std::pair<RID, Row>> to_del;
+    // First pass: collect rows to delete (evaluated in Executor::execute_delete)
+    // Here we acquire exclusive locks on each row's primary key before deleting.
+    std::vector<std::pair<RID, Row>> to_lock;
     tbl->scan([&](RID rid, const Row& row) {
-        if (!s.has_where ||
-            db_.executor().execute_select(SelectStmt{true,{},s.table}).rows.empty())
-        { /* simplified — we re-evaluate in execute_delete */ }
-        to_del.emplace_back(rid, row);
+        to_lock.emplace_back(rid, row);
     });
-    for (auto& [rid, row] : to_del) {
+    for (auto& [rid, row] : to_lock) {
         if (schema.pk_col >= 0)
             lm_.lock(txn_id, resource_key(s.table, row[schema.pk_col]),
                      LockMode::EXCLUSIVE);
@@ -435,8 +433,7 @@ ResultSet TransactionManager::execute(TxnId txn_id, const std::string& sql) {
             return {};
 
         } else if constexpr (std::is_same_v<T, CreateStmt>) {
-            db_.executor().execute_create(s, db_.catalog().table_names().empty()
-                                            ? "minidb_data" : "minidb_data");
+            db_.executor().execute_create(s, db_.db_dir());
             // Populate MVCC store with the table's initial (empty) state
             return {};
         } else if constexpr (std::is_same_v<T, DropStmt>) {
