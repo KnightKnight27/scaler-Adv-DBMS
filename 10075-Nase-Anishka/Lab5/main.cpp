@@ -1,338 +1,334 @@
-// Lab 5 — Red-Black Tree
-// Author: Nase Anishka (Roll No. 10075)
-//
-// A templated Red-Black Tree with insert, contains, in-order traversal,
-// a tree-shape pretty printer, and a validator that asserts all five
-// of the RB invariants.
-//
-// Build:   cmake -B build && cmake --build build
-// Run:     ./build/rb_tree
-
-#include <algorithm>
-#include <cstddef>
-#include <functional>
 #include <iostream>
-#include <stdexcept>
-#include <string>
+#include <sstream>
+#include <stack>
 #include <vector>
+#include <string>
+#include <unordered_map>
+#include <stdexcept>
+#include <cctype>
+#include <algorithm>
+#include <cmath>
 
-template <typename T>
-class RedBlackTree {
-public:
-    RedBlackTree() = default;
-    ~RedBlackTree() { destroy(root_); }
+// ─── Part 1: Shunting-Yard Algorithm ─────────────────────────────────────────
 
-    RedBlackTree(const RedBlackTree&) = delete;
-    RedBlackTree& operator=(const RedBlackTree&) = delete;
+struct OpInfo { int precedence; bool right_assoc; };
 
-    void insert(const T& value) {
-        Node* parent = nullptr;
-        Node* cursor = root_;
-        while (cursor) {
-            parent = cursor;
-            if (value < cursor->value) cursor = cursor->left;
-            else if (cursor->value < value) cursor = cursor->right;
-            else return; // already present, RB tree of unique keys
-        }
-
-        Node* fresh = new Node(value, Color::Red, parent);
-        if (!parent) {
-            root_ = fresh;
-        } else if (value < parent->value) {
-            parent->left = fresh;
-        } else {
-            parent->right = fresh;
-        }
-        ++size_;
-
-        rebalanceAfterInsert(fresh);
-    }
-
-    bool contains(const T& value) const {
-        for (Node* n = root_; n; ) {
-            if (value < n->value)      n = n->left;
-            else if (n->value < value) n = n->right;
-            else                       return true;
-        }
-        return false;
-    }
-
-    std::size_t size()  const { return size_; }
-    bool        empty() const { return root_ == nullptr; }
-    std::size_t height() const { return heightOf(root_); }
-    std::size_t blackHeight() const { return blackHeightOf(root_); }
-
-    // Calls `fn(value)` for every key in ascending order.
-    template <typename Fn>
-    void inOrder(Fn fn) const { inOrderHelper(root_, fn); }
-
-    // Visual ASCII tree, drawn sideways. Right subtrees are above, left
-    // subtrees are below, parent in the middle -- the conventional
-    // "tilt the tree 90 degrees clockwise" view.
-    void prettyPrint(std::ostream& os = std::cout) const {
-        if (!root_) { os << "(empty)\n"; return; }
-        prettyPrintHelper(root_, "", true, os);
-    }
-
-    // Walks the tree and throws if any RB invariant is broken.
-    // Returns the black-height so the caller can print it.
-    std::size_t validate() const {
-        if (root_ && root_->color == Color::Red) {
-            throw std::logic_error("invariant 2 broken: root is red");
-        }
-        return validateHelper(root_);
-    }
-
-private:
-    enum class Color : unsigned char { Red, Black };
-
-    struct Node {
-        T value;
-        Color color;
-        Node* parent;
-        Node* left{nullptr};
-        Node* right{nullptr};
-
-        Node(const T& v, Color c, Node* p) : value(v), color(c), parent(p) {}
-    };
-
-    Node* root_{nullptr};
-    std::size_t size_{0};
-
-    // --- structural helpers -------------------------------------------------
-
-    static Color colorOf(const Node* n) {
-        return n ? n->color : Color::Black; // missing children are black
-    }
-
-    Node* grandparent(Node* n) const {
-        return (n && n->parent) ? n->parent->parent : nullptr;
-    }
-
-    Node* sibling(Node* n) const {
-        if (!n || !n->parent) return nullptr;
-        return (n == n->parent->left) ? n->parent->right : n->parent->left;
-    }
-
-    Node* uncle(Node* n) const {
-        Node* gp = grandparent(n);
-        if (!gp) return nullptr;
-        return (n->parent == gp->left) ? gp->right : gp->left;
-    }
-
-    void rotateLeft(Node* x) {
-        Node* y = x->right;
-        x->right = y->left;
-        if (y->left) y->left->parent = x;
-        y->parent = x->parent;
-        if (!x->parent)            root_ = y;
-        else if (x == x->parent->left)  x->parent->left  = y;
-        else                            x->parent->right = y;
-        y->left = x;
-        x->parent = y;
-    }
-
-    void rotateRight(Node* x) {
-        Node* y = x->left;
-        x->left = y->right;
-        if (y->right) y->right->parent = x;
-        y->parent = x->parent;
-        if (!x->parent)            root_ = y;
-        else if (x == x->parent->left)  x->parent->left  = y;
-        else                            x->parent->right = y;
-        y->right = x;
-        x->parent = y;
-    }
-
-    // --- insert fixup -------------------------------------------------------
-    //
-    // Three cases per side; the side (parent is left/right of grandparent)
-    // is mirrored so we handle it via a `parentIsLeft` flag.
-    void rebalanceAfterInsert(Node* node) {
-        while (node != root_ && colorOf(node->parent) == Color::Red) {
-            Node* parent = node->parent;
-            Node* gp     = grandparent(node);
-            const bool parentIsLeft = (parent == gp->left);
-            Node* u = parentIsLeft ? gp->right : gp->left;
-
-            // Case 1: uncle is red -> recolor parent + uncle to black,
-            // grandparent to red, then continue from the grandparent.
-            if (colorOf(u) == Color::Red) {
-                parent->color = Color::Black;
-                u->color      = Color::Black;
-                gp->color     = Color::Red;
-                node = gp;
-                continue;
-            }
-
-            // Case 2: node is "inner" (right child of left parent or vice
-            // versa) -> rotate at the parent to turn it into Case 3.
-            if (parentIsLeft && node == parent->right) {
-                rotateLeft(parent);
-                node   = parent;
-                parent = node->parent;
-            } else if (!parentIsLeft && node == parent->left) {
-                rotateRight(parent);
-                node   = parent;
-                parent = node->parent;
-            }
-
-            // Case 3: node is "outer" -> recolor + single rotation at gp.
-            parent->color = Color::Black;
-            gp->color     = Color::Red;
-            if (parentIsLeft) rotateRight(gp);
-            else              rotateLeft(gp);
-        }
-        root_->color = Color::Black;
-    }
-
-    // --- traversal / display -----------------------------------------------
-
-    template <typename Fn>
-    void inOrderHelper(const Node* n, Fn& fn) const {
-        if (!n) return;
-        inOrderHelper(n->left, fn);
-        fn(n->value);
-        inOrderHelper(n->right, fn);
-    }
-
-    void prettyPrintHelper(const Node* n, const std::string& prefix,
-                           bool isRoot, std::ostream& os) const {
-        if (!n) return;
-        prettyPrintHelper(n->right, prefix + (isRoot ? "    " : "        "),
-                          false, os);
-        if (!isRoot) {
-            os << prefix << "    /----- ";
-        } else {
-            os << prefix;
-        }
-        os << n->value << (n->color == Color::Red ? "(R)" : "(B)") << '\n';
-        prettyPrintHelper(n->left, prefix + (isRoot ? "    " : "        "),
-                          false, os);
-    }
-
-    std::size_t heightOf(const Node* n) const {
-        if (!n) return 0;
-        return 1 + std::max(heightOf(n->left), heightOf(n->right));
-    }
-
-    std::size_t blackHeightOf(const Node* n) const {
-        std::size_t bh = 0;
-        for (const Node* c = n; c; c = c->left) {
-            if (c->color == Color::Black) ++bh;
-        }
-        return bh;
-    }
-
-    // --- invariant checker -------------------------------------------------
-    //
-    // Returns the black-height of the subtree rooted at n.
-    // Throws std::logic_error if anything is off.
-    std::size_t validateHelper(const Node* n) const {
-        if (!n) return 1; // null leaves count as black
-
-        // Invariant 4: no two consecutive reds.
-        if (n->color == Color::Red) {
-            if (colorOf(n->left) == Color::Red ||
-                colorOf(n->right) == Color::Red) {
-                throw std::logic_error(
-                    "invariant 4 broken: red node has a red child");
-            }
-        }
-
-        // BST property: left < n < right.
-        if (n->left && !(n->left->value < n->value)) {
-            throw std::logic_error("BST property broken on left child");
-        }
-        if (n->right && !(n->value < n->right->value)) {
-            throw std::logic_error("BST property broken on right child");
-        }
-
-        // Parent pointers are consistent.
-        if (n->left  && n->left->parent  != n) {
-            throw std::logic_error("parent pointer broken (left)");
-        }
-        if (n->right && n->right->parent != n) {
-            throw std::logic_error("parent pointer broken (right)");
-        }
-
-        const std::size_t bhL = validateHelper(n->left);
-        const std::size_t bhR = validateHelper(n->right);
-        if (bhL != bhR) {
-            throw std::logic_error(
-                "invariant 5 broken: differing black-heights at "
-                + std::to_string(n->value));
-        }
-        return bhL + (n->color == Color::Black ? 1 : 0);
-    }
-
-    void destroy(Node* n) {
-        if (!n) return;
-        destroy(n->left);
-        destroy(n->right);
-        delete n;
-    }
+const std::unordered_map<std::string, OpInfo> OPS = {
+    {"||", {1, false}},
+    {"&&", {2, false}},
+    {"=",  {3, false}},
+    {"!=", {3, false}},
+    {"<",  {4, false}},
+    {">",  {4, false}},
+    {"<=", {4, false}},
+    {">=", {4, false}},
+    {"+",  {5, false}},
+    {"-",  {5, false}},
+    {"*",  {6, false}},
+    {"/",  {6, false}},
+    {"^",  {7, true }},
 };
 
-// ----------------------------- demo -----------------------------------------
-
-namespace {
-
-void runScenario(const std::string& label,
-                 const std::vector<int>& keys) {
-    std::cout << "\n=== " << label << " ===\n";
-    std::cout << "inserting: ";
-    for (int k : keys) std::cout << k << ' ';
-    std::cout << '\n';
-
-    RedBlackTree<int> tree;
-    for (int k : keys) tree.insert(k);
-
-    std::cout << "size         : " << tree.size() << '\n';
-    std::cout << "height       : " << tree.height() << '\n';
-    std::cout << "black-height : " << tree.blackHeight() << '\n';
-
-    std::cout << "in-order     :";
-    tree.inOrder([](int v) { std::cout << ' ' << v; });
-    std::cout << '\n';
-
-    std::cout << "shape (right subtree on top, parent in middle):\n";
-    tree.prettyPrint();
-
-    tree.validate();
-    std::cout << "validate()   : OK (all five RB invariants hold)\n";
-
-    std::cout << "contains 15  : " << (tree.contains(15) ? "yes" : "no") << '\n';
-    std::cout << "contains 99  : " << (tree.contains(99) ? "yes" : "no") << '\n';
+std::vector<std::string> tokenize(const std::string& expr) {
+    std::vector<std::string> tokens;
+    int i = 0, n = (int)expr.size();
+    while (i < n) {
+        if (std::isspace((unsigned char)expr[i])) { i++; continue; }
+        if (std::isdigit((unsigned char)expr[i]) ||
+            (expr[i] == '.' && i + 1 < n && std::isdigit((unsigned char)expr[i + 1]))) {
+            int j = i;
+            while (j < n && (std::isdigit((unsigned char)expr[j]) || expr[j] == '.')) j++;
+            tokens.push_back(expr.substr(i, j - i));
+            i = j;
+        } else if (std::isalpha((unsigned char)expr[i]) || expr[i] == '_') {
+            int j = i;
+            while (j < n && (std::isalnum((unsigned char)expr[j]) || expr[j] == '_')) j++;
+            tokens.push_back(expr.substr(i, j - i));
+            i = j;
+        } else if (expr[i] == '(' || expr[i] == ')') {
+            tokens.push_back(std::string(1, expr[i++]));
+        } else {
+            if (i + 1 < n) {
+                std::string two = expr.substr(i, 2);
+                if (OPS.count(two)) { tokens.push_back(two); i += 2; continue; }
+            }
+            tokens.push_back(std::string(1, expr[i++]));
+        }
+    }
+    return tokens;
 }
 
+// Shunting-Yard: infix tokens -> RPN tokens
+std::vector<std::string> to_rpn(const std::vector<std::string>& tokens) {
+    std::vector<std::string> output;
+    std::stack<std::string>  ops;
+
+    for (const auto& tok : tokens) {
+        if (tok == "(") {
+            ops.push(tok);
+        } else if (tok == ")") {
+            while (!ops.empty() && ops.top() != "(") {
+                output.push_back(ops.top()); ops.pop();
+            }
+            if (ops.empty()) throw std::runtime_error("Mismatched parentheses");
+            ops.pop();
+        } else if (OPS.count(tok)) {
+            const auto& o1 = OPS.at(tok);
+            while (!ops.empty() && OPS.count(ops.top())) {
+                const auto& o2 = OPS.at(ops.top());
+                if (o2.precedence > o1.precedence ||
+                   (o2.precedence == o1.precedence && !o1.right_assoc)) {
+                    output.push_back(ops.top()); ops.pop();
+                } else break;
+            }
+            ops.push(tok);
+        } else {
+            output.push_back(tok);
+        }
+    }
+    while (!ops.empty()) {
+        if (ops.top() == "(") throw std::runtime_error("Mismatched parentheses");
+        output.push_back(ops.top()); ops.pop();
+    }
+    return output;
+}
+
+double eval_rpn(const std::vector<std::string>& rpn,
+                const std::unordered_map<std::string, double>& vars) {
+    std::stack<double> stk;
+    for (const auto& tok : rpn) {
+        if (OPS.count(tok)) {
+            double b = stk.top(); stk.pop();
+            double a = stk.top(); stk.pop();
+            if      (tok == "+")  stk.push(a + b);
+            else if (tok == "-")  stk.push(a - b);
+            else if (tok == "*")  stk.push(a * b);
+            else if (tok == "/")  stk.push(a / b);
+            else if (tok == "^")  stk.push(std::pow(a, b));
+            else if (tok == "<")  stk.push(a <  b ? 1.0 : 0.0);
+            else if (tok == ">")  stk.push(a >  b ? 1.0 : 0.0);
+            else if (tok == "<=") stk.push(a <= b ? 1.0 : 0.0);
+            else if (tok == ">=") stk.push(a >= b ? 1.0 : 0.0);
+            else if (tok == "=")  stk.push(a == b ? 1.0 : 0.0);
+            else if (tok == "!=") stk.push(a != b ? 1.0 : 0.0);
+            else if (tok == "&&") stk.push((a != 0.0 && b != 0.0) ? 1.0 : 0.0);
+            else if (tok == "||") stk.push((a != 0.0 || b != 0.0) ? 1.0 : 0.0);
+        } else {
+            try { stk.push(std::stod(tok)); }
+            catch (...) {
+                auto it = vars.find(tok);
+                if (it == vars.end())
+                    throw std::runtime_error("Unknown variable: " + tok);
+                stk.push(it->second);
+            }
+        }
+    }
+    return stk.top();
+}
+
+void shunting_demo() {
+    std::cout << "=== Part 1: Shunting-Yard Algorithm Demo ===\n\n";
+
+    {
+        std::string expr = "age * 2 + salary / 1000 > 100";
+        auto tokens = tokenize(expr);
+        auto rpn    = to_rpn(tokens);
+        std::cout << "Expression : " << expr << "\n";
+        std::cout << "RPN        : ";
+        for (auto& t : rpn) std::cout << t << " ";
+        std::cout << "\n";
+        std::unordered_map<std::string, double> vars = {{"age", 30.0}, {"salary", 50000.0}};
+        std::cout << "Variables  : age=30, salary=50000\n";
+        std::cout << "Result     : " << (eval_rpn(rpn, vars) ? "true" : "false") << "\n\n";
+    }
+
+    {
+        std::string expr2 = "(3 + 4) * 2 ^ 3 - 1";
+        auto rpn2 = to_rpn(tokenize(expr2));
+        std::cout << "Expression : " << expr2 << "\n";
+        std::cout << "RPN        : ";
+        for (auto& t : rpn2) std::cout << t << " ";
+        std::cout << "\n";
+        std::cout << "Result     : " << eval_rpn(rpn2, {}) << "\n\n";
+    }
+
+    {
+        std::string expr3 = "age >= 18 && gpa > 3.0";
+        auto rpn3 = to_rpn(tokenize(expr3));
+        std::cout << "Expression : " << expr3 << "\n";
+        std::cout << "RPN        : ";
+        for (auto& t : rpn3) std::cout << t << " ";
+        std::cout << "\n";
+        std::unordered_map<std::string, double> vars3 = {{"age", 22.0}, {"gpa", 3.5}};
+        std::cout << "Variables  : age=22, gpa=3.5\n";
+        std::cout << "Result     : " << (eval_rpn(rpn3, vars3) ? "true" : "false") << "\n\n";
+    }
+}
+
+// ─── Part 2: Minimal SQL SELECT Parser over vector<Row> ──────────────────────
+
+enum class ValType { NUM, STR };
+
+struct Value {
+    ValType     type = ValType::NUM;
+    double      num  = 0.0;
+    std::string str;
+
+    static Value from_num(double d)             { Value v; v.type = ValType::NUM; v.num = d;  return v; }
+    static Value from_str(const std::string& s) { Value v; v.type = ValType::STR; v.str = s;  return v; }
+};
+
+struct Row {
+    std::unordered_map<std::string, Value> cols;
+};
+
+double row_val(const Row& row, const std::string& col) {
+    auto it = row.cols.find(col);
+    if (it == row.cols.end()) return 0.0;
+    if (it->second.type == ValType::NUM) return it->second.num;
+    try { return std::stod(it->second.str); } catch (...) {}
+    return 0.0;
+}
+
+struct SelectQuery {
+    std::vector<std::string> columns;
+    std::string              from;
+    std::string              where_raw;
+    std::string              order_by;
+    bool                     order_asc = true;
+    int                      limit     = -1;
+};
+
+std::string to_upper(std::string s) {
+    for (auto& c : s) c = (char)std::toupper((unsigned char)c);
+    return s;
+}
+
+SelectQuery parse_select(const std::string& sql) {
+    SelectQuery q;
+    std::istringstream ss(sql);
+    std::string word;
+    ss >> word;  // consume SELECT
+
+    while (ss >> word && to_upper(word) != "FROM") {
+        if (!word.empty() && word.back() == ',') word.pop_back();
+        if (word == "*") q.columns.clear();
+        else             q.columns.push_back(word);
+    }
+
+    ss >> q.from;
+
+    while (ss >> word) {
+        std::string kw = to_upper(word);
+        if (kw == "WHERE") {
+            std::string clause, w2;
+            while (ss >> w2) {
+                if (to_upper(w2) == "ORDER" || to_upper(w2) == "LIMIT") {
+                    word = w2; goto next_clause;
+                }
+                clause += (clause.empty() ? "" : " ") + w2;
+            }
+            q.where_raw = clause;
+            break;
+        next_clause:;
+            q.where_raw = clause;
+            kw = to_upper(word);
+        }
+        if (kw == "ORDER") { ss >> word; ss >> q.order_by; std::string dir; if (ss >> dir && to_upper(dir) == "DESC") q.order_asc = false; }
+        if (kw == "LIMIT") { ss >> q.limit; }
+    }
+    return q;
+}
+
+std::vector<Row> execute(const SelectQuery& q, const std::vector<Row>& data) {
+    std::vector<std::string> rpn;
+    if (!q.where_raw.empty())
+        rpn = to_rpn(tokenize(q.where_raw));
+
+    std::vector<Row> result;
+
+    for (const auto& row : data) {
+        if (!rpn.empty()) {
+            std::unordered_map<std::string, double> vars;
+            for (const auto& kv : row.cols) vars[kv.first] = row_val(row, kv.first);
+            if (!eval_rpn(rpn, vars)) continue;
+        }
+
+        if (q.columns.empty()) {
+            result.push_back(row);
+        } else {
+            Row projected;
+            for (const auto& col : q.columns) {
+                auto it = row.cols.find(col);
+                if (it != row.cols.end()) projected.cols[col] = it->second;
+            }
+            result.push_back(projected);
+        }
+    }
+
+    if (!q.order_by.empty()) {
+        std::sort(result.begin(), result.end(), [&](const Row& a, const Row& b) {
+            return q.order_asc ? row_val(a, q.order_by) < row_val(b, q.order_by)
+                               : row_val(a, q.order_by) > row_val(b, q.order_by);
+        });
+    }
+
+    if (q.limit >= 0 && (int)result.size() > q.limit)
+        result.resize((size_t)q.limit);
+
+    return result;
+}
+
+void print_rows(const std::vector<Row>& rows, const std::vector<std::string>& col_order) {
+    for (const auto& row : rows) {
+        const std::vector<std::string>* keys = &col_order;
+        std::vector<std::string> dynamic_keys;
+        if (col_order.empty()) {
+            for (const auto& kv : row.cols) dynamic_keys.push_back(kv.first);
+            std::sort(dynamic_keys.begin(), dynamic_keys.end());
+            keys = &dynamic_keys;
+        }
+        for (const auto& k : *keys) {
+            auto it = row.cols.find(k);
+            if (it == row.cols.end()) continue;
+            std::cout << k << "=";
+            if (it->second.type == ValType::NUM) std::cout << it->second.num;
+            else                                  std::cout << it->second.str;
+            std::cout << "  ";
+        }
+        std::cout << "\n";
+    }
 }
 
 int main() {
-    std::cout << "Red-Black Tree demo\n";
+    shunting_demo();
 
-    // Scenario 1: the same six keys as a sanity baseline -- but the resulting
-    // tree shape is the point, not the keys themselves.
-    runScenario("six mixed inserts",
-                {10, 20, 30, 15, 5, 1});
+    std::vector<Row> students = {
+        {{{ "id", Value::from_num(1) }, { "name", Value::from_str("Alice") }, { "age", Value::from_num(22) }, { "gpa", Value::from_num(3.8) }}},
+        {{{ "id", Value::from_num(2) }, { "name", Value::from_str("Bob")   }, { "age", Value::from_num(25) }, { "gpa", Value::from_num(2.9) }}},
+        {{{ "id", Value::from_num(3) }, { "name", Value::from_str("Carol") }, { "age", Value::from_num(21) }, { "gpa", Value::from_num(3.5) }}},
+        {{{ "id", Value::from_num(4) }, { "name", Value::from_str("Dave")  }, { "age", Value::from_num(30) }, { "gpa", Value::from_num(3.1) }}},
+    };
 
-    // Scenario 2: ascending input -- worst case for a plain BST, but the RB
-    // rotations should keep height roughly 2 * log2(n).
-    runScenario("ascending 1..10",
-                {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
+    std::cout << "=== Part 2: Minimal SQL SELECT Parser ===\n\n";
 
-    // Scenario 3: descending input -- mirror of scenario 2.
-    runScenario("descending 10..1",
-                {10, 9, 8, 7, 6, 5, 4, 3, 2, 1});
+    struct QueryDef { std::string sql; std::vector<std::string> col_order; };
 
-    // Scenario 4: a duplicate-insert is silently ignored.
-    {
-        std::cout << "\n=== duplicate insert is a no-op ===\n";
-        RedBlackTree<int> t;
-        t.insert(42);
-        t.insert(42);
-        t.insert(42);
-        std::cout << "size after three insert(42) calls: " << t.size() << '\n';
+    QueryDef queries[] = {
+        { "SELECT id, name, gpa FROM students WHERE gpa > 3.0 ORDER BY gpa DESC LIMIT 3",
+          {"id", "name", "gpa"} },
+        { "SELECT * FROM students WHERE age >= 22 && age <= 26",
+          {"id", "name", "age", "gpa"} },
+        { "SELECT name, age FROM students WHERE gpa >= 3.5 ORDER BY age ASC",
+          {"name", "age"} },
+    };
+
+    for (const auto& qd : queries) {
+        std::cout << "SQL: " << qd.sql << "\n";
+        auto res = execute(parse_select(qd.sql), students);
+        if (res.empty()) std::cout << "(no rows)\n";
+        else             print_rows(res, qd.col_order);
+        std::cout << "\n";
     }
 
     return 0;

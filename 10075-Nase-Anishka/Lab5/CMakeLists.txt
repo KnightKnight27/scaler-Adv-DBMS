@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(rb_tree CXX)
+project(sql_parser CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,5 +9,5 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-add_executable(rb_tree main.cpp)
-target_compile_options(rb_tree PRIVATE -Wall -Wextra -Wpedantic)
+add_executable(sql_parser main.cpp)
+target_compile_options(sql_parser PRIVATE -Wall -Wextra -Wpedantic)
