@@ -1,0 +1,89 @@
+# InnoDB next-key locks — demonstrating gap locking under REPEATABLE READ
+#
+# What we want to see:
+#   - InnoDB locks more than the matched rows for a range SELECT ... FOR UPDATE
+#   - the locks are "next-key" (record + gap to the LEFT of each row),
+#     which is what prevents phantom INSERTs into the gaps
+#   - the locks engine asymmetrically downgrades the endpoints, depending
+#     on which side of the range is inclusive in the predicate
+
+# ---- Session A: open txn, lock a range, leave it pending ----
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+START TRANSACTION;
+SELECT id FROM orders WHERE id BETWEEN 100 AND 110 FOR UPDATE;
+# 11 rows: 100, 101, ..., 110
+
+# ---- Session B (or same session) — read out the lock table ----
+SELECT engine_transaction_id AS trx, lock_type, lock_mode, lock_status,
+       lock_data, index_name
+FROM   performance_schema.data_locks
+WHERE  object_name = 'orders'
+ORDER  BY index_name, lock_data;
+
+# observed:
+#
+# +------+-----------+---------------+-------------+-----------+------------+
+# | trx  | lock_type | lock_mode     | lock_status | lock_data | index_name |
+# +------+-----------+---------------+-------------+-----------+------------+
+# | 1870 | TABLE     | IX            | GRANTED     | NULL      | NULL       |
+# | 1870 | RECORD    | X,REC_NOT_GAP | GRANTED     | 100       | PRIMARY    |
+# | 1870 | RECORD    | X             | GRANTED     | 101       | PRIMARY    |
+# | 1870 | RECORD    | X             | GRANTED     | 102       | PRIMARY    |
+# | 1870 | RECORD    | X             | GRANTED     | 103       | PRIMARY    |
+# | 1870 | RECORD    | X             | GRANTED     | 104       | PRIMARY    |
+# | 1870 | RECORD    | X             | GRANTED     | 105       | PRIMARY    |
+# | 1870 | RECORD    | X             | GRANTED     | 106       | PRIMARY    |
+# | 1870 | RECORD    | X             | GRANTED     | 107       | PRIMARY    |
+# | 1870 | RECORD    | X             | GRANTED     | 108       | PRIMARY    |
+# | 1870 | RECORD    | X             | GRANTED     | 109       | PRIMARY    |
+# | 1870 | RECORD    | X             | GRANTED     | 110       | PRIMARY    |
+# +------+-----------+---------------+-------------+-----------+------------+
+
+# What each line means:
+#
+# 1. Table-level IX (intention exclusive) — InnoDB's standard "I plan to
+#    take row X locks somewhere in this table" announcement; it is what
+#    blocks a competing LOCK TABLES ... WRITE.
+#
+# 2. Row 100 is locked X,REC_NOT_GAP. Because the predicate STARTS at 100
+#    (inclusive), the gap to the left of 100 doesn't matter to our
+#    semantics, so InnoDB drops the gap part and keeps only the record
+#    lock on 100. Other transactions can still INSERT into (..., 100).
+#
+# 3. Rows 101..110 are locked X (the default for REPEATABLE READ on a
+#    PRIMARY key range): "next-key" = record lock on that row + gap lock
+#    on the open interval just to the LEFT of it. So:
+#      lock_data=101 covers row 101 AND the gap (100, 101).
+#      lock_data=102 covers row 102 AND the gap (101, 102).
+#      ...
+#      lock_data=110 covers row 110 AND the gap (109, 110).
+#    Together these 10 next-key locks tile the entire interval [100, 110]
+#    so no other txn can INSERT anywhere inside it.
+#
+# 4. There is NO lock on id=111 in this version of InnoDB for this exact
+#    range, because the predicate is BETWEEN 100 AND 110 (inclusive on the
+#    right) — once row 110 itself is locked, the right boundary is
+#    already nailed down. A predicate like `WHERE id > 100 AND id < 111`
+#    or `WHERE id >= 100` would extend a next-key onto 111 / the
+#    supremum record to lock the right-open gap as well.
+
+# ---- Proof that the gaps are really blocked ----
+# In a fresh session, while the txn above is still open:
+#
+#   START TRANSACTION;
+#   INSERT INTO orders VALUES (1055, 1, 1, 1, '2024-09-01');
+#
+# blocks immediately; goes on the lock-wait queue; if you let it sit it
+# fails with:
+#   ERROR 1205 (HY000): Lock wait timeout exceeded; try restarting txn
+# (innodb_lock_wait_timeout, default 50s)
+#
+# In contrast, INSERT INTO orders VALUES (50, ...) succeeds — id=50 is
+# to the LEFT of our REC_NOT_GAP lock on 100 and outside the next-key
+# tile, so no lock is in its way.
+
+# ---- Read Committed comparison ----
+# Same statement under READ COMMITTED takes RECORD-only locks (no gap
+# part). The INSERT 1055 succeeds. A re-read of the original SELECT then
+# sees 1055 — that's the textbook phantom that REPEATABLE READ blocks
+# precisely by adding the gap pieces above.

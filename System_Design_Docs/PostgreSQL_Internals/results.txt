@@ -1,0 +1,228 @@
+CREATE EXTENSION
+psql:/tmp/queries.sql:5: NOTICE:  extension "pageinspect" already exists, skipping
+CREATE EXTENSION
+=== Q1: hash join, grouped revenue per category for IN users ===
+psql:/tmp/queries.sql:6: NOTICE:  extension "pgstattuple" already exists, skipping
+                                                                                   QUERY PLAN                                                                                    
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=4309.48..4309.49 rows=5 width=15) (actual time=13.168..13.961 rows=2 loops=1)
+   Output: p.category, (sum((o.qty * p.price_cents)))
+   Sort Key: (sum((o.qty * p.price_cents))) DESC
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=1610 read=6
+   ->  Finalize GroupAggregate  (cost=4308.77..4309.42 rows=5 width=15) (actual time=13.154..13.948 rows=2 loops=1)
+         Output: p.category, sum((o.qty * p.price_cents))
+         Group Key: p.category
+         Buffers: shared hit=1607 read=6
+         ->  Gather Merge  (cost=4308.77..4309.35 rows=5 width=15) (actual time=13.152..13.945 rows=4 loops=1)
+               Output: p.category, (PARTIAL sum((o.qty * p.price_cents)))
+               Workers Planned: 1
+               Workers Launched: 1
+               Buffers: shared hit=1607 read=6
+               ->  Sort  (cost=3308.76..3308.77 rows=5 width=15) (actual time=12.288..12.289 rows=2 loops=2)
+                     Output: p.category, (PARTIAL sum((o.qty * p.price_cents)))
+                     Sort Key: p.category
+                     Sort Method: quicksort  Memory: 25kB
+                     Buffers: shared hit=1607 read=6
+                     Worker 0:  actual time=11.565..11.566 rows=2 loops=1
+                       Sort Method: quicksort  Memory: 25kB
+                       Buffers: shared hit=776
+                     ->  Partial HashAggregate  (cost=3308.65..3308.70 rows=5 width=15) (actual time=12.277..12.278 rows=2 loops=2)
+                           Output: p.category, PARTIAL sum((o.qty * p.price_cents))
+                           Group Key: p.category
+                           Batches: 1  Memory Usage: 24kB
+                           Buffers: shared hit=1599 read=6
+                           Worker 0:  actual time=11.550..11.551 rows=2 loops=1
+                             Batches: 1  Memory Usage: 24kB
+                             Buffers: shared hit=768
+                           ->  Hash Join  (cost=310.54..3132.18 rows=23529 width=15) (actual time=0.629..10.880 rows=20000 loops=2)
+                                 Output: p.category, o.qty, p.price_cents
+                                 Inner Unique: true
+                                 Hash Cond: (o.product_id = p.id)
+                                 Buffers: shared hit=1599 read=6
+                                 Worker 0:  actual time=0.578..10.261 rows=18688 loops=1
+                                   Buffers: shared hit=768
+                                 ->  Hash Join  (cost=295.29..3054.65 rows=23529 width=8) (actual time=0.554..9.355 rows=20000 loops=2)
+                                       Output: o.qty, o.product_id
+                                       Inner Unique: true
+                                       Hash Cond: (o.user_id = u.id)
+                                       Buffers: shared hit=1577 read=6
+                                       Worker 0:  actual time=0.494..8.806 rows=18688 loops=1
+                                         Buffers: shared hit=750
+                                       ->  Parallel Seq Scan on public.orders o  (cost=0.00..2450.47 rows=117647 width=12) (actual time=0.003..3.753 rows=100000 loops=2)
+                                             Output: o.id, o.user_id, o.product_id, o.qty, o.ordered_at
+                                             Buffers: shared hit=1274
+                                             Worker 0:  actual time=0.004..3.573 rows=93415 loops=1
+                                               Buffers: shared hit=595
+                                       ->  Hash  (cost=245.29..245.29 rows=4000 width=4) (actual time=0.542..0.543 rows=4000 loops=2)
+                                             Output: u.id
+                                             Buckets: 4096  Batches: 1  Memory Usage: 173kB
+                                             Buffers: shared hit=303 read=6
+                                             Worker 0:  actual time=0.482..0.483 rows=4000 loops=1
+                                               Buffers: shared hit=155
+                                             ->  Bitmap Heap Scan on public.users u  (cost=47.29..245.29 rows=4000 width=4) (actual time=0.060..0.324 rows=4000 loops=2)
+                                                   Output: u.id
+                                                   Recheck Cond: (u.country = 'IN'::bpchar)
+                                                   Heap Blocks: exact=148
+                                                   Buffers: shared hit=303 read=6
+                                                   Worker 0:  actual time=0.048..0.264 rows=4000 loops=1
+                                                     Buffers: shared hit=155
+                                                   ->  Bitmap Index Scan on idx_users_country  (cost=0.00..46.29 rows=4000 width=0) (actual time=0.051..0.051 rows=4000 loops=2)
+                                                         Index Cond: (u.country = 'IN'::bpchar)
+                                                         Buffers: shared hit=7 read=6
+                                                         Worker 0:  actual time=0.040..0.040 rows=4000 loops=1
+                                                           Buffers: shared hit=7
+                                 ->  Hash  (cost=9.00..9.00 rows=500 width=15) (actual time=0.061..0.062 rows=500 loops=2)
+                                       Output: p.category, p.price_cents, p.id
+                                       Buckets: 1024  Batches: 1  Memory Usage: 32kB
+                                       Buffers: shared hit=8
+                                       Worker 0:  actual time=0.061..0.061 rows=500 loops=1
+                                         Buffers: shared hit=4
+                                       ->  Seq Scan on public.products p  (cost=0.00..9.00 rows=500 width=15) (actual time=0.004..0.028 rows=500 loops=2)
+                                             Output: p.category, p.price_cents, p.id
+                                             Buffers: shared hit=8
+                                             Worker 0:  actual time=0.004..0.028 rows=500 loops=1
+                                               Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=305 read=3
+ Planning Time: 0.620 ms
+ Execution Time: 14.044 ms
+(82 rows)
+
+=== Q2a: index lookup for one user_id ===
+                                                        QUERY PLAN                                                        
+--------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on orders  (cost=4.37..41.84 rows=10 width=20) (actual time=0.010..0.014 rows=10 loops=1)
+   Recheck Cond: (user_id = 12345)
+   Heap Blocks: exact=10
+   Buffers: shared hit=11 read=1
+   ->  Bitmap Index Scan on idx_orders_user  (cost=0.00..4.37 rows=10 width=0) (actual time=0.009..0.009 rows=10 loops=1)
+         Index Cond: (user_id = 12345)
+         Buffers: shared hit=1 read=1
+ Planning:
+   Buffers: shared hit=6
+ Planning Time: 0.047 ms
+ Execution Time: 0.024 ms
+(11 rows)
+
+=== Q2b: full scan for non-selective predicate ===
+                                                              QUERY PLAN                                                              
+--------------------------------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate  (cost=3871.51..3871.52 rows=1 width=8) (actual time=4.963..5.613 rows=1 loops=1)
+   Buffers: shared hit=1274
+   ->  Gather  (cost=3871.39..3871.50 rows=1 width=8) (actual time=4.922..5.611 rows=2 loops=1)
+         Workers Planned: 1
+         Workers Launched: 1
+         Buffers: shared hit=1274
+         ->  Partial Aggregate  (cost=2871.39..2871.40 rows=1 width=8) (actual time=4.303..4.303 rows=1 loops=2)
+               Buffers: shared hit=1274
+               ->  Parallel Seq Scan on orders  (cost=0.00..2744.59 rows=50722 width=0) (actual time=0.003..3.244 rows=42857 loops=2)
+                     Filter: (qty = 3)
+                     Rows Removed by Filter: 57143
+                     Buffers: shared hit=1274
+ Planning:
+   Buffers: shared hit=3
+ Planning Time: 0.021 ms
+ Execution Time: 5.620 ms
+(16 rows)
+
+=== Q3a: row before update ===
+ ctid  | xmin | xmax | id | qty 
+-------+------+------+----+-----
+ (0,1) |  894 |    0 |  1 |   3
+(1 row)
+
+BEGIN
+UPDATE 1
+=== Q3b: row inside the same txn after update ===
+    ctid    | xmin | xmax | id | qty 
+------------+------+------+----+-----
+ (1273,140) |  900 |    0 |  1 | 103
+(1 row)
+
+COMMIT
+=== Q3c: row after commit (xmin = the txn that wrote it) ===
+    ctid    | xmin | xmax | id | qty 
+------------+------+------+----+-----
+ (1273,140) |  900 |    0 |  1 | 103
+(1 row)
+
+=== Q4a: page header for orders block 0 ===
+    lsn    | checksum | flags | lower | upper | special | pagesize | version | prune_xid 
+-----------+----------+-------+-------+-------+---------+----------+---------+-----------
+ 0/C9D1460 |        0 |     0 |   652 |   704 |    8192 |     8192 |       4 |         0
+(1 row)
+
+=== Q4b: first 5 item pointers + tuple headers ===
+ lp | lp_off | lp_len | t_xmin | t_xmax | t_ctid 
+----+--------+--------+--------+--------+--------
+  1 |      0 |      0 |        |        | 
+  2 |   8144 |     44 |    894 |      0 | (0,2)
+  3 |   8096 |     44 |    894 |      0 | (0,3)
+  4 |   8048 |     44 |    894 |      0 | (0,4)
+  5 |   8000 |     44 |    894 |      0 | (0,5)
+(5 rows)
+
+=== Q5: B-tree meta for idx_orders_user ===
+ magic  | version | root | level | fastroot | fastlevel | last_cleanup_num_delpages | last_cleanup_num_tuples | allequalimage 
+--------+---------+------+-------+----------+-----------+---------------------------+-------------------------+---------------
+ 340322 |       4 |    3 |     1 |        3 |         1 |                         0 |                      -1 | t
+(1 row)
+
+ blkno | type | live_items | dead_items | avg_item_size | free_size | btpo_level 
+-------+------+------------+------------+---------------+-----------+------------
+     1 | l    |         88 |          0 |            79 |       820 |          0
+(1 row)
+
+=== Q6a: stats before update ===
+ n_live_tup | n_dead_tup | last_vacuum 
+------------+------------+-------------
+     200000 |          0 | 
+(1 row)
+
+UPDATE 20000
+=== Q6b: live vs dead tuples right after update (via pgstattuple) ===
+ tuple_count | dead_tuple_count | dead_tuple_percent 
+-------------+------------------+--------------------
+      200000 |            20000 |               7.66
+(1 row)
+
+psql:/tmp/queries.sql:76: INFO:  vacuuming "dbms_demo.public.orders"
+psql:/tmp/queries.sql:76: INFO:  launched 1 parallel vacuum worker for index vacuuming (planned: 1)
+psql:/tmp/queries.sql:76: INFO:  finished vacuuming "dbms_demo.public.orders": index scans: 1
+pages: 0 removed, 1402 remain, 1402 scanned (100.00% of total)
+tuples: 20000 removed, 200000 remain, 0 are dead but not yet removable
+removable cutoff: 902, which was 0 XIDs old when operation ended
+new relfrozenxid: 894, which is 3 XIDs ahead of previous value
+frozen: 0 pages from table (0.00% of total) had 0 tuples frozen
+index scan needed: 128 pages from table (9.13% of total) had 19999 dead item identifiers removed
+index "orders_pkey": pages: 606 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+index "idx_orders_user": pages: 232 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+avg read rate: 0.000 MB/s, avg write rate: 2.298 MB/s
+buffer usage: 3797 hits, 0 misses, 4 dirtied
+WAL usage: 2001 records, 1 full page images, 416148 bytes
+system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.01 s
+psql:/tmp/queries.sql:76: INFO:  analyzing "public.orders"
+psql:/tmp/queries.sql:76: INFO:  "orders": scanned 1402 of 1402 pages, containing 200000 live rows and 0 dead rows; 30000 rows in sample, 200000 estimated total rows
+VACUUM
+=== Q6c: stats after VACUUM ===
+ n_live_tup | n_dead_tup |          last_vacuum          
+------------+------------+-------------------------------
+     200000 |          0 | 2026-06-22 17:33:21.641537+00
+(1 row)
+
+=== Q7: WAL state ===
+ current_lsn |     current_walfile      
+-------------+--------------------------
+ 0/CFEDBF0   | 00000001000000000000000C
+(1 row)
+
+        name        | setting 
+--------------------+---------
+ checkpoint_timeout | 300
+ fsync              | on
+ synchronous_commit | on
+ wal_compression    | off
+ wal_level          | replica
+(5 rows)
+

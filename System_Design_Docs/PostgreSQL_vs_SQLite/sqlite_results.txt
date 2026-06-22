@@ -1,0 +1,74 @@
+Run Time: real 0.000 user 0.000058 sys 0.000040
+Run Time: real 0.000 user 0.000004 sys 0.000004
+Run Time: real 0.000 user 0.000003 sys 0.000004
+Run Time: real 0.001 user 0.000058 sys 0.000417
+Run Time: real 0.000 user 0.000040 sys 0.000291
+Run Time: real 0.000 user 0.000041 sys 0.000267
+Run Time: real 0.010 user 0.007994 sys 0.001265
+Run Time: real 0.000 user 0.000186 sys 0.000386
+Run Time: real 0.062 user 0.056648 sys 0.005035
+Run Time: real 0.022 user 0.018390 sys 0.002954
+Run Time: real 0.003 user 0.002130 sys 0.000508
+Run Time: real 0.003 user 0.003469 sys 0.000229
+tbl       rows  
+--------  ------
+users     20000 
+products  500   
+orders    200000
+Run Time: real 0.001 user 0.001009 sys 0.000023
+
+--- file size + page geometry ---
+page_size
+---------
+4096     
+Run Time: real 0.001 user 0.000003 sys 0.000000
+page_count
+----------
+2104      
+Run Time: real 0.000 user 0.000003 sys 0.000005
+bytes_on_disk
+-------------
+8617984      
+Run Time: real 0.000 user 0.000016 sys 0.000005
+
+--- Q1: 3-table join, IN-country revenue per category ---
+QUERY PLAN
+|--SEARCH u USING COVERING INDEX idx_users_country (country=?)
+|--SEARCH o USING INDEX idx_orders_user (user_id=?)
+|--SEARCH p USING INTEGER PRIMARY KEY (rowid=?)
+|--USE TEMP B-TREE FOR GROUP BY
+`--USE TEMP B-TREE FOR ORDER BY
+Run Time: real 0.000 user 0.000021 sys 0.000000
+category     revenue  
+-----------  ---------
+books        459251000
+electronics  158461556
+Run Time: real 0.017 user 0.015507 sys 0.001369
+
+--- Q2a: highly selective index lookup ---
+QUERY PLAN
+`--SEARCH orders USING INDEX idx_orders_user (user_id=?)
+Run Time: real 0.000 user 0.000022 sys 0.000000
+count(*)
+--------
+10      
+Run Time: real 0.000 user 0.000013 sys 0.000009
+
+--- Q2b: non-selective predicate — expect full scan ---
+QUERY PLAN
+`--SCAN orders
+Run Time: real 0.000 user 0.000004 sys 0.000000
+count(*)
+--------
+85714   
+Run Time: real 0.003 user 0.003506 sys 0.000025
+
+--- WAL + journal mode ---
+journal_mode
+------------
+delete      
+Run Time: real 0.000 user 0.000005 sys 0.000000
+synchronous
+-----------
+2          
+Run Time: real 0.000 user 0.000002 sys 0.000000
