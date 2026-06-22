@@ -1,0 +1,33 @@
+x
+== EXPLAIN clustered PK lookup ==
+EXPLAIN
+-> Rows fetched before execution  (cost=0..0 rows=1)\n
+x
+== EXPLAIN secondary index (student_id) -> PK back-reference ==
+EXPLAIN
+-> Index lookup on enrollments using idx_student (student_id = 12345)  (cost=3.5 rows=10)\n
+x
+== EXPLAIN covering secondary index (only indexed cols) ==
+EXPLAIN
+-> Covering index lookup on enrollments using idx_student (student_id = 12345)  (cost=1.25 rows=10)\n
+x
+== EXPLAIN low-selectivity -> full clustered scan ==
+EXPLAIN
+-> Filter: (enrollments.grade = 7)  (cost=20104 rows=19984)\n    -> Table scan on enrollments  (cost=20104 rows=199836)\n
+x
+== EXPLAIN ANALYZE 3-step join ==
+EXPLAIN
+-> Group aggregate: count(0)  (cost=14511 rows=1) (actual time=7.24..7.24 rows=1 loops=1)\n    -> Nested loop inner join  (cost=5377 rows=39642) (actual time=0.04..6.55 rows=40000 loops=1)\n        -> Covering index lookup on s using idx_dept (dept = 'CS')  (cost=403 rows=4000) (actual time=0.0358..0.382 rows=4000 loops=1)\n        -> Covering index lookup on e using idx_student (student_id = s.id)  (cost=0.253 rows=9.91) (actual time=820e-6..0.00117 rows=10 loops=4000)\n
+x
+== On-disk size: clustered table vs secondary indexes ==
+table_name	index_name	pages	approx_kb
+enrollments	PRIMARY	481	7.5156
+enrollments	idx_student	353	5.5156
+students	PRIMARY	97	1.5156
+students	idx_dept	25	0.3906
+x
+== Buffer pool ==
+buf_pool_mb	page_size	flush_policy
+128.00000000	16384	1
+pages_total	data_pages	FREE_BUFFERS
+8191	2126	6065
