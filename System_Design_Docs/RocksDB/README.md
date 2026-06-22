@@ -346,13 +346,6 @@ Learning RocksDB changed the way I think about storage engines.
 
 My biggest takeaway is that RocksDB is really a system for shaping storage behavior over time. It accepts complexity in background maintenance so that the foreground write path can stay fast and scalable.
 
-### Doubts / Questions for Discussion
-
-1. How should we choose between leveled and universal compaction when a workload has both heavy writes and strict read-latency requirements?
-2. At what point does adding more Bloom filter memory stop being worth the extra space cost for real workloads?
-3. How do long-lived snapshots affect compaction pressure and space amplification in practice?
-4. When RocksDB is used under a higher-level system, which tuning decisions should belong to RocksDB itself and which should belong to the upper layer?
-
 ## References
 
 1. [RocksDB Overview](https://github.com/facebook/rocksdb/wiki/RocksDB-Overview)
