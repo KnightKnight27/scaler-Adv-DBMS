@@ -216,3 +216,37 @@ MiniDB contains a performance suite that evaluates transaction throughput and qu
 - **Index Scan Latency**: ~0.04 ms
 - **Table Scan Latency**: ~1.20 ms
 - *Result*: Index lookup is approximately **30x faster** than a full table scan on small datasets, scaling logarithmically on larger sets.
+
+---
+
+## 13. Getting Started & How to Run
+
+To run the interactive web dashboard and run the benchmarks locally, follow these steps:
+
+### Prerequisites
+Make sure you have [Node.js](https://nodejs.org/) (v18 or higher) installed on your system.
+
+### Steps to Run
+1. Navigate to the project directory:
+   ```bash
+   cd MiniDB_Projects/Team_groupby
+   ```
+2. Install the dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the local development server:
+   ```bash
+   npm run dev
+   ```
+4. Open your browser and navigate to the local URL (usually `http://localhost:5173`).
+
+### Production Build
+To compile the TypeScript code and bundle the assets for production:
+```bash
+npm run build
+```
+To preview the built production bundle:
+```bash
+npm run preview
+```
