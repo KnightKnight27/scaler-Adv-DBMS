@@ -1,0 +1,25 @@
+Access sequence: 1 2 3 4 1 2 5 1 2 3 4 5
+
+[MISS]  page 1 loaded into frame 0
+[MISS]  page 2 loaded into frame 1
+[MISS]  page 3 loaded into frame 2
+[MISS]  page 4 loaded into frame 3
+[HIT]   page 1 in frame 0 usage=2
+[HIT]   page 2 in frame 1 usage=2
+[EVICT] page 3 from frame 2 (usage hit 0)
+[MISS]  page 5 loaded into frame 2
+[HIT]   page 1 in frame 0 usage=1
+[HIT]   page 2 in frame 1 usage=1
+[EVICT] page 4 from frame 3 (usage hit 0)
+[MISS]  page 3 loaded into frame 3
+[EVICT] page 1 from frame 0 (usage hit 0)
+[MISS]  page 4 loaded into frame 0
+[HIT]   page 5 in frame 2 usage=1
+
+--- Buffer Pool State (hand=1) ---
+Frame[0] page=4 usage=1
+Frame[1] page=2 usage=0   <-- hand
+Frame[2] page=5 usage=1
+Frame[3] page=3 usage=0
+-------------------------------
+Accesses=12  hits=5  misses=7  evictions=3  hit_ratio=41.6667%
