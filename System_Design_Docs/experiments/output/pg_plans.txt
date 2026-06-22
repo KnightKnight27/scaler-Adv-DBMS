@@ -1,0 +1,97 @@
+=== A1: Index Scan (selective equality on PK) ===
+                                                     QUERY PLAN                                                      
+---------------------------------------------------------------------------------------------------------------------
+ Index Scan using orders_pkey on orders  (cost=0.42..8.44 rows=1 width=29) (actual time=0.040..0.041 rows=1 loops=1)
+   Index Cond: (id = 12345)
+   Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=104
+ Planning Time: 0.546 ms
+ Execution Time: 0.082 ms
+(7 rows)
+
+
+=== A2: Index-only / seq behaviour for non-selective predicate (~25%) ===
+                                                                   QUERY PLAN                                                                   
+------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=1161.50..1161.51 rows=1 width=8) (actual time=6.115..6.115 rows=1 loops=1)
+   Buffers: shared hit=42
+   ->  Index Only Scan using idx_orders_status on orders  (cost=0.29..1036.85 rows=49860 width=0) (actual time=0.064..3.738 rows=49913 loops=1)
+         Index Cond: (status = 'paid'::text)
+         Heap Fetches: 0
+         Buffers: shared hit=42
+ Planning:
+   Buffers: shared hit=17
+ Planning Time: 0.089 ms
+ Execution Time: 6.133 ms
+(10 rows)
+
+
+=== A3: Bitmap Index Scan for medium selectivity ===
+                                                          QUERY PLAN                                                          
+------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on orders  (cost=4.45..77.83 rows=20 width=29) (actual time=0.033..0.137 rows=23 loops=1)
+   Recheck Cond: (customer_id = 4242)
+   Heap Blocks: exact=23
+   Buffers: shared hit=25
+   ->  Bitmap Index Scan on idx_orders_customer  (cost=0.00..4.45 rows=20 width=0) (actual time=0.022..0.022 rows=23 loops=1)
+         Index Cond: (customer_id = 4242)
+         Buffers: shared hit=2
+ Planning Time: 0.051 ms
+ Execution Time: 0.146 ms
+(9 rows)
+
+
+=== A4: Multi-table JOIN (join algorithm + order chosen by planner) ===
+                                                                   QUERY PLAN                                                                   
+------------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=770.01..3088.70 rows=1 width=47) (actual time=26.283..26.287 rows=1 loops=1)
+   Buffers: shared hit=1639
+   ->  Hash Join  (cost=770.01..3048.20 rows=8097 width=13) (actual time=2.753..25.345 rows=7914 loops=1)
+         Hash Cond: (o.customer_id = c.id)
+         Buffers: shared hit=1639
+         ->  Bitmap Heap Scan on orders o  (cost=550.71..2697.96 rows=49860 width=10) (actual time=1.422..18.245 rows=49913 loops=1)
+               Recheck Cond: (status = 'paid'::text)
+               Heap Blocks: exact=1524
+               Buffers: shared hit=1565
+               ->  Bitmap Index Scan on idx_orders_status  (cost=0.00..538.24 rows=49860 width=0) (actual time=1.258..1.259 rows=49913 loops=1)
+                     Index Cond: (status = 'paid'::text)
+                     Buffers: shared hit=41
+         ->  Hash  (cost=199.00..199.00 rows=1624 width=11) (actual time=1.303..1.304 rows=1624 loops=1)
+               Buckets: 2048  Batches: 1  Memory Usage: 86kB
+               Buffers: shared hit=74
+               ->  Seq Scan on customers c  (cost=0.00..199.00 rows=1624 width=11) (actual time=0.011..1.131 rows=1624 loops=1)
+                     Filter: (city = 'Mumbai'::text)
+                     Rows Removed by Filter: 8376
+                     Buffers: shared hit=74
+ Planning:
+   Buffers: shared hit=170
+ Planning Time: 0.537 ms
+ Execution Time: 26.330 ms
+(23 rows)
+
+
+=== A5: Force seq scan to compare cost vs index (planner cost model) ===
+SET
+SET
+                                             QUERY PLAN                                              
+-----------------------------------------------------------------------------------------------------
+ Seq Scan on orders  (cost=0.00..4024.00 rows=1 width=29) (actual time=1.072..10.874 rows=1 loops=1)
+   Filter: (id = 12345)
+   Rows Removed by Filter: 199999
+   Buffers: shared hit=1524
+ Planning Time: 0.094 ms
+ Execution Time: 10.887 ms
+(6 rows)
+
+RESET
+RESET
+
+=== A6: pg_stats (statistics that drive selectivity estimates) ===
+   attname   | n_distinct | null_frac | n_mcv | correlation  
+-------------+------------+-----------+-------+--------------
+ status      |          4 |         0 |     4 |   0.26099312
+ id          |         -1 |         0 |       |            1
+ customer_id |       9924 |         0 |    10 | -0.009596173
+(3 rows)
+

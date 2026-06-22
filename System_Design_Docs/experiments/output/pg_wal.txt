@@ -1,0 +1,7 @@
+=== D1: WAL is written BEFORE data pages (durability). Measure WAL bytes for a write. ===
+INSERT 0 10000
+ wal_generated_for_10k_inserts 
+-------------------------------
+ 3380 kB
+(1 row)
+

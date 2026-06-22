@@ -1,0 +1,42 @@
+=== B1: A tuple has hidden system columns (xmin = inserting txid, ctid = physical loc) ===
+CREATE TABLE
+INSERT 0 1
+ ctid  | xmin | xmax | id | balance 
+-------+------+------+----+---------
+ (0,1) |  854 |    0 |  1 |     100
+(1 row)
+
+
+=== B2: UPDATE does NOT overwrite in place — it writes a NEW tuple version ===
+(watch ctid change and xmin advance; old version still physically present)
+UPDATE 1
+ ctid  | xmin | xmax | id | balance 
+-------+------+------+----+---------
+ (0,2) |  855 |    0 |  1 |     200
+(1 row)
+
+
+=== B3: After 3 updates, heap holds 4 physical tuples (1 live + 3 dead) ===
+UPDATE 1
+UPDATE 1
+ n_live_tup | n_dead_tup 
+------------+------------
+          0 |          0
+(1 row)
+
+ points_to | lp | t_xmin | t_xmax | xmin_committed 
+-----------+----+--------+--------+----------------
+ (0,2)     |  1 |    854 |    855 | committed
+ (0,3)     |  2 |    855 |    856 | committed
+ (0,4)     |  3 |    856 |    857 | committed
+ (0,4)     |  4 |    857 |      0 | 
+(4 rows)
+
+
+=== B4: VACUUM reclaims the dead versions ===
+VACUUM
+ n_live_tup | n_dead_tup 
+------------+------------
+          1 |          0
+(1 row)
+
