@@ -1,0 +1,68 @@
+============================================================
+ policy=leveled   keys=1000000   reads=100000
+============================================================
+policy=leveled  keys=1000000  reads=100000
+write phase: 2.55 s (393 kops/s)
+read  phase: 0.11 s (884 kops/s)
+
+--- write amplification ---
+logical user bytes :     109.67 MB
+flush bytes (L0)   :      90.63 MB
+compaction bytes   :     143.77 MB
+WAL bytes          :     123.98 MB
+write amp (no WAL) : 2.14x
+write amp (w/ WAL) : 3.27x
+space amp          : 0.66x (live=71.97 MB / logical=109.67 MB)
+
+--- read amplification ---
+hits   : 61545  (expected ~half of reads, since half are random misses)
+misses : 38455
+bloom skipped (useful=NO answers) : 38085
+data block accesses                 : 103469
+
+--- LSM tree ---
+Level Files Size(MB)
+--------------------
+  0        0        0
+  1        0        0
+  2        0        0
+  3        0        0
+  4        0        0
+  5        0        0
+  6        2       72
+
+
+============================================================
+ policy=universal   keys=1000000   reads=100000
+============================================================
+policy=universal  keys=1000000  reads=100000
+write phase: 2.40 s (417 kops/s)
+read  phase: 0.12 s (853 kops/s)
+
+--- write amplification ---
+logical user bytes :     109.67 MB
+flush bytes (L0)   :      90.63 MB
+compaction bytes   :      71.89 MB
+WAL bytes          :     123.98 MB
+write amp (no WAL) : 1.48x
+write amp (w/ WAL) : 2.61x
+space amp          : 0.66x (live=71.97 MB / logical=109.67 MB)
+
+--- read amplification ---
+hits   : 61545  (expected ~half of reads, since half are random misses)
+misses : 38455
+bloom skipped (useful=NO answers) : 38085
+data block accesses                 : 85047
+
+--- LSM tree ---
+Level Files Size(MB)
+--------------------
+  0        0        0
+  1        0        0
+  2        0        0
+  3        0        0
+  4        0        0
+  5        0        0
+  6        2       72
+
+

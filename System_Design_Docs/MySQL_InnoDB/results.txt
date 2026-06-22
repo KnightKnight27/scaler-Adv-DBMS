@@ -1,0 +1,154 @@
+mysql: [Warning] Using a password on the command line interface can be insecure.
+section
+=== Q1: clustered PK lookup (id is the table itself) ===
+EXPLAIN
+-> Rows fetched before execution  (cost=0..0 rows=1)\n
+section
+=== Q2: secondary index, then back-reference to clustered tree ===
+EXPLAIN
+-> Index lookup on orders using idx_user (user_id=12345)  (cost=3.5 rows=10)\n
+section
+=== Q3: covering index — never touches clustered tree ===
+EXPLAIN
+-> Covering index lookup on orders using idx_user_qty (user_id=12345)  (cost=1.25 rows=10)\n
+section
+=== Q4: non-selective predicate — InnoDB picks full clustered scan ===
+EXPLAIN
+-> Aggregate: count(0)  (cost=22144 rows=1)\n    -> Filter: (orders.qty = 3)  (cost=20143 rows=20007)\n        -> Index scan on orders using idx_user_qty  (cost=20143 rows=200070)\n
+COUNT(*)
+85714
+section
+=== Q5: 3-table join, IN-country revenue ===
+EXPLAIN
+-> Sort: revenue DESC\n    -> Table scan on <temporary>\n        -> Aggregate using temporary table\n            -> Nested loop inner join  (cost=28475 rows=40104)\n                -> Nested loop inner join  (cost=14438 rows=40104)\n                    -> Filter: (u.country = 'IN')  (cost=402 rows=4000)\n                        -> Covering index lookup on u using idx_country (country='IN')  (cost=402 rows=4000)\n                    -> Index lookup on o using idx_user_qty (user_id=u.id)  (cost=2.51 rows=10)\n                -> Single-row index lookup on p using PRIMARY (id=o.product_id)  (cost=0.25 rows=1)\n
+section
+=== Q6: clustered vs secondary index sizes (bytes) ===
+index_name	bytes
+PRIMARY	8093696
+idx_user	4194304
+idx_user_qty	4194304
+section
+=== Q7: buffer pool state ===
+pool_size	free_buffers	database_pages
+8192	5613	2489
+section
+=== Q8: InnoDB history list length (undo-log pressure) ===
+*************************** 1. row ***************************
+  Type: InnoDB
+  Name: 
+Status: 
+=====================================
+2026-06-22 17:38:06 281472232058624 INNODB MONITOR OUTPUT
+=====================================
+Per second averages calculated from the last 21 seconds
+-----------------
+BACKGROUND THREAD
+-----------------
+srv_master_thread loops: 4 srv_active, 0 srv_shutdown, 62 srv_idle
+srv_master_thread log flush and writes: 0
+----------
+SEMAPHORES
+----------
+OS WAIT ARRAY INFO: reservation count 53
+OS WAIT ARRAY INFO: signal count 54
+RW-shared spins 0, rounds 0, OS waits 0
+RW-excl spins 0, rounds 0, OS waits 0
+RW-sx spins 0, rounds 0, OS waits 0
+Spin rounds per wait: 0.00 RW-shared, 0.00 RW-excl, 0.00 RW-sx
+------------
+TRANSACTIONS
+------------
+Trx id counter 1870
+Purge done for trx's n:o < 1870 undo n:o < 0 state: running but idle
+History list length 22
+LIST OF TRANSACTIONS FOR EACH SESSION:
+---TRANSACTION 562947954814168, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 562947954813360, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 562947954812552, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+--------
+FILE I/O
+--------
+I/O thread 0 state: waiting for completed aio requests (insert buffer thread)
+I/O thread 1 state: waiting for completed aio requests (read thread)
+I/O thread 2 state: waiting for completed aio requests (read thread)
+I/O thread 3 state: waiting for completed aio requests (read thread)
+I/O thread 4 state: waiting for completed aio requests (read thread)
+I/O thread 5 state: waiting for completed aio requests (write thread)
+I/O thread 6 state: waiting for completed aio requests (write thread)
+I/O thread 7 state: waiting for completed aio requests (write thread)
+I/O thread 8 state: waiting for completed aio requests (write thread)
+Pending normal aio reads: [0, 0, 0, 0] , aio writes: [0, 0, 0, 0] ,
+ ibuf aio reads:
+Pending flushes (fsync) log: 0; buffer pool: 0
+1062 OS file reads, 6561 OS file writes, 1819 OS fsyncs
+0.00 reads/s, 0 avg bytes/read, 1.97 writes/s, 1.36 fsyncs/s
+-------------------------------------
+INSERT BUFFER AND ADAPTIVE HASH INDEX
+-------------------------------------
+Ibuf: size 1, free list len 0, seg size 2, 0 merges
+merged operations:
+ insert 0, delete mark 0, delete 0
+discarded operations:
+ insert 0, delete mark 0, delete 0
+Hash table size 34679, node heap has 3 buffer(s)
+Hash table size 34679, node heap has 31 buffer(s)
+Hash table size 34679, node heap has 54 buffer(s)
+Hash table size 34679, node heap has 1 buffer(s)
+Hash table size 34679, node heap has 1 buffer(s)
+Hash table size 34679, node heap has 0 buffer(s)
+Hash table size 34679, node heap has 0 buffer(s)
+Hash table size 34679, node heap has 0 buffer(s)
+0.00 hash searches/s, 4.71 non-hash searches/s
+---
+LOG
+---
+Log capacity                 104857600
+Log capacity used            104857600
+Log sequence number          57158199
+Log buffer assigned up to    57158199
+Log buffer completed up to   57158199
+Log written up to            57158199
+Log flushed up to            57158199
+Added dirty pages up to      57158199
+Pages flushed up to          57158199
+Last checkpoint at           57158199
+Log minimum file id is       9
+Log maximum file id is       17
+4363 log i/o's done, 0.57 log i/o's/second
+----------------------
+BUFFER POOL AND MEMORY
+----------------------
+Total large memory allocated 0
+Dictionary memory allocated 530943
+Buffer pool size   8192
+Free buffers       5613
+Database pages     2489
+Old database pages 898
+Modified db pages  0
+Pending reads      0
+Pending writes: LRU 0, flush list 0, single page 0
+Pages made young 0, not young 0
+0.00 youngs/s, 0.00 non-youngs/s
+Pages read 1037, created 1452, written 1614
+0.00 reads/s, 0.00 creates/s, 0.00 writes/s
+No buffer pool page gets since the last printout
+Pages read ahead 0.00/s, evicted without access 0.00/s, Random read ahead 0.00/s
+LRU len: 2489, unzip_LRU len: 0
+I/O sum[0]:cur[0], unzip sum[0]:cur[0]
+--------------
+ROW OPERATIONS
+--------------
+0 queries inside InnoDB, 0 queries in queue
+0 read views open inside InnoDB
+Process ID=1, Main thread ID=281472283897600 , state=sleeping
+Number of rows inserted 220500, updated 0, deleted 0, read 420001
+0.00 inserts/s, 0.00 updates/s, 0.00 deletes/s, 9523.40 reads/s
+Number of system rows inserted 84, updated 385, deleted 8, read 4944
+0.00 inserts/s, 0.00 updates/s, 0.00 deletes/s, 1.67 reads/s
+----------------------------
+END OF INNODB MONITOR OUTPUT
+============================
+
