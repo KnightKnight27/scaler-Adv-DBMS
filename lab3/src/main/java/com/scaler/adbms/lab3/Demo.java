@@ -1,7 +1,5 @@
 package com.scaler.adbms.lab3;
 
-import java.util.Optional;
-
 /**
  * Hand-runnable walkthrough split into two parts.
  *
