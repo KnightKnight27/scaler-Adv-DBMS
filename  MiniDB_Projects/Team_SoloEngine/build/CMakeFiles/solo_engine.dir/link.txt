@@ -1,0 +1,2 @@
+/usr/bin/ar qc libsolo_engine.a CMakeFiles/solo_engine.dir/src/storage.cpp.o CMakeFiles/solo_engine.dir/src/buffer_pool.cpp.o CMakeFiles/solo_engine.dir/src/btree.cpp.o CMakeFiles/solo_engine.dir/src/table.cpp.o CMakeFiles/solo_engine.dir/src/execution.cpp.o CMakeFiles/solo_engine.dir/src/optimizer.cpp.o CMakeFiles/solo_engine.dir/src/transaction.cpp.o CMakeFiles/solo_engine.dir/src/recovery.cpp.o
+/usr/bin/ranlib libsolo_engine.a
