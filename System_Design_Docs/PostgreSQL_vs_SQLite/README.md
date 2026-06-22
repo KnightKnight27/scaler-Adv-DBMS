@@ -3,7 +3,7 @@
 > Advanced DBMS — System Design Discussion · Topic 1
 >
 > **Author:** Mayank Gupta · **Roll Number:** 24BCS10220
-> _Submitted as PR title_ `SCALER_24BCS10220`.
+> _Submitted as PR title_ `mayank_24bcs10220`.
 
 A comparison of two relational databases that sit at opposite ends of the
 design space. The point of this document is not to list features but to explain
