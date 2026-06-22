@@ -10,11 +10,12 @@
 
 **Team Name:** Team 7 &nbsp;·&nbsp; **PR title:** `TEAM_7`
 
-| Full Name        | Roll Number | Email                          | GitHub                                              |
-| ---------------- | ----------- | ------------------------------ | --------------------------------------------------- |
-| Tanmay Mittal    | 24BCS10491  | tanmaymittal965@gmail.com      | [@tanmay933](https://github.com/tanmay933)          |
-| Kesab Maharana   | 24BCS10653  | kesab142909maharana@gmail.com  | [@Kesab2909](https://github.com/Kesab2909)          |
-| Varun Uday Shet  | 24BCS10518  | varunushet@gmail.com           | [@varunudayshet](https://github.com/varunudayshet)  |
+| Full Name        | Roll Number | Scaler Email ID                  | GitHub                                              |
+| ---------------- | ----------- | -------------------------------- | --------------------------------------------------- |
+| Ratnesh Vaibhav  | 24BCS10413  | ratnesh.24bcs10413@sst.scaler.com | [@RatneshVaibhav](https://github.com/RatneshVaibhav) |
+| Tanmay Mittal    | 24BCS10491  | tanmay.24bcs10491@sst.scaler.com  | [@tanmay933](https://github.com/tanmay933)          |
+| Kesab Maharana   | 24BCS10653  | kesab.24bcs10653@sst.scaler.com   | [@Kesab2909](https://github.com/Kesab2909)          |
+| Varun Uday Shet  | 24BCS10518  | varun.24bcs10518@sst.scaler.com   | [@varunudayshet](https://github.com/varunudayshet)  |
 
 ---
 
