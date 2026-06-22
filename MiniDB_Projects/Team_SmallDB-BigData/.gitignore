@@ -1,0 +1,16 @@
+# build artifacts
+*.o
+*.exe
+minidb
+benchmarks/bench
+
+# local database / log files produced at runtime
+*.db
+*.wal
+data/
+
+# OS noise
+.DS_Store
+
+# course-provided spec — keep locally for reference, don't submit it
+Advanced Database Management Systems CapStone Project Guidelines.md
