@@ -1,0 +1,17 @@
+MySQL 8.0.42 | database: innodb_lab | 100 rows in users
+
+EXPLAIN SELECT * FROM users WHERE id = 42;
++----+-------------+-------+------+---------------+---------+---------+-------+------+-------+
+| id | select_type | table | type | possible_keys | key     | key_len | ref   | rows | Extra |
++----+-------------+-------+------+---------------+---------+---------+-------+------+-------+
+|  1 | SIMPLE      | users | const| PRIMARY       | PRIMARY | 4       | const |    1 | NULL  |
++----+-------------+-------+------+---------------+---------+---------+-------+------+-------+
+
+EXPLAIN SELECT * FROM users WHERE email = 'user42@test.com';
++----+-------------+-------+------+---------------+----------+---------+-------+------+-------+
+| id | select_type | table | type | possible_keys | key      | key_len | ref   | rows | Extra |
++----+-------------+-------+------+---------------+----------+---------+-------+------+-------+
+|  1 | SIMPLE      | users | const| uk_email      | uk_email | 402     | const |    1 | NULL  |
++----+-------------+-------+------+---------------+----------+---------+-------+------+-------+
+
+both lookups = type const, 1 row examined
