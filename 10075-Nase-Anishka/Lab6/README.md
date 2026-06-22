@@ -1,270 +1,189 @@
-# LAB 6 — B-TREE INDEX
+# LAB 6 — TRANSACTION MANAGER: MVCC + STRICT 2PL + DEADLOCK DETECTION
 
 > Roll Number: **10075** &nbsp;&nbsp;|&nbsp;&nbsp; Name: **Nase Anishka**
->
-> A templated **B-tree index** in C++17 — `key -> value`, where the value
-> plays the part of a row / record pointer the way a real database index
-> maps a search key to a tuple's location. It supports **insert** (with
-> in-place update on a repeated key), **search**, ordered **traversal**,
-> two structure printers, and a `validate()` that actually checks every
-> B-tree invariant and throws if one is broken. Four demo scenarios show
-> the splits happening live, narrate the search path, and prove the tree
-> stays balanced even on the input that destroys a plain BST.
+
+This lab builds a transaction manager that mirrors the core of PostgreSQL's concurrency architecture:
+1. **MVCC** — every write creates a new row version; readers see a consistent snapshot without blocking writers.
+2. **Strict Two-Phase Locking (2PL)** — lock acquisition is bounded to the "growing" phase; all locks released atomically at commit/abort.
+3. **Deadlock detection** — waits-for graph cycle detection to abort one transaction when a cycle forms.
 
 ---
 
-# WHY THIS STRUCTURE IS *THE* DATABASE INDEX
+## WHAT I BUILT
 
-Almost every disk-based index you'll meet is a B-tree or its sibling the
-B⁺-tree:
-
-* **SQLite** stores every table and every index as a B-tree of pages —
-  the same on-disk format I dissected by hand in Lab 4.
-* **PostgreSQL**'s default index (`CREATE INDEX`) is a B-tree (Lehman &
-  Yao's concurrent variant).
-* **MySQL/InnoDB** clusters the whole table in a B⁺-tree keyed by the
-  primary key.
-* File systems (NTFS, HFS+, btrfs, XFS) index directories and extents
-  with B-trees.
-
-The reason is **disk economics**. A binary search tree does one key
-comparison per node and therefore one potential disk seek per level — on
-a million keys that's ~20 seeks. A B-tree packs *hundreds* of keys into
-one node (one disk page), so its fan-out is huge and its height is tiny:
-the same million keys fit in a tree only **2–3 levels deep**. Fewer
-levels means fewer page reads, and page reads are the entire cost model
-of a database. A B-tree is "the shape you get when you redesign a search
-tree so that each node is exactly one disk page."
+| Component | Implementation |
+|-----------|----------------|
+| Transaction table | `g_transactions` (TxID → status + snapshot_xid + in_shrinking flag) |
+| MVCC heap | `g_heap` (RowKey → `list<RowVersion>`) — version chain per row, newest first |
+| Lock manager | `g_lock_table` (RowKey → `LockQueue`) — FIFO queue of SHARED/EXCLUSIVE requests |
+| Waits-for graph | `g_waits_for` (TxID → set of blocking TxIDs) — DFS cycle detection |
+| Public API | `TransactionManager`: `begin`, `read`, `insert`, `update`, `remove`, `commit`, `abort` |
 
 ---
 
-# THE DEGREE, AND THE CAPACITY IT IMPLIES
+## FILES IN THIS FOLDER
 
-The tree is parameterised by a **minimum degree** `t` (`t >= 2`). Every
-node then obeys:
-
-| quantity                 | minimum   | maximum   |
-|--------------------------|-----------|-----------|
-| keys per node            | `t - 1`   | `2t - 1`  |
-| children per node        | `t`       | `2t`      |
-
-with the root excused from the lower bound (it may hold as few as one
-key). In the first demo `t = 3`, so every node carries **2–5 keys and up
-to 6 children**; the `printStructure()` output shows leaves with exactly
-5 keys, which is the full-node boundary right before a split.
-
-A node is split the moment it would overflow past `2t - 1`, and the
-**median** key is pushed up into the parent — that single rule is what
-keeps every leaf at the same depth.
+| File | Purpose |
+|------|---------|
+| `main.cpp` | Full transaction manager implementation + 4 demo scenarios |
+| `CMakeLists.txt` | CMake build config (links `-pthread`) |
+| `.gitignore` | Ignore build artefacts |
+| `run_output.txt` | Captured output from a real run |
+| `README.md` | This file |
 
 ---
 
-# THE B-TREE PROPERTIES (and how this code keeps them)
-
-1. **Keys inside a node are sorted** — insertion shifts larger keys right
-   and drops the newcomer into the gap; `validate()` re-checks strict
-   order.
-2. **An internal node with `k` keys has exactly `k + 1` children**, and
-   the `i`-th key separates child `i` from child `i + 1`. `validate()`
-   carries a `(low, high)` window down the recursion and asserts every
-   key falls inside it.
-3. **All leaves are at the same depth.** This is the balance guarantee.
-   `validate()` returns each subtree's leaf-depth and throws the moment
-   two siblings disagree.
-4. **Key counts stay in `[t-1, 2t-1]`** (root exempted on the low side).
-5. **The tree stays balanced after every insert**, because growth happens
-   by splitting the *root* (the only way the height ever increases), not
-   by adding a deeper leaf on one side.
-
----
-
-# FILES IN THIS FOLDER
-
-* `main.cpp` — the `BTreeIndex<Key, Value>` template plus a driver that
-  runs four scenarios end to end.
-* `CMakeLists.txt` — C++17 with `-Wall -Wextra -Wpedantic`.
-* `.gitignore` — build artefacts.
-* `run_output.txt` — captured stdout from a real run, so the tree shapes
-  and split traces are visible without rebuilding.
-* `README.md` — this file.
-
----
-
-# BUILD AND RUN
+## HOW TO BUILD AND RUN
 
 ```bash
-cd 10075-Nase-Anishka/Lab6
-cmake -B build -S .
-cmake --build build
-./build/btree_index
-```
+# Direct g++
+g++ -std=c++17 -pthread -Wall -o txmgr main.cpp && ./txmgr
 
-Or without CMake:
-
-```bash
-g++ -std=c++17 -Wall -Wextra -Wpedantic -o btree_index main.cpp
-./btree_index
+# CMake
+cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
+./build/txmgr
 ```
 
 ---
 
-# WALKTHROUGH OF THE FOUR SCENARIOS
+## CONCEPTS
 
-## 1. Build a `t = 3` index and watch the splits
+### MVCC version visibility rule
 
-Inserting `50 30 70 20 40 60 80 10 25 35 45 55` fires exactly two splits:
+A version `{value, xmin, xmax}` is visible to transaction T if:
 
-```text
-insert 60
-    split -> [20 | 30]  ^40^  [50 | 70]
-...
-insert 55
-    split -> [45 | 50]  ^60^  [70 | 80]
+```
+xmin_ok  =  (xmin == T.id)                           // own write
+          || (committed(xmin) && xmin < T.snapshot)  // committed before my snapshot
+
+visible  =  xmin_ok
+          && (xmax == 0                               // not yet deleted
+           || xmax == T.id                            // deleted by me
+           || !(committed(xmax) && xmax < T.snapshot))// delete not yet committed
 ```
 
-* The first split happens because the root leaf had filled to
-  `[20 | 30 | 40 | 50 | 70]` (5 keys = `2t-1`). Inserting `60` overflows
-  it, so the median **40** is promoted into a brand-new root and the leaf
-  splits in two — this is the only event that ever grows the height.
-* The second split is of an *internal* leaf the same way, promoting **60**
-  alongside 40.
+### Two-Phase Locking phases
 
-Final shape — root with two keys, three leaves all on the same level:
-
-```text
-[40 | 60]
-    [10 | 20 | 25 | 30 | 35]  (leaf)
-    [45 | 50 | 55]  (leaf)
-    [70 | 80]  (leaf)
+```
+GROWING phase:   acquire SHARED or EXCLUSIVE locks — no releases
+SHRINKING phase: release all locks at commit/abort — no new acquisitions
 ```
 
-```text
-in-order keys: 10 20 25 30 35 40 45 50 55 60 70 80
-size=12  height=1  nodes=4
-validate(): OK — all B-tree invariants hold
-```
+Strict 2PL collapses the shrinking phase to a single instant at commit/abort. This avoids cascading aborts.
 
-Twelve keys live in a tree only **one level deep** — that is the high
-fan-out paying off.
-
-## 2. Search: the path walked, and node accesses counted
-
-`findTraced()` prints every node it touches:
-
-```text
-search 45: [40 | 60] -> child 1  [45 | 50 | 55]  -> HIT (2 node accesses)
-search 50: [40 | 60] -> child 1  [45 | 50 | 55]  -> HIT (2 node accesses)
-search 99: [40 | 60] -> child 2  [70 | 80]  -> MISS (2 node accesses)
-```
-
-Every search — hit *or* miss — costs at most `height + 1` node accesses
-(here 2), because each node read narrows the search to exactly one child.
-That "reduce the search space at each level" behaviour is the whole point
-of an index, and it's why a miss is just as cheap as a hit.
-
-## 3. Sorted input — the BST's worst case, the B-tree's non-event
-
-Ascending `1..20` is the input that turns a plain BST into a height-19
-linked list. A `t = 2` B-tree (a 2-3-4 tree) shrugs it off:
-
-```text
-  L0: [8]
-  L1: [4] [12]
-  L2: [2] [6] [10] [14 | 16 | 18]
-  L3: [1] [3] [5] [7] [9] [11] [13] [15] [17] [19 | 20]
-size=20  height=3  nodes=17
-validate(): OK — every leaf sits at the same depth
-```
-
-Height **3** instead of 19, and every one of the ten leaves sits on the
-same bottom row — visible proof of the balance invariant.
-
-## 4. Re-inserting a key updates the payload, not the shape
-
-```text
-before: 40 -> row#40, size=12
-after : 40 -> row#40-UPDATED, size=12  (size unchanged — it was an update)
-```
-
-`insert()` first does a lookup; if the key already exists it overwrites
-the value and returns, so the tree behaves like a map (unique keys),
-which is what a primary-key index wants.
+### Deadlock
+T1 holds lock on A, wants B; T2 holds lock on B, wants A → cycle in waits-for graph → abort the newer transaction.
 
 ---
 
-# IMPLEMENTATION NOTES
+## ARCHITECTURE
 
-## Proactive, top-down splitting
-
-I split a full child **before** descending into it (the CLRS approach),
-rather than inserting first and fixing overflow on the way back up. The
-payoff is that insertion is a **single root-to-leaf pass** with no
-parent back-pointers and no second upward walk — by the time I reach the
-leaf, every node above it already has room for a median to be pushed up
-if needed. The root is the special case: when *it* is full I allocate a
-new root over it and split, which is the only place the tree gets taller.
-
-## Parallel `keys[]` / `vals[]` arrays
-
-Each node keeps the sort keys in one vector and the payloads in a second,
-index-aligned vector, instead of one vector of `{key, value}` structs.
-That mirrors how a real database page keeps the comparison key separate
-from the row data, and it keeps the hot path — comparing keys during a
-search — touching only the small `keys[]` array.
-
-## `validate()` checks all five invariants
-
-Most B-tree code online only *builds* the tree. Like in my RB-tree lab, I
-wanted a function that would actually *catch* a broken split, so
-`validate()` walks the tree carrying a `(low, high)` key window and
-asserts: lengths of `keys[]`/`vals[]` agree, key counts are within
-`[t-1, 2t-1]`, keys are strictly sorted and inside their separator
-window, child count equals `keys + 1`, and — the important one — **all
-leaves return the same depth**. A bad `splitChild` would trip the
-depth-mismatch or the separator-window check immediately.
-
-## Generic over `Key`, comparisons via `operator<` only
-
-Search and ordering use only `a < b` (equality is `!(a<b) && !(b<a)`), so
-the same template indexes `int -> string` in scenario 1 and `int -> int`
-in scenario 3, and would take `std::string` keys unchanged.
+```
+Application
+    │
+    ▼
+TransactionManager.begin() / read() / insert() / update() / remove() / commit() / abort()
+    │
+    ├─► Lock Manager (Strict 2PL)
+    │       acquire_lock(): growing phase check → FIFO queue → conflict check → wait / grant
+    │       release_locks(): mark in_shrinking, remove all requests, notify_all waiters
+    │       Deadlock: g_waits_for graph updated on every wait → DFS cycle check → DeadlockException
+    │
+    └─► MVCC Heap (version chain per row)
+            INSERT  → push {value, xmin=xid, xmax=0}
+            UPDATE  → stamp old xmax=xid, push new version
+            DELETE  → stamp old xmax=xid
+            READ    → walk chain, return first version satisfying visibility rule
+            ABORT   → hide own inserts (xmax=xid), undo own deletes (xmax=0)
+```
 
 ---
 
-# OBSERVATIONS
+## DEMO SCENARIOS
 
-* **Page size / node capacity.** With `t = 3` a node holds 2–5 keys; the
-  full leaf `[10 | 20 | 25 | 30 | 35]` is sitting exactly at the `2t-1`
-  ceiling, one insert away from splitting.
-* **Page count / node count.** 12 keys → 4 nodes; 20 keys → 17 nodes. The
-  number of nodes grows with the data but the *height* barely moves.
-* **Tree depth.** height 1 for 12 keys, height 3 for 20 keys — and a
-  million keys at `t = 3` would still be only ~9 levels.
-* **Balance.** Every leaf prints on the same bottom level in both the
-  indented and the BFS view.
-* **Search cost.** Constant within a level: `height + 1` node accesses for
-  any key, present or absent.
+### Scenario 1 — MVCC Snapshot Isolation
+
+```
+t1: INSERT balance=1000 → COMMIT
+t2: BEGIN (snapshot after t1)
+t3: BEGIN
+t3: UPDATE balance=2000 → COMMIT
+t2: READ balance → 1000  (t3 committed after t2 started — not in t2's snapshot)
+t2: COMMIT
+```
+
+Output:
+```
+[TX 1] COMMITTED
+[TX 3] COMMITTED
+  [TX 2] READ balance = 1000
+[TX 2] COMMITTED
+```
+
+t2 sees 1000, not 2000 — its snapshot predates t3. This is snapshot isolation: readers never block on concurrent writers.
+
+### Scenario 2 — Concurrent Shared Locks
+
+Two transactions hold SHARED locks on the same key simultaneously — no conflict. Both see the latest committed value (2000 from Scenario 1's t3).
+
+### Scenario 3 — Exclusive Lock Blocks Shared (thread demo)
+
+t6 holds EXCLUSIVE on "balance" (from `UPDATE`). A reader thread t7 calls `acquire_lock` and blocks on `cv.wait`. When t6 commits, `release_locks` removes t6's entry and calls `notify_all`, unblocking t7. t7 then sees the new value 3000.
+
+```
+[TX 7] waiting for shared lock on balance...
+[TX 6] COMMITTED
+[TX 7] READ balance = 3000
+[TX 7] COMMITTED
+```
+
+### Scenario 4 — Deadlock Detection
+
+```
+t8 holds EXCLUSIVE on "A"
+t9 holds EXCLUSIVE on "B"
+
+Thread: t8 tries to get EXCLUSIVE on "B" → blocked (t9 holds it)
+         → g_waits_for[t8] = {t9}
+         → no cycle yet (t9 not waiting)
+
+Main: t9 tries to get EXCLUSIVE on "A" → blocked (t8 holds it)
+       → g_waits_for[t9] = {t8}
+       → DFS from t9: t9→t8→t9 → CYCLE DETECTED
+       → throw DeadlockException(t9)
+       → t9 aborted
+
+Thread: t8's wait unblocked (t9 released B via abort)
+       → t8 gets B, commits
+```
+
+Output:
+```
+  Deadlock detected, aborting tx 11
+[TX 11] ABORTED
+[TX 10] COMMITTED
+```
 
 ---
 
-# WHAT I LEARNED
+## MVCC vs 2PL — WHY BOTH?
 
-* A B-tree is really **"a search tree whose node is sized to a disk
-  page."** Once that clicked, every design choice (high fan-out, splitting
-  on overflow, keys-in-sorted-runs) follows from "minimise page reads."
-* **Splitting upward is what guarantees balance.** A BST grows a longer
-  branch on one side; a B-tree can only get taller by splitting the root,
-  so all leaves rise together and stay level. That's why sorted input —
-  fatal to a BST — does nothing special to a B-tree.
-* The **median promotion** is the heart of it: pushing the middle key up
-  is what keeps both halves legal (`t-1` keys each) after a split.
-* Writing `validate()` alongside the tree was, again, the most valuable
-  habit — the depth-equality check is exactly the invariant a subtle
-  split bug would violate silently, and having it run on every scenario
-  let me trust the output instead of eyeballing tree drawings.
-* I implemented **insert + search + update**, which is what the lab asks
-  for and what a write-once/read-many index needs. **Delete** is the
-  natural next step and is genuinely harder — it needs borrowing from a
-  sibling or merging two nodes to keep every node above the `t-1` floor,
-  the mirror image of the split logic. CLRS 18.3 covers it; I'd add that
-  next.
+| Property | MVCC alone | 2PL alone | MVCC + Strict 2PL |
+|----------|------------|-----------|-------------------|
+| Read-write contention | None (readers use snapshots) | Readers block writers | None (readers use snapshots) |
+| Write-write contention | Lost update possible | Serializable via exclusive locks | Serializable |
+| Serializability | Snapshot Isolation only | Full serializability | Full serializability |
+| Deadlock | N/A | Possible | Possible — needs detection |
+| Old version cleanup | Needs VACUUM | N/A | Needs VACUUM |
+
+PostgreSQL uses MVCC + Serializable Snapshot Isolation (SSI) — a refinement that detects dangerous read-write anti-dependencies without the throughput cost of full 2PL.
+
+---
+
+## KEY TAKEAWAYS
+
+- MVCC creates a new row version per write; readers walk the version chain and apply the visibility rule against their snapshot XID — no blocking between readers and writers.
+- Strict 2PL holds all locks until commit/abort. The shrinking phase is instantaneous — this avoids cascading aborts.
+- The combination eliminates read-write contention (MVCC) while preserving write-write serializability (2PL).
+- Deadlock detection via waits-for graph DFS is O(V+E) per lock request. PostgreSQL runs a similar check periodically (not per-request) for performance.
+- ABORT must undo MVCC writes: own inserts are hidden (xmax=xid), own deletes are reversed (xmax=0).
