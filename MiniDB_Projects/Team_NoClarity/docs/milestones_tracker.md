@@ -37,6 +37,12 @@ MiniDB is a transactional relational database built from foundational components
 As the system evolves through each milestone, more components are integrated into the database engine.
 
 ### Milestone 2 Evolving Architecture Diagram
+
+![MiniDB Database System Architecture](architecture.png)
+
+<details>
+<summary><b>Show Mermaid Source Code</b></summary>
+
 ```mermaid
 graph TD
     subgraph Client_App ["Client Application (main.cpp)"]
@@ -89,6 +95,7 @@ graph TD
     BPM --> DM
     DM --> DBFile
 ```
+</details>
 
 ---
 
