@@ -9,8 +9,8 @@ minidb_bench
 *.wal
 *.meta
 minidb_data/
-bench_*
-mydb*
-demo*.db
-demo*.wal
-demo*.meta
+/bench_*
+/mydb*
+/demo*.db
+/demo*.wal
+/demo*.meta
