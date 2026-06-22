@@ -1,0 +1,6 @@
+benchmark,duration_seconds,rows_or_events
+insert_100_records,0.870064,100
+point_lookup_btree,0.000127,1
+table_scan,0.000711,100
+nested_loop_join,0.001788,100
+2pl_concurrent_workload,0.031702,"t1:committed,t2:aborted"

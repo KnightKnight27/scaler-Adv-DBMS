@@ -1,0 +1,6 @@
+[project]
+name = "team-concurrencycrafters-minidb"
+version = "0.1.0"
+description = "Baseline MiniDB engine with strict 2PL hooks and MVCC-ready interfaces."
+requires-python = ">=3.11"
+

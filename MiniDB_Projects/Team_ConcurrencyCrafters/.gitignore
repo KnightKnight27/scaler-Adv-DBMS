@@ -1,0 +1,32 @@
+@"
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test/runtime databases
+.test_runtime/
+benchmarks/runtime/
+runtime/
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.heap
+*.wal
+*.index.json
+
+# Build/test artifacts
+.coverage
+.pytest_cache/
+.mypy_cache/
+dist/
+build/
+*.egg-info/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+"@ | Out-File -Encoding utf8 MiniDB_Projects\Team_ConcurrencyCrafters\.gitignore
