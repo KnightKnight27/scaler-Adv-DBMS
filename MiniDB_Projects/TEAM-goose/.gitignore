@@ -1,0 +1,6 @@
+build/
+*.o
+minidb_data/
+test_*_data/
+benchmark_data/
+.DS_Store
