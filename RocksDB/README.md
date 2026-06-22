@@ -376,3 +376,12 @@ For this reason, many distributed databases and storage systems adopt LSM Tree a
 2. Facebook Engineering Blog
 3. LSM Tree Research Papers
 4. RocksDB Tuning Guide
+
+
+---
+
+## Author
+
+**Tanmay Mittal**  
+Roll Number: SCALER - 24BCS10491  
+Advanced DBMS – System Design Discussion Assignment
