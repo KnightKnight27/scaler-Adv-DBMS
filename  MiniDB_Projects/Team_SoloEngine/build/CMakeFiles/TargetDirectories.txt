@@ -1,0 +1,8 @@
+/Users/talindaga/Desktop/Desktop/Capstone/Team_SoloEngine/build/CMakeFiles/solo_engine.dir
+/Users/talindaga/Desktop/Desktop/Capstone/Team_SoloEngine/build/CMakeFiles/test_storage.dir
+/Users/talindaga/Desktop/Desktop/Capstone/Team_SoloEngine/build/CMakeFiles/test_btree.dir
+/Users/talindaga/Desktop/Desktop/Capstone/Team_SoloEngine/build/CMakeFiles/test_execution.dir
+/Users/talindaga/Desktop/Desktop/Capstone/Team_SoloEngine/build/CMakeFiles/test_transactions.dir
+/Users/talindaga/Desktop/Desktop/Capstone/Team_SoloEngine/build/CMakeFiles/bench_execution.dir
+/Users/talindaga/Desktop/Desktop/Capstone/Team_SoloEngine/build/CMakeFiles/edit_cache.dir
+/Users/talindaga/Desktop/Desktop/Capstone/Team_SoloEngine/build/CMakeFiles/rebuild_cache.dir
