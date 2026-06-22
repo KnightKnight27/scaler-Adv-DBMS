@@ -1,0 +1,16 @@
+# Example Hex Dump (placeholder)
+
+Run a hex dump on a sample SQLite file and paste the output below.
+Example command:
+xxd -g 1 sample.db > hexdump.txt
+
+Sample excerpt (annotate offsets when you paste your dump):
+00000000: 53 51 4c 69 74 65 20 66 6f 72 6d 61 74 20 33 00 00  SQLite format 3.. 
+00000010: 02 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+# Annotations
+- Offset 0: "SQLite format 3\0" signature
+- Offset 16: page size (2 bytes)
+- Page header bytes start at page-size offset for each page
+
+Paste your full hex dump beneath this header and add line-by-line notes for page types, cell pointer arrays, and payload regions.

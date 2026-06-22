@@ -1,0 +1,4 @@
+# Lab 5 auxiliary file
+
+This file is included to preserve the requested `rbt` entry in the assignment directory.
+The main program implements a B-Tree (`BTree.h` / `BTree.cpp`) and a Red-Black Tree (`RedBlackTree.h` / `RedBlackTree.cc`).
