@@ -1,0 +1,7 @@
+/home/samarth/Desktop/Sam_N/WALterDB/MiniDB_Projects/Team_AxiomDB/build/CMakeFiles/axiomdb_core.dir
+/home/samarth/Desktop/Sam_N/WALterDB/MiniDB_Projects/Team_AxiomDB/build/CMakeFiles/axiomdb.dir
+/home/samarth/Desktop/Sam_N/WALterDB/MiniDB_Projects/Team_AxiomDB/build/CMakeFiles/axiomdb_bench.dir
+/home/samarth/Desktop/Sam_N/WALterDB/MiniDB_Projects/Team_AxiomDB/build/CMakeFiles/axiomdb_tests.dir
+/home/samarth/Desktop/Sam_N/WALterDB/MiniDB_Projects/Team_AxiomDB/build/CMakeFiles/test.dir
+/home/samarth/Desktop/Sam_N/WALterDB/MiniDB_Projects/Team_AxiomDB/build/CMakeFiles/edit_cache.dir
+/home/samarth/Desktop/Sam_N/WALterDB/MiniDB_Projects/Team_AxiomDB/build/CMakeFiles/rebuild_cache.dir

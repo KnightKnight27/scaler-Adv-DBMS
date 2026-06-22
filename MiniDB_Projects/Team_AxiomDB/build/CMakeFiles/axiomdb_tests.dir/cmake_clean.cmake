@@ -1,0 +1,42 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/axiomdb_tests.dir/link.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_btree_index.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_btree_index.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_buffer_manager.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_buffer_manager.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_catalog.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_catalog.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_common.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_common.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_concurrency.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_concurrency.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_crash_recovery.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_crash_recovery.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_exec.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_exec.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_heap_table.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_heap_table.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_kv_engines.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_kv_engines.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_lock_manager.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_lock_manager.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_log_manager.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_log_manager.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_lsm_engine.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_lsm_engine.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_main.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_main.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_parser.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_parser.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_storage.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_storage.cpp.o.d"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_types.cpp.o"
+  "CMakeFiles/axiomdb_tests.dir/tests/test_types.cpp.o.d"
+  "axiomdb_tests"
+  "axiomdb_tests.pdb"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/axiomdb_tests.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()
