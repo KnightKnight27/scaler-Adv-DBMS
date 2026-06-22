@@ -1,0 +1,1 @@
+/usr/bin/c++  -O2 -Wall -Wextra -pthread -Wl,--dependency-file=CMakeFiles/txn_manager.dir/link.d CMakeFiles/txn_manager.dir/transaction_manager.cpp.o -o txn_manager  -lpthread
