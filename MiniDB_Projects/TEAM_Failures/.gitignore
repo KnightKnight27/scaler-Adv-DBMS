@@ -1,0 +1,10 @@
+# Build artifacts
+build/
+
+# Database files created at runtime
+*.db
+*.wal
+*.catalog
+minidb_data*
+bench_lsm/
+demo_cc*
