@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -g -DNDEBUG -Wl,--dependency-file=CMakeFiles/axiomdb.dir/link.d CMakeFiles/axiomdb.dir/src/cli/main.cpp.o -o axiomdb  libaxiomdb_core.a
