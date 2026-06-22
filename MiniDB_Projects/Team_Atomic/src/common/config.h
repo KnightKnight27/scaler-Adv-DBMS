@@ -3,8 +3,7 @@
 
 namespace minidb {
 
-// ---- Global engine configuration ----
-// Page size in bytes. 4 KB is the classic OS-page-aligned choice.
+// Page size in bytes (OS-page-aligned).
 static constexpr int PAGE_SIZE = 4096;
 
 // Number of frames in the buffer pool.

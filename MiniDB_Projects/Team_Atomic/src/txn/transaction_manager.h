@@ -8,9 +8,9 @@ namespace minidb {
 
 enum class TxnState { GROWING, SHRINKING, COMMITTED, ABORTED };
 
-// Issues transaction ids and drives the 2PL lifecycle through the lock manager.
-// Lower ids are "older"; the deadlock victim is always the youngest (largest
-// id) so progress is guaranteed (older transactions never starve).
+// Issues transaction ids and forwards lock requests to the LockManager.
+// Lower id = older; the deadlock victim is always the youngest, so the oldest
+// never starves.
 class TransactionManager {
  public:
   txn_id_t Begin() { return next_txn_.fetch_add(1); }

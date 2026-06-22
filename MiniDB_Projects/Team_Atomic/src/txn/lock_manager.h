@@ -9,22 +9,17 @@
 
 namespace minidb {
 
-// Raised when a transaction is chosen as a deadlock victim, or asked to lock
-// after entering its shrinking phase (2PL violation).
+// Raised when a transaction is chosen as a deadlock victim.
 struct TxnAborted : DBError {
   explicit TxnAborted(const std::string& why) : DBError(why) {}
 };
 
 enum class LockMode { SHARED, EXCLUSIVE };
 
-// A lock manager implementing strict Two-Phase Locking with shared/exclusive
-// row locks. Blocked acquisitions wait on a condition variable; a waits-for
-// graph is checked on every wait so cycles are detected and the youngest
-// transaction in the cycle is aborted to break the deadlock.
-//
-// "Strict" 2PL: locks are held until the transaction commits or aborts, at
-// which point Release frees them all at once. This gives serializability and
-// avoids cascading aborts.
+// Strict 2PL with shared/exclusive row locks. Blocked requests wait on a
+// condition variable; a waits-for graph is checked each time, so deadlock
+// cycles are detected and the youngest transaction is aborted to break them.
+// Locks are held until commit/abort, when Release frees them all at once.
 class LockManager {
  public:
   // Acquire a lock on `key`. Blocks until granted; throws TxnAborted if this

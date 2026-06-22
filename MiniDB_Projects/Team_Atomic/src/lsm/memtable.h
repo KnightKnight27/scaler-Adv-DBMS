@@ -5,17 +5,15 @@
 
 namespace minidb {
 
-// A value stored in the LSM. A delete is recorded as a tombstone rather than a
-// physical removal, so it can shadow older versions in lower levels until
-// compaction drops it.
+// A value in the LSM. A delete is a tombstone (not a removal) so it can shadow
+// older versions until compaction drops it.
 struct LsmValue {
   std::string data;
   bool tombstone = false;
 };
 
-// The in-memory write buffer of the LSM tree. A std::map keeps keys sorted, so
-// flushing to an SSTable is a single ordered pass. All writes hit the memtable
-// first (fast, sequential), then are flushed to disk in sorted runs.
+// The LSM's in-memory write buffer. A std::map keeps keys sorted, so a flush
+// is one ordered pass to an SSTable.
 class MemTable {
  public:
   void Put(int64_t key, const std::string& value) {

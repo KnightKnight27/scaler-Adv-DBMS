@@ -4,9 +4,8 @@
 
 namespace minidb {
 
-// A small Bloom filter over int64 keys. Used by each SSTable so a point lookup
-// can skip the file entirely when the key is definitely absent (no false
-// negatives; a small false-positive rate just costs an extra index probe).
+// A small Bloom filter over int64 keys. Lets an SSTable skip a lookup when the
+// key is definitely absent (no false negatives).
 class BloomFilter {
  public:
   void Reset(size_t expected) {

@@ -7,17 +7,12 @@
 
 namespace minidb {
 
-// A log-structured merge tree: an int64-keyed, value-versioned store that
-// turns random writes into sequential ones.
-//
-//   write  -> MemTable (in RAM, sorted)
-//   full   -> flush MemTable to a new immutable SSTable (sorted run on disk)
-//   many   -> size-tiered compaction merges runs, dropping shadowed versions
-//             and tombstones
-//   read   -> MemTable, then SSTables newest->oldest (Bloom-filtered)
-//
-// This is the Track C extension's storage engine, benchmarked against the
-// B+ tree / heap row-store.
+// Log-structured merge tree (Track C extension). Turns random writes into
+// sequential ones:
+//   write -> MemTable (in RAM, sorted)
+//   full  -> flush MemTable to an immutable SSTable (sorted run on disk)
+//   many  -> size-tiered compaction merges runs, dropping shadowed keys/tombstones
+//   read  -> MemTable, then SSTables newest->oldest (Bloom-filtered)
 class LSMTree {
  public:
   // `prefix` is a path stem; SSTables are "<prefix>_<seq>.sst" plus a manifest.

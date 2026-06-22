@@ -6,18 +6,11 @@
 
 namespace minidb {
 
-// A slotted heap page laid over a raw buffer-pool Page.
-//
-// Layout:
-//   [ header ][ slot[0] slot[1] ... ]            (grows forward from start)
-//                                  ... free ...
-//                              [ ... tuple1 ][ tuple0 ]  (grows backward from end)
-//
-// Header:  next_page_id (4) | num_slots (4) | free_ptr (4)
-// Slot:    offset (4) | length (4)        length==0 => deleted (tombstone)
-//
-// Slots are never removed once allocated, so a RID (page_id, slot) stays
-// valid for the life of the row -- important for index entries pointing at it.
+// A slotted heap page over a raw Page.
+//   [ header | slot0 slot1 ... ]  ->  free  <-  [ ... tuple1 ][ tuple0 ]
+// Header: next_page_id(4) | num_slots(4) | free_ptr(4)
+// Slot:   offset(4) | length(4)   (length 0 = deleted tombstone)
+// Slots are never freed, so a RID (page_id, slot) stays stable for the index.
 class TablePage {
  public:
   static constexpr int HEADER_SIZE = 12;

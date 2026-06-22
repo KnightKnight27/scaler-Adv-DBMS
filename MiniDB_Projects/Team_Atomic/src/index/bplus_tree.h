@@ -6,19 +6,16 @@
 
 namespace minidb {
 
-// A page-backed B+ tree mapping int64 keys -> RID (a row location).
+// A page-backed B+ tree mapping int64 key -> RID, used as the primary-key
+// index. A header page (id stored in the catalog) holds the current root id,
+// so the tree survives restarts and root splits.
 //
-// Used as a primary-key index: the executor consults it for point lookups and
-// range scans instead of scanning the whole heap. Nodes live in buffer-pool
-// pages. A stable "header page" (id kept in the catalog) stores the current
-// root page id, so the tree survives restart and root splits are durable.
-//
-// Node disk format (read/modify/written whole for clarity over raw speed):
+// Node format:
 //   Leaf:     type(4) size(4) next(4) | [ key(8) page(4) slot(4) ] * size
 //   Internal: type(4) size(4)         | child(4)*(size+1) | key(8)*size
 class BPlusTree {
  public:
-  // Max keys per node before a split. Chosen to comfortably fit PAGE_SIZE.
+  // Max keys per node before a split (fits in a 4 KB page).
   static constexpr int LEAF_MAX = 254;
   static constexpr int INTERNAL_MAX = 254;
 

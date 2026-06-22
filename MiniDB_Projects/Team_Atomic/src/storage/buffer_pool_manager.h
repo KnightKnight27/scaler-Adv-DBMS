@@ -10,10 +10,8 @@
 
 namespace minidb {
 
-// The buffer pool caches a fixed number of disk pages in memory. Callers
-// pin a page (incrementing its pin count) while they use it, then unpin it.
-// Only unpinned pages may be evicted, and dirty pages are written back to
-// disk before their frame is reused.
+// Caches a fixed number of pages in memory. Pages are pinned while in use;
+// only unpinned pages can be evicted, and dirty ones are flushed before reuse.
 class BufferPoolManager {
  public:
   BufferPoolManager(size_t pool_size, DiskManager* disk_manager);

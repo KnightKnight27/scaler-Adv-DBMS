@@ -4,8 +4,7 @@
 
 namespace minidb {
 
-// A buffer-pool frame holding one raw page worth of bytes plus bookkeeping.
-// Higher layers (heap pages, B+ tree nodes) reinterpret `data_`.
+// One buffer-pool frame: a page of raw bytes plus bookkeeping.
 class Page {
  public:
   Page() { Reset(); }

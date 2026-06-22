@@ -16,10 +16,9 @@ class RowCursor {
   virtual bool Next(std::string* row) = 0;  // false at end
 };
 
-// The storage abstraction the rest of the engine talks to. Two engines
-// implement it, so the SQL executor / optimizer / transaction layer run
-// unchanged over either: the B+ tree row store (heap pages + PK index) and the
-// LSM-tree store (Track C). Rows are addressed by an int64 primary key.
+// The storage interface the rest of the engine talks to. Both engines (B+ tree
+// heap store and LSM store) implement it, so the SQL layers run over either
+// unchanged. Rows are keyed by an int64 primary key.
 class RowStore {
  public:
   virtual ~RowStore() = default;

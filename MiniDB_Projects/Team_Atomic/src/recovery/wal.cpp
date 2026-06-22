@@ -37,10 +37,7 @@ lsn_t WAL::Append(const LogRecord& rec) {
   int32_t len = static_cast<int32_t>(payload.size());
   std::fwrite(&len, 4, 1, fp_);
   std::fwrite(payload.data(), 1, payload.size(), fp_);
-  // Push to the OS so the record survives a process crash; a power-loss-safe
-  // fsync still happens at COMMIT via Flush(). This upholds write-ahead even
-  // when a dirty data page is evicted before its transaction commits.
-  std::fflush(fp_);
+  std::fflush(fp_);  // process-crash safe; COMMIT adds fsync (Flush) for power loss
   return lsn;
 }
 

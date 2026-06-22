@@ -27,9 +27,8 @@ void Database::Checkpoint() {
 }
 
 void Database::SimulateCrash() {
-  // Abandon in-memory state with no checkpoint: leak the subsystems so no
-  // destructor runs (in particular, no buffer-pool flush). Whatever reached
-  // disk stays; dirty pool pages vanish -- exactly a process crash.
+  // Leak the subsystems so no destructor runs (no buffer flush): whatever
+  // reached disk stays, dirty pages vanish -- exactly a process crash.
   crashed_ = true;
   disk_.release();
   bpm_.release();
@@ -65,8 +64,7 @@ QueryResult Database::ExecCreate(const Statement& s) {
     }
   }
   catalog_->CreateTable(s.table, Schema(cols, pk), s.engine);
-  // DDL acts as a checkpoint so the new table's structure pages are durable
-  // (recovery relies on initialized heap/index pages being on disk).
+  // Flush so the new table's heap/index pages are durable before any inserts.
   bpm_->FlushAll();
   QueryResult r;
   r.message = "Table '" + s.table + "' created" +

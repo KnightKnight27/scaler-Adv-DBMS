@@ -6,9 +6,7 @@
 
 namespace minidb {
 
-// LRU replacement policy over frames that are currently *unpinned* and thus
-// eviction candidates. A frame is added here when its pin count hits 0 and
-// removed when it is pinned again (or chosen as a victim).
+// LRU victim selection over unpinned frames.
 class LRUReplacer {
  public:
   // Pick the least-recently-used frame as a victim. Returns false if empty.

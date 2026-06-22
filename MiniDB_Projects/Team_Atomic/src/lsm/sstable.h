@@ -9,11 +9,10 @@
 
 namespace minidb {
 
-// An immutable, sorted-on-disk run produced by flushing a memtable (or by
-// compaction). File format is a sequence of records, ascending by key:
-//   int64 key | uint8 tombstone | int32 vlen | value[vlen]
-// On open we scan once to build an in-memory offset index and a Bloom filter,
-// so a point lookup is: bloom check -> index lookup -> single pread.
+// An immutable, sorted on-disk run (from a memtable flush or compaction).
+// Format, ascending by key:  int64 key | uint8 tombstone | int32 vlen | value
+// On open we build an offset index + Bloom filter, so a point read is
+// bloom -> index -> one pread.
 class SSTable {
  public:
   // Write a sorted run from key->value entries. Returns bytes written.

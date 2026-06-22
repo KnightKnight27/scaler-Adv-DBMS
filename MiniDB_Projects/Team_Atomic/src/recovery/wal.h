@@ -19,9 +19,8 @@ struct LogRecord {
   std::string row;
 };
 
-// Append-only binary write-ahead log. The golden rule (write-ahead) is honored
-// by the engine: a transaction's records are flushed (fsync) before COMMIT
-// returns, so a committed transaction is recoverable after a crash.
+// Append-only binary write-ahead log. The engine flushes a transaction's
+// records before COMMIT returns, so committed transactions survive a crash.
 class WAL {
  public:
   explicit WAL(const std::string& path);

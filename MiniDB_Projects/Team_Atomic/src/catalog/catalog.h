@@ -13,7 +13,6 @@
 namespace minidb {
 
 // Per-table metadata. The page ids let us reopen the heap and index on restart.
-// `store` is the engine-agnostic access path used by the rest of the system.
 struct TableMeta {
   std::string name;
   Schema schema;
@@ -25,8 +24,8 @@ struct TableMeta {
   bool HasKeyAccess() const { return store && store->SupportsKeyAccess(); }
 };
 
-// The catalog maps table names to their storage. It persists its metadata to a
-// small sidecar file (`<db>.catalog`) so tables reopen across restarts.
+// Maps table names to their storage, persisted to a `<db>.catalog` sidecar so
+// tables reopen across restarts.
 class Catalog {
  public:
   Catalog(BufferPoolManager* bpm, std::string catalog_file, std::string lsm_prefix);

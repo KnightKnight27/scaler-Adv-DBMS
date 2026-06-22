@@ -38,8 +38,7 @@ class Database {
   // Persist everything and clear the WAL (a clean checkpoint).
   void Checkpoint();
 
-  // TEST ONLY: abandon in-memory state without checkpointing, simulating a
-  // process crash. Buffer-pool-resident dirty pages are lost; the WAL remains.
+  // TEST ONLY: simulate a process crash (no checkpoint; dirty pages lost, WAL kept).
   void SimulateCrash();
 
  private:

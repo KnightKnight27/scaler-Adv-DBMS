@@ -6,9 +6,8 @@
 
 namespace minidb {
 
-// Owns the single on-disk database file. Pages are stored contiguously:
-// page i lives at byte offset i * PAGE_SIZE. The DiskManager knows nothing
-// about page contents -- it just moves PAGE_SIZE-byte blocks to/from disk.
+// Reads/writes fixed-size pages in the database file. Page i is at offset
+// i * PAGE_SIZE.
 class DiskManager {
  public:
   explicit DiskManager(const std::string& db_file);
