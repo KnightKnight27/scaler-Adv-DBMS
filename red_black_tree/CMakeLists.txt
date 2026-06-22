@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
-
-project(db_engine)
+project(RedBlackTree)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(db_engine main.cpp)
+add_executable(red_black_tree main.cpp)
