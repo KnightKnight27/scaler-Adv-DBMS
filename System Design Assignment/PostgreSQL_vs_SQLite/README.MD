@@ -297,11 +297,11 @@ SELECT * FROM users WHERE id = 50000;
 
 ### PostgreSQL Execution
 
-![PostgreSQL Query Results](images/postgresql_query.png)
+![PostgreSQL Query Results](screenshots/postgres_query.png)
 
 ### SQLite Execution
 
-![SQLite Query Results](images/sqlite_query.png)
+![SQLite Query Results](screenshots/sqlite3_query.png)
 
 ### Observation
 
