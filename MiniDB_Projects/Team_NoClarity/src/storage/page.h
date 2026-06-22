@@ -3,6 +3,7 @@
 
 #include "common/config.h"
 #include <cstring>
+#include <shared_mutex>
 
 namespace minidb {
 
@@ -19,6 +20,11 @@ public:
     inline bool IsDirty() const { return is_dirty_; }
     inline void SetDirty(bool is_dirty) { is_dirty_ = is_dirty; }
 
+    inline void RLock() { rw_latch_.lock_shared(); }
+    inline void RUnlock() { rw_latch_.unlock_shared(); }
+    inline void WLock() { rw_latch_.lock(); }
+    inline void WUnlock() { rw_latch_.unlock(); }
+
     inline void ResetMemory() {
         std::memset(data_, 0, PAGE_SIZE);
         page_id_ = INVALID_PAGE_ID;
@@ -31,6 +37,7 @@ private:
     page_id_t page_id_{INVALID_PAGE_ID};
     int pin_count_{0};
     bool is_dirty_{false};
+    std::shared_mutex rw_latch_;
 };
 
 } // namespace minidb

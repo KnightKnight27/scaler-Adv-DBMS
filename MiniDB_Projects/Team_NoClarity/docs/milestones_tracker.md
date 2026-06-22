@@ -22,17 +22,40 @@ MiniDB is a transactional relational database built from foundational components
   - Coded the `ClockReplacer` using a scanning clock hand to identify unpinned eviction victims.
   - Structured the `BufferPoolManager` cache layer coordinating disk file reads/writes with memory page allocations.
 
+### 🏁 Milestone 2: B+ Tree Indexing & Parser Connection (Completed)
+- **Objective:** Implement a concurrent, in-page B+ Tree indexing engine and connect it with a query planner/optimizer to support Index Scans.
+- **Key Achievements:**
+  - Coded the template-based `BPlusTree` managing node pages entirely within 4KB memory blocks without direct heap allocations (`new`).
+  - Implemented the **Latch Crabbing Protocol** using reader-writer locks on individual frames for concurrent search (hand-over-hand reader locks) and insertion/deletion (parent writer locks).
+  - Designed a mock `Catalog` tracking tables, slotted pages, and associated B+ Tree indexes.
+  - Integrated the `Optimizer` to perform cost estimation and selectivity heuristics, automatically choosing between **Table Scans** and **Index Scans** during query execution.
+
 ---
 
 ## 3. MiniDB Architecture Evolution
 
-As the system evolves through each milestone, more components will be integrated into the architecture.
+As the system evolves through each milestone, more components are integrated into the database engine.
 
-### Milestone 1 Component Architecture
+### Milestone 2 Evolving Architecture Diagram
 ```mermaid
 graph TD
-    subgraph Client_App ["Client Application"]
-        App[main.cpp]
+    subgraph Client_App ["Client Application (main.cpp)"]
+        App[SQL Query / main.cpp]
+    end
+
+    subgraph Query_Processor ["Query Processor & Optimizer"]
+        Parser[SELECT Parser]
+        Opt[Optimizer / Planner]
+        Cat[Catalog Manager]
+        Plan[PlanNode Execution]
+        TS[TableScanNode]
+        IS[IndexScanNode]
+    end
+
+    subgraph Indexing_Engine ["Indexing Engine (RAM)"]
+        BPT[BPlusTree]
+        Internal[BPlusTreeInternalPage]
+        Leaf[BPlusTreeLeafPage]
     end
 
     subgraph Buffer_Cache_Layer ["Buffer Cache Layer (RAM)"]
@@ -41,72 +64,54 @@ graph TD
         Frames[Pool of Page Frames]
     end
 
-    subgraph Storage_Layout ["Storage Layout"]
-        SP[SlottedPage Wrapper]
-    end
-
     subgraph Disk_IO_Layer ["Disk I/O Layer (Filesystem)"]
         DM[DiskManager]
         DBFile[("minidb.db File")]
     end
 
-    App -->|"Requests Page / New Page"| BPM
-    BPM -->|"Identifies Evictions"| CR
+    App -->|"Queries SQL / Tables"| Parser
+    Parser -->|"Queries Catalog Schema"| Cat
+    Parser -->|"Checks Index Existence"| Opt
+    Opt -->|"Generates Plan"| Plan
+    Plan -->|"Executes Scan Plan"| TS
+    Plan -->|"Executes Scan Plan"| IS
+    
+    IS -->|"Searches Keys (Find/Insert)"| BPT
+    BPT -->|"Routes Page Branches"| Internal
+    BPT -->|"Locates Record RID"| Leaf
+    
+    TS -->|"Fetches Slotted Rows"| BPM
+    IS -->|"Fetches Specific Slotted Page"| BPM
+    
+    BPT -->|"Allocates Node Pages"| BPM
+    BPM -->|"Evicts Frames"| CR
     BPM -->|"Loads / Flushes Frames"| Frames
-    App -->|"Reads / Writes Records"| SP
-    SP -->|"Interprets In-Place Memory"| Frames
-    BPM -->|"Sync block reads/writes"| DM
+    BPM -->|"Sync reads/writes"| DM
     DM -->|"Reads & Writes"| DBFile
 ```
 
 ---
 
-## 4. Component Details (Milestone 1)
+## 4. Component Details (Milestone 2)
 
-### A. Disk Manager (`DiskManager`)
-The `DiskManager` abstracts physical disk blocks as a sequential array of 4KB logical page frames.
-- **Header:** `disk_manager.h`
-- **Implementation:** `disk_manager.cpp`
-- **Key Methods:**
-  - `AllocatePage()`: Thread-safely increments the page count, writes a 4KB null block at the end of the file to physically grow it, and returns the new `page_id_t`.
-  - `WritePage(page_id, data)`: Moves the stream pointer to `page_id * 4096` using `seekp` and writes exactly 4KB.
-  - `ReadPage(page_id, data)`: Moves the stream pointer to `page_id * 4096` using `seekg` and reads exactly 4KB.
+### A. B+ Tree Page In-Page Casting
+No B+ Tree node may allocate dynamic heap memory using `new` for storage. Instead, nodes reside in the `char data_[4096]` array of a `Page` requested from the `BufferPoolManager`. 
+- **`BPlusTreePage` (Header):** Base class storing type (leaf/internal), current size, max capacity, and parent page ID link.
+- **`BPlusTreeInternalPage`:** Manages parent routing keys. The slot array consists of contiguously casted `std::pair<KeyType, page_id_t>`. Element `array_[0].second` acts as `value_0` (leftmost child pointer), while other keys/values route key boundaries.
+- **`BPlusTreeLeafPage`:** Stores data mappings as `std::pair<KeyType, ValueType>` where `ValueType` is `RID`. The leaf also tracks a `next_page_id_` pointer to maintain sequential link lists for range queries.
 
-### B. Slotted Page Layout (`SlottedPage`)
-Translates raw `char data_[4096]` into a variable-length record slots manager without allocating extra memory blocks (performs direct pointer casting).
-- **Format:**
-  - Bytes `0-1`: `slot_count` (uint16_t)
-  - Bytes `2-3`: `free_space_pointer` (uint16_t, starts at 4096)
-  - Bytes `4+`: Slot array of `Slot { uint16_t offset; uint16_t length; }` growing downwards.
-  - Page End: Tuple records growing upwards.
-- **Defragmentation (`CompactPage`):**
-  - Deleted records are marked with a tombstone offset (`0xFFFF`).
-  - When contiguous free space is exhausted, `CompactPage` collects all active records, packs them tightly from byte 4095 backwards, and updates their corresponding offsets, preserving the slot array indices.
+### B. Latch Crabbing Protocol (Concurrency)
+To prevent thread conflicts during tree reorganization (page splits or merges), the B+ Tree employs a crabbing locking protocol using reader-writer locks (`std::shared_mutex` and `RLock/WLock` on frames):
+1. **Search (`Find`):** Hand-over-hand reader locks (`std::shared_lock`). Descend from root. Lock child frame in shared mode, then immediately release parent frame reader lock.
+2. **Insertion (`Insert`):** Exclusive writer locks (`std::unique_lock`). Descend keeping a list of locked parents. If a visited child page is safe (will not overflow: `size < max_size - 1`), release all parent writer locks immediately to unblock concurrent operations.
 
-### C. Clock Replacer (`ClockReplacer`)
-Tracks unpinned page frames in memory to identify eviction candidates.
-- **Attributes:**
-  - `in_replacer_`: Boolean array tracking if a frame is unpinned.
-  - `ref_flags_`: Reference bits for second-chance evaluation.
-  - `clock_hand_`: Scans frames circularly.
-- **Eviction (`Victim`):**
-  - If a frame has `ref_flag == true`, it is given a second chance (flag cleared to `false`, hand advances).
-  - If `ref_flag == false`, the frame is selected as the victim and evicted.
-
-### D. Buffer Pool Manager (`BufferPoolManager`)
-Integrates the `DiskManager` and `ClockReplacer` to manage page caching in RAM.
-- **Key Methods:**
-  - `FetchPage(page_id)`: Cache lookup. On a cache miss, it uses `ClockReplacer` to select an eviction victim, flushes the victim to disk if dirty, reads the new block from the filesystem, and pins the frame.
-  - `UnpinPage(page_id, is_dirty)`: Decrements the frame pin count. If the pin count reaches 0, the frame is marked as an eviction candidate in `ClockReplacer`.
-  - `FlushPage(page_id)`: Forces a synchronous disk write if the page is dirty.
+### C. Optimizer Plan Selection (Selectivity & Cost Estimation)
+- **Table Scan:** Checks every record on every slotted page in the table. Running cost is $O(N)$ pages.
+- **Index Scan:** Lookups the filter key in the B+ Tree in $O(\log N)$ steps, retrieves the RIDs, and fetches only the specific pages hosting the results.
+- **Optimizer Heuristic:** The optimizer checks if a B+ Tree index is registered on the searched column in the Catalog. If an index is found for an equality check (low selectivity), the planner picks the `IndexScanNode`. If no index is present, it falls back to `TableScanNode`.
 
 ---
 
-## 5. Design Trade-offs & Decisions (Milestone 1)
-
-1. **In-Place Slotted-Page Memory Allocation:**
-   - Instead of heap allocating structured C++ structs and serializing them, `SlottedPage` casts the raw `char[PAGE_SIZE]` directly to slot arrays. This provides native speed matching production systems.
-2. **Stable Record IDs (RID):**
-   - RIDs use logical offsets `(page_id, slot_index)`. When tuples are deleted, the space becomes fragmented. Calling `CompactPage()` defragments the storage by packing tuples while keeping their slot array indexes stable. This ensures indices referencing these records are not broken during defragmentation.
-3. **Double-Buffering & Eviction Safety:**
-   - Eviction of page frames is strictly bounded by pinning. Pinned pages are completely hidden from the `ClockReplacer` candidates list, ensuring in-use frames are never overwritten.
+## 5. Milestone 2 Verification Log
+- **Direct B+ Tree unit testing:** Insertion triggers correct page splitting and Promotions to parent nodes. Search operations correctly return mapped RIDs. Key deletes trigger redistribution or node merging.
+- **Optimizer & Scan validations:** Demonstrated that the optimizer successfully chooses `IndexScan` over `TableScan` when an index is active, achieving precise record projection.
