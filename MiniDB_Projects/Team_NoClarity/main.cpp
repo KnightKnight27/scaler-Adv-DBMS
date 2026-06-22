@@ -13,6 +13,10 @@
 #include "execution/abstract_executor.h"
 #include "execution/executors.h"
 #include "optimizer/cost_based_optimizer.h"
+#include "recovery/recovery_manager.h"
+#include "replication/replication_manager.h"
+#include "replication/replication_receiver.h"
+#include <algorithm>
 
 using namespace minidb;
 
@@ -557,9 +561,366 @@ void TestOptimizer() {
     std::cout << "[OPTIMIZER SUCCESS] Cost-based join order dynamic programming passed.\n" << std::endl;
 }
 
+void TestRecovery() {
+    std::cout << "--- Starting ARIES Crash Recovery (Milestone 5) Tests ---" << std::endl;
+    std::string db_file = "test_recovery.db";
+    std::string lsn_file = db_file + ".lsns";
+    std::string log_file = "test_recovery.log";
+
+    // Clean up files from previous runs
+    std::filesystem::remove(db_file);
+    std::filesystem::remove(lsn_file);
+    std::filesystem::remove(log_file);
+
+    {
+        // 1. Setup initial database and log manager
+        DiskManager disk_manager(db_file);
+        BufferPoolManager bpm(10, &disk_manager);
+        LogManager log_manager(log_file);
+
+        page_id_t p0;
+        Page* pg0 = bpm.NewPage(&p0);
+        assert(p0 == 0);
+        
+        // Initialize page 0 data
+        char* data = pg0->GetData();
+        std::memcpy(data + 10, "AAAA", 4);
+        std::memcpy(data + 20, "XXXX", 4);
+        std::memcpy(data + 30, "ZZZZ", 4);
+        std::memcpy(data + 40, "MMMM", 4);
+        bpm.UnpinPage(p0, true);
+        bpm.FlushAllPages(); // Page 0 LSN is 0 on disk
+    }
+
+    {
+        // 2. Simulate transaction execution and log generation
+        DiskManager disk_manager(db_file);
+        BufferPoolManager bpm(10, &disk_manager);
+        LogManager log_manager(log_file);
+
+        // Append log records manually to simulate normal runtime
+        // LSN 1: T1 BEGIN
+        LogRecord lr1(1, 0, LogRecordType::BEGIN);
+        log_manager.AppendRecord(lr1);
+
+        // LSN 2: T2 BEGIN
+        LogRecord lr2(2, 0, LogRecordType::BEGIN);
+        log_manager.AppendRecord(lr2);
+
+        // LSN 3: T1 UPDATE page 0 at offset 10: "AAAA" -> "BBBB"
+        LogRecord lr3(1, lr1.lsn, LogRecordType::UPDATE, 0, 10, "AAAA", "BBBB");
+        log_manager.AppendRecord(lr3);
+
+        // LSN 4: T2 UPDATE page 0 at offset 20: "XXXX" -> "YYYY"
+        LogRecord lr4(2, lr2.lsn, LogRecordType::UPDATE, 0, 20, "XXXX", "YYYY");
+        log_manager.AppendRecord(lr4);
+
+        // Simulate flush of page 0. Page 0 LSN on disk becomes 4.
+        Page* pg0 = bpm.FetchPage(0);
+        char* data = pg0->GetData();
+        std::memcpy(data + 10, "BBBB", 4);
+        std::memcpy(data + 20, "YYYY", 4);
+        pg0->SetPageLSN(4);
+        bpm.UnpinPage(0, true);
+        bpm.FlushPage(0); // Page 0 is now written to disk with LSN 4
+
+        // LSN 5: T1 COMMIT
+        LogRecord lr5(1, lr3.lsn, LogRecordType::COMMIT);
+        log_manager.AppendRecord(lr5);
+
+        // LSN 6: T2 UPDATE page 0 at offset 30: "ZZZZ" -> "WWWW"
+        LogRecord lr6(2, lr4.lsn, LogRecordType::UPDATE, 0, 30, "ZZZZ", "WWWW");
+        log_manager.AppendRecord(lr6);
+
+        // LSN 7: T3 BEGIN
+        LogRecord lr7(3, 0, LogRecordType::BEGIN);
+        log_manager.AppendRecord(lr7);
+
+        // LSN 8: T3 UPDATE page 0 at offset 40: "MMMM" -> "NNNN"
+        LogRecord lr8(3, lr7.lsn, LogRecordType::UPDATE, 0, 40, "MMMM", "NNNN");
+        log_manager.AppendRecord(lr8);
+    }
+
+    {
+        // 3. Run Crash Recovery (Restart Session)
+        DiskManager disk_manager(db_file);
+        BufferPoolManager bpm(10, &disk_manager);
+        LogManager log_manager(log_file);
+        RecoveryManager rm(&disk_manager, &bpm, &log_manager);
+
+        std::vector<txn_id_t> active_txns;
+        std::unordered_map<page_id_t, lsn_t> dpt;
+
+        // Run analysis phase
+        rm.ExecuteAnalysisPhase(active_txns, dpt);
+        assert(active_txns.size() == 2);
+        assert(std::find(active_txns.begin(), active_txns.end(), 2) != active_txns.end());
+        assert(std::find(active_txns.begin(), active_txns.end(), 3) != active_txns.end());
+        assert(dpt.find(0) != dpt.end());
+
+        // Run redo phase (repeating history)
+        rm.ExecuteRedoPhase(dpt);
+
+        // Verify that after Redo, Page 0 has all updates including uncommitted ones (LSN 6 and 8)
+        Page* pg0 = bpm.FetchPage(0);
+        char* data = pg0->GetData();
+        assert(std::string(data + 10, 4) == "BBBB");
+        assert(std::string(data + 20, 4) == "YYYY");
+        assert(std::string(data + 30, 4) == "WWWW");
+        assert(std::string(data + 40, 4) == "NNNN");
+        assert(pg0->GetPageLSN() == 8);
+        bpm.UnpinPage(0, false);
+
+        // Run undo phase
+        rm.ExecuteUndoPhase(active_txns);
+
+        // Verify that loser updates (T2 and T3) are rolled back, and T1 update remains
+        pg0 = bpm.FetchPage(0);
+        data = pg0->GetData();
+        assert(std::string(data + 10, 4) == "BBBB"); // T1 remains
+        assert(std::string(data + 20, 4) == "XXXX"); // T2 rolled back
+        assert(std::string(data + 30, 4) == "ZZZZ"); // T2 rolled back
+        assert(std::string(data + 40, 4) == "MMMM"); // T3 rolled back
+        assert(pg0->GetPageLSN() >= 11);
+        bpm.UnpinPage(0, false);
+
+        std::cout << "[RECOVERY SUCCESS] Analysis, Redo, and Undo rolled back uncommitted transactions successfully." << std::endl;
+    }
+
+    // 4. Test Idempotency (Re-crashing mid-recovery and resuming)
+    std::filesystem::remove(db_file);
+    std::filesystem::remove(lsn_file);
+    std::filesystem::remove(log_file);
+
+    {
+        // Setup initial DB state again
+        DiskManager disk_manager(db_file);
+        BufferPoolManager bpm(10, &disk_manager);
+        page_id_t p0;
+        Page* pg0 = bpm.NewPage(&p0);
+        char* data = pg0->GetData();
+        std::memcpy(data + 10, "AAAA", 4);
+        std::memcpy(data + 20, "XXXX", 4);
+        std::memcpy(data + 30, "ZZZZ", 4);
+        std::memcpy(data + 40, "MMMM", 4);
+        bpm.UnpinPage(p0, true);
+        bpm.FlushAllPages();
+    }
+
+    {
+        // Populate normal transaction log records
+        DiskManager disk_manager(db_file);
+        BufferPoolManager bpm(10, &disk_manager);
+        LogManager log_manager(log_file);
+
+        LogRecord lr1(1, 0, LogRecordType::BEGIN); log_manager.AppendRecord(lr1);
+        LogRecord lr2(2, 0, LogRecordType::BEGIN); log_manager.AppendRecord(lr2);
+        LogRecord lr3(1, lr1.lsn, LogRecordType::UPDATE, 0, 10, "AAAA", "BBBB"); log_manager.AppendRecord(lr3);
+        LogRecord lr4(2, lr2.lsn, LogRecordType::UPDATE, 0, 20, "XXXX", "YYYY"); log_manager.AppendRecord(lr4);
+
+        // Page 0 flushed with LSN 4
+        Page* pg0 = bpm.FetchPage(0);
+        char* data = pg0->GetData();
+        std::memcpy(data + 10, "BBBB", 4);
+        std::memcpy(data + 20, "YYYY", 4);
+        pg0->SetPageLSN(4);
+        bpm.UnpinPage(0, true);
+        bpm.FlushPage(0);
+
+        LogRecord lr5(1, lr3.lsn, LogRecordType::COMMIT); log_manager.AppendRecord(lr5);
+        LogRecord lr6(2, lr4.lsn, LogRecordType::UPDATE, 0, 30, "ZZZZ", "WWWW"); log_manager.AppendRecord(lr6);
+        LogRecord lr7(3, 0, LogRecordType::BEGIN); log_manager.AppendRecord(lr7);
+        LogRecord lr8(3, lr7.lsn, LogRecordType::UPDATE, 0, 40, "MMMM", "NNNN"); log_manager.AppendRecord(lr8);
+    }
+
+    {
+        // Run first recovery, but simulate crash after undoing T3's update (offset 40)
+        DiskManager disk_manager(db_file);
+        BufferPoolManager bpm(10, &disk_manager);
+        LogManager log_manager(log_file);
+        RecoveryManager rm(&disk_manager, &bpm, &log_manager);
+
+        std::vector<txn_id_t> active_txns;
+        std::unordered_map<page_id_t, lsn_t> dpt;
+        rm.ExecuteAnalysisPhase(active_txns, dpt);
+        rm.ExecuteRedoPhase(dpt);
+
+        // Manually undo T3's update (offset 40)
+        Page* pg0 = bpm.FetchPage(0);
+        char* data = pg0->GetData();
+        std::memcpy(data + 40, "MMMM", 4);
+        pg0->SetDirty(true);
+
+        // Append CLR for T3's update (T3's update was LSN 8)
+        LogRecord clr_rec(3, 8, LogRecordType::CLR, 0, 40, "", "MMMM", 7); // 7 is lr7 (T3's BEGIN)
+        lsn_t clr_lsn = log_manager.AppendRecord(clr_rec);
+        pg0->SetPageLSN(clr_lsn);
+        bpm.UnpinPage(0, true);
+        bpm.FlushPage(0);
+    }
+
+    {
+        // Now run recovery again to ensure idempotency
+        DiskManager disk_manager(db_file);
+        BufferPoolManager bpm(10, &disk_manager);
+        LogManager log_manager(log_file);
+        RecoveryManager rm(&disk_manager, &bpm, &log_manager);
+
+        std::vector<txn_id_t> active_txns;
+        std::unordered_map<page_id_t, lsn_t> dpt;
+        rm.ExecuteAnalysisPhase(active_txns, dpt);
+
+        assert(active_txns.size() == 2); 
+        
+        // Redo Phase
+        rm.ExecuteRedoPhase(dpt);
+
+        // Undo Phase
+        rm.ExecuteUndoPhase(active_txns);
+
+        // Verify recovered state
+        Page* pg0 = bpm.FetchPage(0);
+        char* data = pg0->GetData();
+        assert(std::string(data + 10, 4) == "BBBB"); // T1 remains
+        assert(std::string(data + 20, 4) == "XXXX"); // T2 rolled back
+        assert(std::string(data + 30, 4) == "ZZZZ"); // T2 rolled back
+        assert(std::string(data + 40, 4) == "MMMM"); // T3 rolled back
+        bpm.UnpinPage(0, false);
+
+        std::cout << "[IDEMPOTENCY SUCCESS] Nested crash recovery verified. Recovered state matches perfectly." << std::endl;
+    }
+
+    std::filesystem::remove(db_file);
+    std::filesystem::remove(lsn_file);
+    std::filesystem::remove(log_file);
+    std::cout << "[ARIES CRASH RECOVERY SUCCESS] All ARIES recovery and idempotency tests passed.\n" << std::endl;
+}
+
+void TestReplication() {
+    std::cout << "--- Starting Log Replication (Milestone 6) Tests ---" << std::endl;
+
+    std::string primary_db = "test_primary.db";
+    std::string primary_lsns = primary_db + ".lsns";
+    std::string replica_db = "test_replica.db";
+    std::string replica_lsns = replica_db + ".lsns";
+
+    std::filesystem::remove(primary_db);
+    std::filesystem::remove(primary_lsns);
+    std::filesystem::remove(replica_db);
+    std::filesystem::remove(replica_lsns);
+
+    { // Start of isolation scope
+        // 1. Setup primary and replica storage layers
+        DiskManager primary_dm(primary_db);
+        BufferPoolManager primary_bpm(10, &primary_dm);
+
+        DiskManager replica_dm(replica_db);
+        BufferPoolManager replica_bpm(10, &replica_dm);
+
+        // Create page 0 on both primary and replica
+        page_id_t p0_prim, p0_repl;
+        Page* pg0_prim = primary_bpm.NewPage(&p0_prim);
+        Page* pg0_repl = replica_bpm.NewPage(&p0_repl);
+        assert(p0_prim == 0);
+        assert(p0_repl == 0);
+
+        SlottedPage::Init(pg0_prim->GetData());
+        SlottedPage::Init(pg0_repl->GetData());
+
+        primary_bpm.UnpinPage(p0_prim, true);
+        replica_bpm.UnpinPage(p0_repl, true);
+        primary_bpm.FlushAllPages();
+        replica_bpm.FlushAllPages();
+
+        // 2. Start replica listening on port 23456
+        int listen_port = 23456;
+        ReplicationReceiver receiver(listen_port, &replica_bpm);
+        receiver.StartListening();
+        assert(receiver.GetRole() == NodeRole::REPLICA);
+        assert(receiver.IsRunning());
+
+        // 3. Connect primary to replica (Synchronous Mode)
+        ReplicationManager manager("127.0.0.1", listen_port, ReplicationMode::SYNCHRONOUS);
+        manager.StartBroadcasting();
+        assert(manager.GetRole() == NodeRole::PRIMARY);
+        assert(manager.IsReplicaOnline());
+
+        // 4. Test Synchronous Replication
+        LogRecord record1(1, 0, LogRecordType::UPDATE, 0, 1, "", "SyncData");
+        record1.lsn = 15;
+
+        bool sync_status = manager.ReplicateLog(record1);
+        assert(sync_status);
+
+        // Assert that the replica applied the changes immediately before unblocking
+        Page* pg0 = replica_bpm.FetchPage(0);
+        char* repl_data = pg0->GetData();
+        std::string val;
+        bool get_status = SlottedPage::GetTuple(repl_data, 1, val);
+        assert(get_status && val == "SyncData");
+        assert(pg0->GetPageLSN() == 15);
+        replica_bpm.UnpinPage(0, false);
+
+        std::cout << "[SYNCHRONOUS REPLICATION SUCCESS] Record replicated and ACK received successfully." << std::endl;
+
+        // 5. Test Asynchronous Replication
+        ReplicationManager async_manager("127.0.0.1", listen_port, ReplicationMode::ASYNCHRONOUS);
+        async_manager.StartBroadcasting();
+        assert(async_manager.IsReplicaOnline());
+
+        LogRecord record2(1, 0, LogRecordType::UPDATE, 0, 2, "", "AsyncData");
+        record2.lsn = 25;
+
+        bool async_status = async_manager.ReplicateLog(record2);
+        assert(async_status);
+
+        // Give replica receiver thread a tiny amount of time to process
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+        pg0 = replica_bpm.FetchPage(0);
+        repl_data = pg0->GetData();
+        get_status = SlottedPage::GetTuple(repl_data, 2, val);
+        assert(get_status && val == "AsyncData");
+        assert(pg0->GetPageLSN() == 25);
+        replica_bpm.UnpinPage(0, false);
+
+        std::cout << "[ASYNCHRONOUS REPLICATION SUCCESS] Record broadcasted asynchronously." << std::endl;
+
+        // 6. Test Timeout Handling
+        receiver.StopListening();
+        manager.HandleReplicaTimeout();
+        assert(!manager.IsReplicaOnline());
+
+        LogRecord record3(1, 0, LogRecordType::UPDATE, 0, 3, "", "TimeoutData");
+        record3.lsn = 35;
+        
+        bool timeout_status = manager.ReplicateLog(record3);
+        assert(!timeout_status);
+
+        std::cout << "[TIMEOUT SUCCESS] Replica offline detected and handled cleanly." << std::endl;
+
+        // 7. Test Role Promotion
+        assert(receiver.GetRole() == NodeRole::REPLICA);
+        receiver.PromoteToPrimary();
+        assert(receiver.GetRole() == NodeRole::PRIMARY);
+
+        std::cout << "[PROMOTION SUCCESS] Replica successfully promoted to Primary." << std::endl;
+    } // End of isolation scope
+
+    // Sleep briefly to let background receiver/ack socket threads finish exiting and release file locks on Windows
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+    std::filesystem::remove(primary_db);
+    std::filesystem::remove(primary_lsns);
+    std::filesystem::remove(replica_db);
+    std::filesystem::remove(replica_lsns);
+
+    std::cout << "[REPLICATION LAYER SUCCESS] All log replication layer tests passed successfully!\n" << std::endl;
+}
+
 int main() {
     std::cout << "============================================" << std::endl;
-    std::cout << "      MINIDB CAPSTONE TEST RUNNER (M4)       " << std::endl;
+    std::cout << "      MINIDB CAPSTONE TEST RUNNER (M6)       " << std::endl;
     std::cout << "============================================" << std::endl;
 
     TestDiskManager();
@@ -569,7 +930,9 @@ int main() {
     TestQueryEngine();
     TestExecutionEngine();
     TestOptimizer();
+    TestRecovery();
+    TestReplication();
 
-    std::cout << "ALL MINIDB MILESTONE 4 TESTS PASSED SUCCESSFULLY!" << std::endl;
+    std::cout << "ALL MINIDB MILESTONE 6 TESTS PASSED SUCCESSFULLY!" << std::endl;
     return 0;
 }

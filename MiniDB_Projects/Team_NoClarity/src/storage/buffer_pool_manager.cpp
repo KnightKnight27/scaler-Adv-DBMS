@@ -48,7 +48,7 @@ Page* BufferPoolManager::FetchPage(page_id_t page_id) {
     // 3. If victim frame contains a dirty page, write it to disk
     if (page->GetPageId() != INVALID_PAGE_ID) {
         if (page->IsDirty()) {
-            disk_manager_->WritePage(page->GetPageId(), page->GetData());
+            disk_manager_->WritePage(page->GetPageId(), page->GetData(), page->GetPageLSN());
         }
         page_table_.erase(page->GetPageId());
     }
@@ -59,6 +59,7 @@ Page* BufferPoolManager::FetchPage(page_id_t page_id) {
     page->page_id_ = page_id;
     page->pin_count_ = 1;
     page->is_dirty_ = false;
+    page->SetPageLSN(disk_manager_->GetPageLSN(page_id));
 
     page_table_[page_id] = frame_id;
     replacer_.Pin(frame_id);
@@ -104,7 +105,7 @@ bool BufferPoolManager::FlushPage(page_id_t page_id) {
     Page* page = &pages_[frame_id];
 
     if (page->IsDirty()) {
-        disk_manager_->WritePage(page->GetPageId(), page->GetData());
+        disk_manager_->WritePage(page->GetPageId(), page->GetData(), page->GetPageLSN());
         page->is_dirty_ = false;
     }
     return true;
@@ -127,7 +128,7 @@ Page* BufferPoolManager::NewPage(page_id_t* page_id) {
     // If victim page was dirty, write to disk
     if (page->GetPageId() != INVALID_PAGE_ID) {
         if (page->IsDirty()) {
-            disk_manager_->WritePage(page->GetPageId(), page->GetData());
+            disk_manager_->WritePage(page->GetPageId(), page->GetData(), page->GetPageLSN());
         }
         page_table_.erase(page->GetPageId());
     }
@@ -161,7 +162,7 @@ bool BufferPoolManager::DeletePage(page_id_t page_id) {
 
     // If dirty, flush to disk first
     if (page->IsDirty()) {
-        disk_manager_->WritePage(page->GetPageId(), page->GetData());
+        disk_manager_->WritePage(page->GetPageId(), page->GetData(), page->GetPageLSN());
     }
 
     page_table_.erase(page_id);
@@ -176,7 +177,7 @@ void BufferPoolManager::FlushAllPages() {
     for (size_t i = 0; i < pool_size_; ++i) {
         Page* page = &pages_[i];
         if (page->GetPageId() != INVALID_PAGE_ID && page->IsDirty()) {
-            disk_manager_->WritePage(page->GetPageId(), page->GetData());
+            disk_manager_->WritePage(page->GetPageId(), page->GetData(), page->GetPageLSN());
             page->is_dirty_ = false;
         }
     }

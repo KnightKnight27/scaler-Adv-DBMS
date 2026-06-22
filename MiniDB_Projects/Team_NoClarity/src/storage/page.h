@@ -19,6 +19,8 @@ public:
     inline int GetPinCount() const { return pin_count_; }
     inline bool IsDirty() const { return is_dirty_; }
     inline void SetDirty(bool is_dirty) { is_dirty_ = is_dirty; }
+    inline lsn_t GetPageLSN() const { return page_lsn_; }
+    inline void SetPageLSN(lsn_t lsn) { page_lsn_ = lsn; }
 
     inline void RLock() { rw_latch_.lock_shared(); }
     inline void RUnlock() { rw_latch_.unlock_shared(); }
@@ -30,6 +32,7 @@ public:
         page_id_ = INVALID_PAGE_ID;
         pin_count_ = 0;
         is_dirty_ = false;
+        page_lsn_ = 0;
     }
 
 private:
@@ -37,6 +40,7 @@ private:
     page_id_t page_id_{INVALID_PAGE_ID};
     int pin_count_{0};
     bool is_dirty_{false};
+    lsn_t page_lsn_{0};
     std::shared_mutex rw_latch_;
 };
 
