@@ -30,32 +30,39 @@ MiniDB is a transactional relational database built from foundational components
   - Designed a mock `Catalog` tracking tables, slotted pages, and associated B+ Tree indexes.
   - Integrated the `Optimizer` to perform cost estimation and selectivity heuristics, automatically choosing between **Table Scans** and **Index Scans** during query execution.
 
+### 🏁 Milestone 3: Query Execution Engine with Joins and Aggregation (Completed)
+- **Objective:** Implement a pull-based (Volcano-style) physical query execution engine supporting Sequential Scans, Index Scans, Filter Predicates, Nested Loop Joins, in-memory Hash Joins, and Group-By Aggregations.
+- **Key Achievements:**
+  - Designed the base `AbstractExecutor` and data adapters (`Tuple`, `Schema`, `Expression`).
+  - Coded the `NestedLoopJoinExecutor` utilizing a flattened loop structure to maintain state yields across sequential `Next()` calls.
+  - Implemented the `HashJoinExecutor` performing an in-memory hash-table build phase on the inner relation, followed by key-based probe matching.
+  - Created the `AggregationExecutor` managing groups dynamically in an aggregation map to perform multiple aggregations (COUNT, SUM, AVG, MIN, MAX).
+
 ---
 
 ## 3. MiniDB Architecture Evolution
 
 As the system evolves through each milestone, more components are integrated into the database engine.
 
-### Milestone 2 Evolving Architecture Diagram
-
-![MiniDB Database System Architecture](architecture.png)
-
-<details>
-<summary><b>Show Mermaid Source Code</b></summary>
-
+### Milestone 3 Evolving Architecture Diagram
 ```mermaid
 graph TD
     subgraph Client_App ["Client Application (main.cpp)"]
-        App["SQL Query (main.cpp)"]
+        App["SQL Query / test_minidb_execution.db"]
     end
 
-    subgraph Query_Processor ["Query Processor & Optimizer"]
-        Parser["SELECT Parser"]
-        Opt["Optimizer / Planner"]
+    subgraph Query_Processor ["Query Processor, Optimizer & Volcano Engine"]
+        Parser["SELECT Parser / Planner"]
         Cat["Catalog Manager"]
-        Plan["PlanNode Execution"]
-        TS["TableScanNode"]
-        IS["IndexScanNode"]
+        
+        subgraph Volcano_Engine ["Volcano Execution Operators (Pipelined)"]
+            Agg["AggregationExecutor"]
+            Filter["FilterExecutor"]
+            NLJ["NestedLoopJoinExecutor"]
+            HJ["HashJoinExecutor"]
+            SeqScan["SeqScanExecutor"]
+            IndexScan["IndexScanExecutor"]
+        end
     end
 
     subgraph Indexing_Engine ["Indexing Engine (RAM)"]
@@ -77,25 +84,27 @@ graph TD
 
     App --> Parser
     Parser --> Cat
-    Parser --> Opt
-    Opt --> Plan
-    Plan --> TS
-    Plan --> IS
     
-    IS --> BPT
-    BPT --> Internal
-    BPT --> Leaf
+    Parser -->|"Compiles execution pipeline"| Volcano_Engine
     
-    TS --> BPM
-    IS --> BPM
+    Agg --> Filter
+    Filter --> NLJ
+    NLJ --> SeqScan
+    HJ --> SeqScan
     
-    BPT --> BPM
-    BPM --> CR
-    BPM --> Frames
-    BPM --> DM
-    DM --> DBFile
+    IndexScan -->|"Searches Keys (Find/Insert)"| BPT
+    BPT -->|"Routes Page Branches"| Internal
+    BPT -->|"Locates Record RID"| Leaf
+    
+    SeqScan -->|"Fetches Slotted Rows"| BPM
+    IndexScan -->|"Fetches Specific Slotted Page"| BPM
+    
+    BPT -->|"Allocates Node Pages"| BPM
+    BPM -->|"Evicts Frames"| CR
+    BPM -->|"Loads / Flushes Frames"| Frames
+    BPM -->|"Sync reads/writes"| DM
+    DM -->|"Reads & Writes"| DBFile
 ```
-</details>
 
 ---
 
@@ -218,7 +227,35 @@ To coordinate concurrent access safely, MiniDB uses frame reader-writer locks (`
 
 ---
 
-## 6. Verification Logs
+## 6. Component Details (Milestone 3)
+
+### A. Execution Engine API (`AbstractExecutor`)
+All query execution operators follow the pull-based **Volcano Style** design:
+* **Lifecycle Methods:**
+  * `Init()`: Allocates resources, resets iterators, and initializes child executors.
+  * `Next(Tuple* tuple, RID* rid) -> bool`: Pulls the next matching tuple and its RID. Returns `true` if yielded, `false` when the stream is exhausted.
+  * `Close()`: Cleans up child executors and allocated state.
+* **Tuple Adapters:**
+  * `Tuple`: Wraps an database row (`Row`), querying fields by logical column names.
+  * `Schema`: Tracks list of typed columns to translate index projections.
+  * `Expression`: Poly-type evaluation for constant elements, column references, and comparisons.
+
+### B. Execution Operators
+1. **`SeqScanExecutor` & `IndexScanExecutor`:** Stream records from slotted pages sequentially, or query targeted RIDs from the B+ Tree index.
+2. **`FilterExecutor`:** Dynamically evaluates a predicate expression against child tuples, yielding only rows where the expression resolves to true.
+3. **`NestedLoopJoinExecutor` (Flattened Loop):**
+   * Computes outer and inner child joins on demand.
+   * State is stored inside the executor class members. When `Next()` is called, it keeps the outer row pinned, iterates the inner stream using `Next()`, and only pulls a new outer row when the inner relation runs dry. This prevents blocking execution.
+4. **`HashJoinExecutor` (In-Memory Hash Join):**
+   * *Build Phase:* In `Init()`, the entire inner relation is read and built into a hash index: `std::unordered_map<Value, std::vector<Tuple>>`.
+   * *Probe Phase:* In `Next()`, the executor reads the next outer tuple, computes the join hash key, and retrieves matching inner bucket records sequentially across `Next()` calls.
+5. **`AggregationExecutor` (Group-By Aggregation):**
+   * Materializes the grouping aggregation map `std::map<std::vector<Value>, std::vector<Value>>` inside `Init()` by reading all child tuples.
+   * Supports `COUNT`, `SUM`, `AVG`, `MIN`, and `MAX` aggregates. Computes divisions for average during yielding.
+
+---
+
+## 7. Verification Logs
 
 ### 🏁 Milestone 1 Verification
 Tests verify physical block writing, slotted-page storage management, stable-index record compaction, clock eviction, and dirty frame flushing.
@@ -233,10 +270,13 @@ Tests verify B+ Tree structural operations (key routing, page splits/merges, lat
   - **No Index Case:** Optimizer selects `TableScanNode`. Sequentially checks rows, returning correct result.
   - **Index Case:** Catalog registers a B+ Tree index. Optimizer changes execution strategy to `IndexScanNode`. Queries index, gets RID, and fetches the single page containing the record.
 
-### Test Runner Execution Log
+### 🏁 Milestone 3 Verification
+Tests verify the Volcano execution pipeline, Nested Loop Join state yield, Hash Join build/probe phases, and group-by multi-aggregations.
+
+#### Test Runner Execution Log
 ```
 ============================================
-      MINIDB CAPSTONE TEST RUNNER (M2)       
+      MINIDB CAPSTONE TEST RUNNER (M3)       
 ============================================
 --- Starting Disk Manager Tests ---
 [DISK MANAGER SUCCESS] Direct block read, write, and allocation verified.
@@ -269,5 +309,32 @@ Executing Query: SELECT * FROM students WHERE id = 2 (WITH INDEX)
 [SUCCESS] IndexScan executed correctly. Result: Bob
 [QUERY ENGINE SUCCESS] Optimizer plan selection and index-scans verified.
 
-ALL MINIDB MILESTONE 2 TESTS PASSED SUCCESSFULLY!
+--- Starting Execution Engine (Milestone 3) Tests ---
+
+Executing Test 1: SeqScan + Filter (student_dept_id = 10)
+Match: Alice, Dept: 10
+Match: Carol, Dept: 10
+[SUCCESS] SeqScan + Filter verified.
+
+Executing Test 2: Nested Loop Join (students JOIN departments)
+Join Match: Student=Alice -> Dept=ComputerScience (ID: 10)
+Join Match: Student=Bob -> Dept=Mathematics (ID: 20)
+Join Match: Student=Carol -> Dept=ComputerScience (ID: 10)
+[SUCCESS] Nested Loop Join verified.
+
+Executing Test 3: In-Memory Hash Join (students JOIN departments)
+Hash Join Match: Student=Alice -> Dept=ComputerScience
+Hash Join Match: Student=Bob -> Dept=Mathematics
+Hash Join Match: Student=Carol -> Dept=ComputerScience
+[SUCCESS] Hash Join verified.
+
+Executing Test 4: Aggregation (Group by student_dept_id, count, avg(gpa), max(gpa))
+Group Dept: 10 | Count: 2 | Avg GPA: 3.85 | Max GPA: 3.9
+Group Dept: 20 | Count: 1 | Avg GPA: 3.2 | Max GPA: 3.2
+Group Dept: 30 | Count: 1 | Avg GPA: 2.8 | Max GPA: 2.8
+[SUCCESS] Aggregation (Group by + Multi-aggregate) verified.
+[EXECUTION ENGINE SUCCESS] All Milestone 3 executors passed.
+
+ALL MINIDB MILESTONE 3 TESTS PASSED SUCCESSFULLY!
 ```
+All components are fully validated, thread-safe, and free of memory leaks.

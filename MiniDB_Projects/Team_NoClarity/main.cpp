@@ -10,6 +10,8 @@
 #include "storage/buffer_pool_manager.h"
 #include "index/b_plus_tree.h"
 #include "parser/query_engine.h"
+#include "execution/abstract_executor.h"
+#include "execution/executors.h"
 
 using namespace minidb;
 
@@ -254,9 +256,241 @@ void TestQueryEngine() {
     std::cout << "[QUERY ENGINE SUCCESS] Optimizer plan selection and index-scans verified.\n" << std::endl;
 }
 
+void InsertStudent(BufferPoolManager* bpm, TableMetadata* table, int id, std::string name, int dept_id, double gpa) {
+    page_id_t pid;
+    Page* page = nullptr;
+    if (table->pages.empty()) {
+        page = bpm->NewPage(&pid);
+        page->WLock();
+        SlottedPage::Init(page->GetData());
+        table->pages.push_back(pid);
+    } else {
+        pid = table->pages.back();
+        page = bpm->FetchPage(pid);
+        page->WLock();
+    }
+    
+    Row r{{{ "student_id", id }, { "name", name }, { "student_dept_id", dept_id }, { "gpa", gpa }}};
+    RID rid;
+    if (!SlottedPage::InsertTuple(page->GetData(), r.Serialize(), &rid, pid)) {
+        page->WUnlock();
+        bpm->UnpinPage(pid, false);
+        page = bpm->NewPage(&pid);
+        page->WLock();
+        SlottedPage::Init(page->GetData());
+        table->pages.push_back(pid);
+        assert(SlottedPage::InsertTuple(page->GetData(), r.Serialize(), &rid, pid));
+    }
+    page->WUnlock();
+    bpm->UnpinPage(pid, true);
+}
+
+void InsertDept(BufferPoolManager* bpm, TableMetadata* table, int dept_id, std::string dept_name) {
+    page_id_t pid;
+    Page* page = nullptr;
+    if (table->pages.empty()) {
+        page = bpm->NewPage(&pid);
+        page->WLock();
+        SlottedPage::Init(page->GetData());
+        table->pages.push_back(pid);
+    } else {
+        pid = table->pages.back();
+        page = bpm->FetchPage(pid);
+        page->WLock();
+    }
+    
+    Row r{{{ "dept_id", dept_id }, { "dept_name", dept_name }}};
+    RID rid;
+    if (!SlottedPage::InsertTuple(page->GetData(), r.Serialize(), &rid, pid)) {
+        page->WUnlock();
+        bpm->UnpinPage(pid, false);
+        page = bpm->NewPage(&pid);
+        page->WLock();
+        SlottedPage::Init(page->GetData());
+        table->pages.push_back(pid);
+        assert(SlottedPage::InsertTuple(page->GetData(), r.Serialize(), &rid, pid));
+    }
+    page->WUnlock();
+    bpm->UnpinPage(pid, true);
+}
+
+void TestExecutionEngine() {
+    std::cout << "--- Starting Execution Engine (Milestone 3) Tests ---" << std::endl;
+    std::string db_file = "test_minidb_execution.db";
+    if (std::filesystem::exists(db_file)) {
+        std::filesystem::remove(db_file);
+    }
+
+    {
+        DiskManager disk_manager(db_file);
+        BufferPoolManager bpm(10, &disk_manager);
+
+        Schema student_schema({
+            Column("student_id", "INTEGER"),
+            Column("name", "VARCHAR"),
+            Column("student_dept_id", "INTEGER"),
+            Column("gpa", "DECIMAL")
+        });
+
+        Schema dept_schema({
+            Column("dept_id", "INTEGER"),
+            Column("dept_name", "VARCHAR")
+        });
+
+        auto students_table = std::make_shared<TableMetadata>();
+        students_table->name = "students";
+        
+        auto dept_table = std::make_shared<TableMetadata>();
+        dept_table->name = "departments";
+
+        InsertStudent(&bpm, students_table.get(), 1, "Alice", 10, 3.8);
+        InsertStudent(&bpm, students_table.get(), 2, "Bob", 20, 3.2);
+        InsertStudent(&bpm, students_table.get(), 3, "Carol", 10, 3.9);
+        InsertStudent(&bpm, students_table.get(), 4, "Dave", 30, 2.8);
+
+        InsertDept(&bpm, dept_table.get(), 10, "ComputerScience");
+        InsertDept(&bpm, dept_table.get(), 20, "Mathematics");
+        InsertDept(&bpm, dept_table.get(), 40, "Physics");
+        std::cout << "\nExecuting Test 1: SeqScan + Filter (student_dept_id = 10)" << std::endl;
+        auto scan1 = std::make_unique<SeqScanExecutor>(&bpm, students_table, student_schema);
+        
+        Expression expr_dept_col(Expression::Type::COLUMN_REF, "student_dept_id");
+        Expression expr_dept_val(Value(10));
+        Expression pred_dept_eq(Expression::Type::EQUALS, 
+                                std::make_shared<Expression>(expr_dept_col), 
+                                std::make_shared<Expression>(expr_dept_val));
+
+        auto filter1 = std::make_unique<FilterExecutor>(std::move(scan1), pred_dept_eq);
+        filter1->Init();
+
+        Tuple t;
+        RID r;
+        int count = 0;
+        while (filter1->Next(&t, &r)) {
+            std::string name = std::get<std::string>(t.GetValue("name"));
+            int dept = std::get<int>(t.GetValue("student_dept_id"));
+            std::cout << "Match: " << name << ", Dept: " << dept << std::endl;
+            assert(dept == 10);
+            count++;
+        }
+        assert(count == 2);
+        std::cout << "[SUCCESS] SeqScan + Filter verified." << std::endl;
+
+        // Test 2: Nested Loop Join
+        std::cout << "\nExecuting Test 2: Nested Loop Join (students JOIN departments)" << std::endl;
+        
+        Schema join_schema({
+            Column("student_id", "INTEGER"),
+            Column("name", "VARCHAR"),
+            Column("student_dept_id", "INTEGER"),
+            Column("gpa", "DECIMAL"),
+            Column("dept_id", "INTEGER"),
+            Column("dept_name", "VARCHAR")
+        });
+
+        auto scan_left = std::make_unique<SeqScanExecutor>(&bpm, students_table, student_schema);
+        auto scan_right = std::make_unique<SeqScanExecutor>(&bpm, dept_table, dept_schema);
+
+        Expression expr_l(Expression::Type::COLUMN_REF, "student_dept_id");
+        Expression expr_r(Expression::Type::COLUMN_REF, "dept_id");
+        Expression pred_join(Expression::Type::EQUALS,
+                             std::make_shared<Expression>(expr_l),
+                             std::make_shared<Expression>(expr_r));
+
+        auto nlj = std::make_unique<NestedLoopJoinExecutor>(
+            std::move(scan_left), std::move(scan_right), pred_join, join_schema);
+        
+        nlj->Init();
+        count = 0;
+        while (nlj->Next(&t, &r)) {
+            std::string name = std::get<std::string>(t.GetValue("name"));
+            std::string dept_name = std::get<std::string>(t.GetValue("dept_name"));
+            int dept_id = std::get<int>(t.GetValue("dept_id"));
+            std::cout << "Join Match: Student=" << name << " -> Dept=" << dept_name << " (ID: " << dept_id << ")" << std::endl;
+            count++;
+        }
+        assert(count == 3);
+        std::cout << "[SUCCESS] Nested Loop Join verified." << std::endl;
+
+        // Test 3: Hash Join
+        std::cout << "\nExecuting Test 3: In-Memory Hash Join (students JOIN departments)" << std::endl;
+        
+        auto scan_left_hj = std::make_unique<SeqScanExecutor>(&bpm, students_table, student_schema);
+        auto scan_right_hj = std::make_unique<SeqScanExecutor>(&bpm, dept_table, dept_schema);
+
+        Expression key_l(Expression::Type::COLUMN_REF, "student_dept_id");
+        Expression key_r(Expression::Type::COLUMN_REF, "dept_id");
+
+        auto hj = std::make_unique<HashJoinExecutor>(
+            std::move(scan_left_hj), std::move(scan_right_hj), key_l, key_r, join_schema);
+        
+        hj->Init();
+        count = 0;
+        while (hj->Next(&t, &r)) {
+            std::string name = std::get<std::string>(t.GetValue("name"));
+            std::string dept_name = std::get<std::string>(t.GetValue("dept_name"));
+            std::cout << "Hash Join Match: Student=" << name << " -> Dept=" << dept_name << std::endl;
+            count++;
+        }
+        assert(count == 3);
+        std::cout << "[SUCCESS] Hash Join verified." << std::endl;
+
+        // Test 4: Aggregation
+        std::cout << "\nExecuting Test 4: Aggregation (Group by student_dept_id, count, avg(gpa), max(gpa))" << std::endl;
+
+        Schema agg_out_schema({
+            Column("student_dept_id", "INTEGER"),
+            Column("student_count", "INTEGER"),
+            Column("avg_gpa", "DECIMAL"),
+            Column("max_gpa", "DECIMAL")
+        });
+
+        auto scan_agg = std::make_unique<SeqScanExecutor>(&bpm, students_table, student_schema);
+
+        auto agg = std::make_unique<AggregationExecutor>(
+            std::move(scan_agg),
+            std::vector<std::string>{"student_dept_id"},
+            std::vector<std::string>{"student_id", "gpa", "gpa"},
+            std::vector<AggregationType>{AggregationType::COUNT, AggregationType::AVG, AggregationType::MAX},
+            agg_out_schema
+        );
+
+        agg->Init();
+        count = 0;
+        while (agg->Next(&t, &r)) {
+            int dept = std::get<int>(t.GetValue("student_dept_id"));
+            int cnt = std::get<int>(t.GetValue("student_count"));
+            double avg = std::get<double>(t.GetValue("avg_gpa"));
+            double max = std::get<double>(t.GetValue("max_gpa"));
+            std::cout << "Group Dept: " << dept << " | Count: " << cnt 
+                      << " | Avg GPA: " << avg << " | Max GPA: " << max << std::endl;
+            
+            if (dept == 10) {
+                assert(cnt == 2);
+                assert(std::abs(avg - 3.85) < 1e-5);
+                assert(std::abs(max - 3.9) < 1e-5);
+            } else if (dept == 20) {
+                assert(cnt == 1);
+                assert(std::abs(avg - 3.2) < 1e-5);
+                assert(std::abs(max - 3.2) < 1e-5);
+            } else if (dept == 30) {
+                assert(cnt == 1);
+                assert(std::abs(avg - 2.8) < 1e-5);
+                assert(std::abs(max - 2.8) < 1e-5);
+            }
+            count++;
+        }
+        assert(count == 3);
+        std::cout << "[SUCCESS] Aggregation (Group by + Multi-aggregate) verified." << std::endl;
+    }
+
+    std::filesystem::remove(db_file);
+    std::cout << "[EXECUTION ENGINE SUCCESS] All Milestone 3 executors passed.\n" << std::endl;
+}
+
 int main() {
     std::cout << "============================================" << std::endl;
-    std::cout << "      MINIDB CAPSTONE TEST RUNNER (M2)       " << std::endl;
+    std::cout << "      MINIDB CAPSTONE TEST RUNNER (M3)       " << std::endl;
     std::cout << "============================================" << std::endl;
 
     TestDiskManager();
@@ -264,7 +498,8 @@ int main() {
     TestBufferPoolManager();
     TestBPlusTree();
     TestQueryEngine();
+    TestExecutionEngine();
 
-    std::cout << "ALL MINIDB MILESTONE 2 TESTS PASSED SUCCESSFULLY!" << std::endl;
+    std::cout << "ALL MINIDB MILESTONE 3 TESTS PASSED SUCCESSFULLY!" << std::endl;
     return 0;
 }
