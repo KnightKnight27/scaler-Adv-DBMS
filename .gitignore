@@ -1,0 +1,11 @@
+# Compiled binaries
+Lab7/*/evaluator
+Lab8/*/tx_manager
+
+# macOS
+.DS_Store
+
+# Build artifacts
+*.o
+*.out
+a.out
