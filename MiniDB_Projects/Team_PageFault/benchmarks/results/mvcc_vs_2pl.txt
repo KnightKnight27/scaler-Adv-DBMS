@@ -1,0 +1,40 @@
+MiniDB concurrency benchmark (Track B: MVCC vs 2PL)
+config: keys=64 readers=8 writers=4 keys/txn=4 window=1000ms
+
+mode   |      reads |  reads/sec |   writes |  deadlocks | rd-blocks |  wr-confl
+-------+------------+------------+----------+------------+-----------+----------
+2PL    |     215960 |     215960 |    10409 |       1131 |       241 |         0
+MVCC   |     981068 |     981068 |    11559 |          0 |         0 |      2804
+
+MVCC read throughput speedup: 4.54x
+Reader transactions aborted by deadlock: 2PL=241  MVCC=0
+(MVCC readers take no locks: they never block or deadlock. MVCC write
+ conflicts are first-committer-wins aborts that prevent lost updates.)
+
+------------------------------------------------------------------------
+Setup
+  Machine: Apple Silicon (arm64), macOS; g++ -std=c++17 -O2 -pthread.
+  Workload: 8 reader threads + 4 writer threads contend on 64 shared keys for
+  1 second per mode. Each transaction touches 4 keys; writer transactions hold
+  their locks across a short unit of simulated work before committing.
+
+Columns
+  deadlocks  - total waits-for cycles detected (transactions aborted as victims)
+  rd-blocks  - reader transactions aborted by a deadlock
+  wr-confl   - MVCC first-committer-wins aborts (a write whose key was committed
+               by someone else after this txn's snapshot; prevents lost updates)
+
+Analysis
+  - Under strict 2PL, a reader takes a shared lock on each key and blocks
+    whenever a writer holds the exclusive lock; readers and writers serialize on
+    hot keys, lowering read throughput and producing many waits-for cycles
+    (deadlocks), some of which abort reader transactions.
+  - Under MVCC, readers use their begin-time snapshot and take NO locks, so they
+    never block on writers and never participate in a deadlock (rd-blocks = 0,
+    deadlocks = 0). Writers still take exclusive locks AND are validated at
+    commit by first-committer-wins, so lost updates are impossible; the price is
+    some write-conflict aborts (wr-confl) under heavy write contention.
+  - Net: MVCC delivers ~3x the read throughput of 2PL on this contended
+    workload while completely decoupling readers from writers. The trade-offs
+    are extra versions per key (space), write-conflict retries, and snapshot
+    isolation's weaker guarantee (write-skew is still permitted).
