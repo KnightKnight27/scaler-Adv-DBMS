@@ -1,0 +1,7 @@
+Insert sequence: 10 20 30 15 25 5 1
+Inorder (key + color R/B): 1R 5B 10R 15B 20B 25R 30B 
+Root is black: yes
+Invariants hold: yes
+
+After removing 20:        1R 5B 10R 15B 25B 30B 
+Invariants hold: yes
