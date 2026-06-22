@@ -1,0 +1,6 @@
+build/
+*.data
+*.wal
+*.meta
+run
+bench.db*
