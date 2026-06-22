@@ -14,11 +14,8 @@ Concurrency Control measured against a Two-Phase Locking baseline.
 
 | Name | Roll Number | Scaler Email |
 |------|-------------|--------------|
-| Shubham Shah | 24BCS10316 | _<add email>_ |
-| _<teammate name>_ | _<roll>_ | _<email>_ |
-
-<!-- Fill in teammate rows before submitting; the rubric requires full name,
-     roll number, and Scaler email for every member. -->
+| Shubham Shah | 24BCS10316 | shubham.24bcs10316@sst.scaler.com |
+| Abhi Gandhi | 24BCS10397 | abhi.24bcs10397@sst.scaler.com |
 
 ---
 
