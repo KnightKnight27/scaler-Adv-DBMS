@@ -1,0 +1,17 @@
+# Ignore build artifacts
+sqlite3.c
+sqlite3.h
+sqlite3.o
+sqlite3ext.h
+shell.c
+lab2_sqlite
+reader
+local_bin/
+clocksweep
+rbt
+btree
+sql_parser
+txmgr
+build/
+tx_manager
+.idea/
