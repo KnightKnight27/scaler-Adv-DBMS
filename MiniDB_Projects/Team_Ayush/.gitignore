@@ -1,0 +1,13 @@
+# Build artifacts
+minidb.exe
+*.o
+*.obj
+
+# Runtime data / logs produced by demos and tests
+*.db
+*.wal
+benchmarks/results.txt
+storage_demo.*
+index_demo.*
+bench_index.*
+recovery_demo.*
