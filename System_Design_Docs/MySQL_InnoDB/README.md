@@ -521,12 +521,37 @@ CREATE TABLE order_items (
 Same row counts as Topic 2: 10k customers, 2k products, 200k orders,
 600k order_items.
 
-_[experiment numbers below to be filled in once the install finishes]_
+```
++-------------+------------+-------------+--------------+----------+
+| table       | rows       | data_length | index_length | total_mb |
++-------------+------------+-------------+--------------+----------+
+| order_items |    579,672 | 58,343,424  |  66,224,128  |  118.80  |
+| orders      |    194,653 |  9,977,856  |  14,712,832  |   23.55  |
+| customers   |     10,230 |    507,904  |           0  |    0.48  |
+| products    |      2,000 |    147,456  |           0  |    0.14  |
++-------------+------------+-------------+--------------+----------+
+```
+
+Two things to call out:
+
+1. `index_length` for `order_items` (66 MB) is **larger than its
+   `data_length`** (58 MB). The PK is `(order_id, product_id)`, which
+   means the clustered index is the heap, and the data_length column
+   here counts the clustered index. The index_length adds the
+   secondary index on `order_id` and the FK indexes. InnoDB ends up
+   carrying a lot of index bytes because all secondary indexes carry
+   the PK pair (16 bytes per entry).
+2. The `customers` table has no separate index file because the PK
+   is the table. `index_length=0` only means "no secondary indexes".
+   The PK B-tree is in `data_length`.
+
+For comparison, the same data in Postgres (Topic 2 section 5.1)
+totalled 34 MB for order_items and 11 MB for orders. InnoDB is
+roughly **3-4x larger here**, mostly because of the secondary indexes
+that carry the PK and the FK-backing indexes that InnoDB creates
+automatically.
 
 ### 5.2 The multi-table join (EXPLAIN ANALYZE)
-
-In MySQL 8, `EXPLAIN ANALYZE` (added in 8.0.18) gives both the plan and
-the actual execution stats:
 
 ```sql
 EXPLAIN ANALYZE
@@ -537,56 +562,145 @@ JOIN order_items oi ON oi.order_id   = o.id
 JOIN products p     ON p.id          = oi.product_id
 WHERE o.status = 'paid'
   AND o.created_at BETWEEN DATE '2026-02-01' AND DATE '2026-04-30'
-GROUP BY c.country, p.category
-ORDER BY c.country, p.category;
+GROUP BY c.country, p.category;
 ```
 
-_(output captured during runs; see screenshots in section 5.6)_
+Output (reformatted from MySQL's single-line):
 
-### 5.3 SHOW ENGINE INNODB STATUS
+```
+-> Table scan on <temporary>  (actual time=170..170 rows=12 loops=1)
+   -> Aggregate using temporary table
+       -> Nested loop inner join  (cost=30996 rows=31486) (actual time=2.34..141 rows=73326)
+           -> Nested loop inner join  (cost=19976 rows=31486) (actual time=2.31..97 rows=73326)
+               -> Nested loop inner join  (cost=7689 rows=10925) (actual time=2.21..53.8 rows=24442)
+                   -> Filter: o.created_at BETWEEN '2026-02-01' AND '2026-04-30'
+                        (cost=1680 rows=10925) (actual time=2.17..37.3 rows=24442)
+                        -> Index lookup on o using idx_orders_status (status='paid')
+                           (cost=1680 rows=98336) (actual time=2.16..30.8 rows=50000)
+                   -> Single-row index lookup on c using PRIMARY (id=o.customer_id)
+                        (cost=0.45 rows=1) (actual time=576e-6..593e-6 rows=1 loops=24442)
+               -> Index lookup on oi using PRIMARY (order_id=o.id)
+                   (cost=0.837 rows=2.88) (actual time=0.00135..0.00162 rows=3 loops=24442)
+           -> Single-row index lookup on p using PRIMARY (id=oi.product_id)
+                (cost=0.25 rows=1) (actual time=496e-6..513e-6 rows=1 loops=73326)
 
-This single command is the entire dashboard of InnoDB internals:
-buffer pool stats, log sequence numbers, transaction list, latch
-contention, deadlock report. Useful sections:
-
-- BUFFER POOL AND MEMORY: hits/misses, LRU length, free buffers
-- LOG: current LSN, last checkpoint LSN, log buffer occupancy
-- TRANSACTIONS: every active trx, its undo log size, locks held
-- LATEST DETECTED DEADLOCK: full deadlock graph from the last cycle
-
-_(captured output to be embedded once mysql is up)_
-
-### 5.4 Row-level locks observed via information_schema
-
-`information_schema.innodb_trx`, `innodb_locks`, `innodb_lock_waits`
-expose live lock state. Useful when a transaction is blocked:
-
-```sql
-SELECT trx_id, trx_state, trx_started, trx_rows_locked, trx_rows_modified
-FROM information_schema.innodb_trx;
+Total execution: ~170 ms
 ```
 
-### 5.5 Gap-lock demo
+![EXPLAIN ANALYZE of the 4-table join in InnoDB](../../screenshots/innodb-explain.png)
 
-Two sessions, REPEATABLE READ:
+A few observations:
+
+- **Nested loop joins, not hash joins.** MySQL 8 has hash joins (added
+  in 8.0.18) but uses them only when no usable index is available.
+  Here every join has a usable PK or secondary index, so the planner
+  picked nested loops.
+- **The PK-clustered design shows up clearly.** Every inner side of a
+  join is "Single-row index lookup ... using PRIMARY". Each lookup is
+  fast (~500-600 microseconds for customers, products) because the
+  row is inside the PK B-tree. There is no extra heap fetch.
+- **Cost vs reality.** The orders index lookup expected `rows=98336`
+  from `idx_orders_status` but actually got 50,000 (because the
+  cardinality estimate for `status='paid'` was off by ~2x). After the
+  date filter, expected 10,925 vs actual 24,442. The estimates are
+  off by 2-4x in different places but the plan is still correct.
+- **Execution time: ~170 ms** vs Postgres's 38.8 ms on the same data.
+  The difference is the join strategy: nested-loops doing 24,442
+  customer PK lookups + 24,442 order_items range scans + 73,326
+  product PK lookups is more total work than Postgres's parallel hash
+  joins, even though each individual lookup is faster.
+
+### 5.3 Buffer pool, redo log, undo
+
+```
++--------------------------------+------------+
+| innodb_buffer_pool_size        | 128 MB     |
+| innodb_redo_log_capacity       | 100 MB     |
+| innodb_flush_log_at_trx_commit | 1 (fsync)  |
+| transaction_isolation          | REPEATABLE-READ |
++--------------------------------+------------+
+
+innodb_buffer_pool_stats:
+  pool_size:          8191 pages (= 128 MB / 16 KB)
+  free_buffers:       1024
+  database_pages:     7167   <- almost full
+  modified_db_pages:  0
+  pages_made_young:    4237
+  pages_not_made_young: 156986
+
+Cumulative since restart:
+  Innodb_buffer_pool_read_requests: 10,576,480
+  Innodb_buffer_pool_reads:              2,580
+  -> hit rate = (10576480 - 2580) / 10576480 = 99.976%
+
+  Innodb_os_log_written:            157,722,112 (~150 MB total redo since restart)
+```
+
+InnoDB's page size is **16 KB**, twice Postgres's 8 KB. So the same
+buffer-pool memory budget (128 MB) holds 8192 pages here vs 16,384
+in Postgres. Trade-off: bigger pages = fewer descriptor entries
+(less metadata overhead) but coarser caching granularity.
+
+The 99.976% buffer hit rate after running the join shows the buffer
+pool is doing its job; only the first read of each table missed.
+
+`pages_made_young / not_made_young = 4237 / 156986`. The "not young"
+count is much larger because the join touched many pages briefly
+without re-touching them, so they never got promoted from the old
+sublist to the young sublist. That's the scan-resistance LRU working
+as intended: the join did not flush hot pages out of the young list.
+
+### 5.4 Gap-lock blocking (REPEATABLE READ)
+
+Two sessions:
 
 ```sql
--- session A
+-- Session A (REPEATABLE READ, default)
 START TRANSACTION;
-SELECT * FROM orders WHERE id BETWEEN 100 AND 200 FOR UPDATE;
+SELECT id FROM orders WHERE id BETWEEN 100 AND 200 FOR UPDATE;
+-- returns 100 rows, holds next-key locks across the [100, 200] range
+-- SELECT SLEEP(3);    <- simulate a slow transaction
+COMMIT;
 
--- session B
+-- Session B (started ~0.5s after A)
+START TRANSACTION;
 INSERT INTO orders VALUES (150, 1, 'paid', '2026-03-15');
--- waits, because session A took next-key locks over the (100,200) range
+-- BLOCKS until session A commits
+COMMIT;
 ```
 
-This is the phantom-prevention mechanism. Postgres's MVCC would let
-session B insert immediately under REPEATABLE READ; the equivalent
-phantom protection only kicks in if session A is SERIALIZABLE.
+Measured: session B's total wall time was **2.79 seconds** while
+session A held the lock for **3 seconds** (with the 0.5s offset, that
+matches a ~2.3s wait + immediate-success-after-commit pattern).
 
-### 5.6 Screenshots
+That is the gap lock doing its job: an INSERT that would land between
+two already-locked records (in this case, id=149 and id=151, since
+the earlier cleanup removed id=150) is blocked because the range
+between them is held by session A's next-key locks.
 
-_(to be added once experiments are run)_
+Session A grabbing the range with `SELECT ... FOR UPDATE` (output split
+across two screenshots because the 100-row result was taller than the
+terminal):
+
+![session A locks ids 100-200 FOR UPDATE, part 1](../../screenshots/innodb-gap-session-a-1.png)
+
+![session A FOR UPDATE result continued, ending at id 200](../../screenshots/innodb-gap-session-a-2.png)
+
+Session B side-by-side with session A: B's INSERT into the locked range
+is held until it hits `ERROR 1205 (HY000): Lock wait timeout exceeded`
+(set to 5 seconds for the demo):
+
+![side-by-side terminals: session A holds the range, session B's INSERT times out with ERROR 1205](../../screenshots/innodb-gap-lock.png)
+
+In Postgres at REPEATABLE READ, the equivalent INSERT would succeed
+immediately, because Postgres's REPEATABLE READ is snapshot isolation
+without predicate locks. Phantom protection at the same level only
+exists at SERIALIZABLE (via SSI).
+
+This is one of the most concrete behavioral differences between the
+two databases. Code that works in MySQL because of the gap-lock side
+effect will sometimes hit unexpected phantoms in Postgres at the
+same isolation level.
 
 ---
 
