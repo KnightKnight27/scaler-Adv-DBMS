@@ -12,6 +12,7 @@
 #include "parser/query_engine.h"
 #include "execution/abstract_executor.h"
 #include "execution/executors.h"
+#include "optimizer/cost_based_optimizer.h"
 
 using namespace minidb;
 
@@ -488,9 +489,77 @@ void TestExecutionEngine() {
     std::cout << "[EXECUTION ENGINE SUCCESS] All Milestone 3 executors passed.\n" << std::endl;
 }
 
+void PrintPlan(const std::shared_ptr<PhysicalPlanNode>& node, int indent = 0) {
+    if (!node) return;
+    std::string indent_str(indent * 2, ' ');
+    std::string type_str;
+    switch (node->type) {
+        case PhysicalPlanNode::PlanType::SEQ_SCAN: type_str = "SEQ_SCAN(Table " + std::to_string(node->target_table) + ")"; break;
+        case PhysicalPlanNode::PlanType::INDEX_SCAN: type_str = "INDEX_SCAN(Table " + std::to_string(node->target_table) + ")"; break;
+        case PhysicalPlanNode::PlanType::NESTED_LOOP_JOIN: type_str = "NESTED_LOOP_JOIN"; break;
+        case PhysicalPlanNode::PlanType::HASH_JOIN: type_str = "HASH_JOIN"; break;
+    }
+    std::cout << indent_str << "- " << type_str 
+              << " [Cost: " << node->estimated_cost 
+              << ", Card: " << node->estimated_cardinality << "]" << std::endl;
+    PrintPlan(node->left_child, indent + 1);
+    PrintPlan(node->right_child, indent + 1);
+}
+
+void AssertLeftDeep(const std::shared_ptr<PhysicalPlanNode>& node) {
+    if (!node) return;
+    if (node->type == PhysicalPlanNode::PlanType::NESTED_LOOP_JOIN ||
+        node->type == PhysicalPlanNode::PlanType::HASH_JOIN) {
+        assert(node->right_child != nullptr);
+        assert(node->right_child->type == PhysicalPlanNode::PlanType::SEQ_SCAN ||
+               node->right_child->type == PhysicalPlanNode::PlanType::INDEX_SCAN);
+    }
+    AssertLeftDeep(node->left_child);
+    AssertLeftDeep(node->right_child);
+}
+
+void TestOptimizer() {
+    std::cout << "--- Starting Cost-Based Join Optimizer (Milestone 4) Tests ---" << std::endl;
+    SystemCatalog catalog;
+    
+    catalog.AddStats(0, {10, 100, false});
+    catalog.AddStats(1, {20, 200, true});
+    catalog.AddStats(2, {200, 2000, false});
+    catalog.AddStats(3, {100, 1000, true});
+
+    CostBasedOptimizer optimizer(&catalog);
+
+    std::cout << "\nExecuting Test 1: Single Table Path Optimization" << std::endl;
+    LogicalQuerySpecification q0{{0}};
+    auto p0 = optimizer.OptimizeQuery(q0);
+    assert(p0->type == PhysicalPlanNode::PlanType::SEQ_SCAN);
+    std::cout << "Table 0 Access Path: "; PrintPlan(p0);
+
+    LogicalQuerySpecification q1{{1}};
+    auto p1 = optimizer.OptimizeQuery(q1);
+    assert(p1->type == PhysicalPlanNode::PlanType::INDEX_SCAN);
+    std::cout << "Table 1 Access Path: "; PrintPlan(p1);
+
+    std::cout << "\nExecuting Test 2: 3-Way Join Optimization (Tables: 0, 1, 2)" << std::endl;
+    LogicalQuerySpecification q2{{0, 1, 2}};
+    auto p2 = optimizer.OptimizeQuery(q2);
+    PrintPlan(p2);
+    AssertLeftDeep(p2);
+    std::cout << "[SUCCESS] 3-Way Join Optimizer and Left-Deep structure verified." << std::endl;
+
+    std::cout << "\nExecuting Test 3: 4-Way Join Optimization (Tables: 0, 1, 2, 3)" << std::endl;
+    LogicalQuerySpecification q3{{0, 1, 2, 3}};
+    auto p3 = optimizer.OptimizeQuery(q3);
+    PrintPlan(p3);
+    AssertLeftDeep(p3);
+    std::cout << "[SUCCESS] 4-Way Join Optimizer verified." << std::endl;
+    
+    std::cout << "[OPTIMIZER SUCCESS] Cost-based join order dynamic programming passed.\n" << std::endl;
+}
+
 int main() {
     std::cout << "============================================" << std::endl;
-    std::cout << "      MINIDB CAPSTONE TEST RUNNER (M3)       " << std::endl;
+    std::cout << "      MINIDB CAPSTONE TEST RUNNER (M4)       " << std::endl;
     std::cout << "============================================" << std::endl;
 
     TestDiskManager();
@@ -499,7 +568,8 @@ int main() {
     TestBPlusTree();
     TestQueryEngine();
     TestExecutionEngine();
+    TestOptimizer();
 
-    std::cout << "ALL MINIDB MILESTONE 3 TESTS PASSED SUCCESSFULLY!" << std::endl;
+    std::cout << "ALL MINIDB MILESTONE 4 TESTS PASSED SUCCESSFULLY!" << std::endl;
     return 0;
 }

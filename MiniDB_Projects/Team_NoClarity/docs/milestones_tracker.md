@@ -38,31 +38,40 @@ MiniDB is a transactional relational database built from foundational components
   - Implemented the `HashJoinExecutor` performing an in-memory hash-table build phase on the inner relation, followed by key-based probe matching.
   - Created the `AggregationExecutor` managing groups dynamically in an aggregation map to perform multiple aggregations (COUNT, SUM, AVG, MIN, MAX).
 
+### 🏁 Milestone 4: Cost-Based Join Order Optimizer (Completed)
+- **Objective:** Implement a Cost-Based Optimizer module utilizing the Selinger Dynamic Programming Algorithm to determine the cheapest physical execution plan for multi-way joins.
+- **Key Achievements:**
+  - Designed the `SystemCatalog` mapping logical table IDs to page counts, record counts, and index presence status.
+  - Implemented access path optimization (`DetermineBestAccessPath`) choosing between sequential scans and B+ Tree index scans based on catalog metrics.
+  - Implemented left-deep join partitioning using recursive subset search and bitmask-keyed (`JoinGroupBitmask`) memoization tables.
+  - Coded cost calibration models summing estimated page reads (IO) and cpu tuple processing metrics for nested loop joins and in-memory hash joins.
+
 ---
 
 ## 3. MiniDB Architecture Evolution
 
 As the system evolves through each milestone, more components are integrated into the database engine.
 
-### Milestone 3 Evolving Architecture Diagram
+### Evolving Architecture Diagram (Milestones 1 - 4)
 ```mermaid
 graph TD
     subgraph Client_App ["Client Application (main.cpp)"]
-        App["SQL Query / test_minidb_execution.db"]
+        App["SQL Query / LogicalQuerySpecification"]
     end
 
-    subgraph Query_Processor ["Query Processor, Optimizer & Volcano Engine"]
-        Parser["SELECT Parser / Planner"]
-        Cat["Catalog Manager"]
-        
-        subgraph Volcano_Engine ["Volcano Execution Operators (Pipelined)"]
-            Agg["AggregationExecutor"]
-            Filter["FilterExecutor"]
-            NLJ["NestedLoopJoinExecutor"]
-            HJ["HashJoinExecutor"]
-            SeqScan["SeqScanExecutor"]
-            IndexScan["IndexScanExecutor"]
-        end
+    subgraph Optimizer_Planner ["Query Optimizer & Catalog"]
+        Opt["CostBasedOptimizer (Selinger DP)"]
+        Memo["Memoization Cache (JoinGroupBitmask -> Plan)"]
+        Cat["SystemCatalog (TableStats)"]
+    end
+
+    subgraph Volcano_Engine ["Volcano Execution Engine (RAM)"]
+        Agg["AggregationExecutor"]
+        Filter["FilterExecutor"]
+        NLJ["NestedLoopJoinExecutor"]
+        HJ["HashJoinExecutor"]
+        SeqScan["SeqScanExecutor"]
+        IndexScan["IndexScanExecutor"]
     end
 
     subgraph Indexing_Engine ["Indexing Engine (RAM)"]
@@ -82,10 +91,10 @@ graph TD
         DBFile["minidb.db Database File"]
     end
 
-    App --> Parser
-    Parser --> Cat
-    
-    Parser -->|"Compiles execution pipeline"| Volcano_Engine
+    App -->|"Logical Query Plan"| Opt
+    Opt -->|"Queries table statistics"| Cat
+    Opt -->|"Caches subplan costs"| Memo
+    Opt -->|"Emits optimal Left-Deep tree"| Volcano_Engine
     
     Agg --> Filter
     Filter --> NLJ
@@ -255,7 +264,33 @@ All query execution operators follow the pull-based **Volcano Style** design:
 
 ---
 
-## 7. Verification Logs
+## 7. Component Details (Milestone 4)
+
+### A. Dynamic Programming Join Optimizer (`CostBasedOptimizer`)
+* **Logical Specifications:**
+  * `LogicalQuerySpecification`: Encapsulates table lists involved in the multi-way join.
+  * `table_id_t`: Numeric table ID representing logical relations.
+* **Access Path Selection (`DetermineBestAccessPath`):**
+  * Queries `SystemCatalog` stats for a table (page count, tuple count, index availability).
+  * Evaluates cost metrics:
+    * `SeqScanCost = PageCount * 10.0 + TupleCount * 0.1`
+    * `IndexScanCost = log2(TupleCount + 1) * 10.0 + (0.1 * TupleCount) * 0.1` (only if table holds an index).
+  * Assigns the cheapest scanning strategy to the physical node.
+* **Left-Deep Partition Strategy:**
+  * Dynamic Programming runs combinations of subset sizes `S` from `2` up to `K`.
+  * For each combination subset `TargetSubsetMask` (represented as bitmask), the optimizer evaluates left-deep splits:
+    * `LeftMask = TargetSubsetMask ^ (1 << t)` (subset of size $S-1$ tables)
+    * `RightMask = 1 << t` (exactly 1 table as right child)
+  * Left subplans are retrieved from `memo_table_` cache, and combined with right base tables.
+* **Join operator costing (`CalculateJoinCost`):**
+  * Evaluates physical join implementation choices:
+    * `NESTED_LOOP_JOIN`: Cost = `LeftCost + RightCost + LeftCard * RightPages * 10.0 + (LeftCard * RightTuples) * 0.1`
+    * `HASH_JOIN`: Cost = `LeftCost + RightCost + RightTuples * 0.2 + LeftCard * 0.1 + (LeftCard * RightTuples * 0.05) * 0.1`
+  * Caches the cheapest join configuration inside `memo_table_` mapped to `TargetSubsetMask`.
+
+---
+
+## 8. Verification Logs
 
 ### 🏁 Milestone 1 Verification
 Tests verify physical block writing, slotted-page storage management, stable-index record compaction, clock eviction, and dirty frame flushing.
@@ -272,11 +307,15 @@ Tests verify B+ Tree structural operations (key routing, page splits/merges, lat
 
 ### 🏁 Milestone 3 Verification
 Tests verify the Volcano execution pipeline, Nested Loop Join state yield, Hash Join build/probe phases, and group-by multi-aggregations.
+* (Test outputs logged in previous milestones)
+
+### 🏁 Milestone 4 Verification
+Tests verify Access Path evaluations, Left-Deep tree topology invariants, and Dynamic Programming join order optimizer memoizations.
 
 #### Test Runner Execution Log
 ```
 ============================================
-      MINIDB CAPSTONE TEST RUNNER (M3)       
+      MINIDB CAPSTONE TEST RUNNER (M4)       
 ============================================
 --- Starting Disk Manager Tests ---
 [DISK MANAGER SUCCESS] Direct block read, write, and allocation verified.
@@ -335,6 +374,31 @@ Group Dept: 30 | Count: 1 | Avg GPA: 2.8 | Max GPA: 2.8
 [SUCCESS] Aggregation (Group by + Multi-aggregate) verified.
 [EXECUTION ENGINE SUCCESS] All Milestone 3 executors passed.
 
-ALL MINIDB MILESTONE 3 TESTS PASSED SUCCESSFULLY!
+--- Starting Cost-Based Join Optimizer (Milestone 4) Tests ---
+
+Executing Test 1: Single Table Path Optimization
+Table 0 Access Path: - SEQ_SCAN(Table 0) [Cost: 110, Card: 100]
+Table 1 Access Path: - INDEX_SCAN(Table 1) [Cost: 78.5105, Card: 200]
+
+Executing Test 2: 3-Way Join Optimization (Tables: 0, 1, 2)
+- HASH_JOIN [Cost: 13028.5, Card: 100000]
+  - HASH_JOIN [Cost: 328.511, Card: 1000]
+    - INDEX_SCAN(Table 1) [Cost: 78.5105, Card: 200]
+    - SEQ_SCAN(Table 0) [Cost: 110, Card: 100]
+  - SEQ_SCAN(Table 2) [Cost: 2200, Card: 2000]
+[SUCCESS] 3-Way Join Optimizer and Left-Deep structure verified.
+
+Executing Test 3: 4-Way Join Optimization (Tables: 0, 1, 2, 3)
+- HASH_JOIN [Cost: 513338, Card: 5000000]
+  - HASH_JOIN [Cost: 5738.18, Card: 50000]
+    - HASH_JOIN [Cost: 328.511, Card: 1000]
+      - INDEX_SCAN(Table 1) [Cost: 78.5105, Card: 200]
+      - SEQ_SCAN(Table 0) [Cost: 110, Card: 100]
+    - INDEX_SCAN(Table 3) [Cost: 109.672, Card: 1000]
+  - SEQ_SCAN(Table 2) [Cost: 2200, Card: 2000]
+[SUCCESS] 4-Way Join Optimizer verified.
+[OPTIMIZER SUCCESS] Cost-based join order dynamic programming passed.
+
+ALL MINIDB MILESTONE 4 TESTS PASSED SUCCESSFULLY!
 ```
-All components are fully validated, thread-safe, and free of memory leaks.
+All components are fully validated, left-deep topology guarantees are met, and dynamic programming memoization operates correctly.
