@@ -1,414 +1,989 @@
 # PostgreSQL Internal Architecture Analysis
 
-## 1. Problem Background
+## Author Information
 
-PostgreSQL is one of the most advanced open-source relational database systems available today. Unlike lightweight embedded databases, PostgreSQL is designed for reliability, scalability, high concurrency, and strong transactional guarantees.
+| Field | Details |
+|---------|---------|
+| Name | Tanmay Mittal |
+| Roll Number | 24BCS10491 |
 
-Over the years, PostgreSQL has become a popular choice for enterprise applications, financial systems, SaaS platforms, and large-scale web backends. Its success comes from several important internal components, including the Buffer Manager, Multi-Version Concurrency Control (MVCC), B-Tree indexes, and Write Ahead Logging (WAL).
+## Overview
 
-The goal of this report is to study these internal components and understand the engineering decisions that allow PostgreSQL to provide high performance while maintaining data consistency and durability.
+This assignment explores PostgreSQL internal architecture with a focus on:
+
+* Buffer Manager
+* B-Tree Index Implementation
+* MVCC (Multi-Version Concurrency Control)
+* WAL (Write Ahead Logging)
+* Query Planning and Statistics
+
+A practical analysis was performed using `EXPLAIN ANALYZE` on a multi-table join query.
+
+## Overview
+
+This assignment explores PostgreSQL internal architecture with a focus on:
+
+* Buffer Manager
+* B-Tree Index Implementation
+* MVCC (Multi-Version Concurrency Control)
+* WAL (Write Ahead Logging)
+* Query Planning and Statistics
+
+A practical analysis was performed using `EXPLAIN ANALYZE` on a multi-table join query.
 
 ---
 
-# 2. Architecture Overview
+# 1. Buffer Manager
 
-## High-Level Architecture
+## Purpose
 
-```text id="3mw90v"
-Client
-   |
-   v
-+-------------------+
-| PostgreSQL Server |
-+-------------------+
-   |
-   +-------------------+
-   | Query Planner     |
-   +-------------------+
-   |
-   +-------------------+
-   | Buffer Manager    |
-   +-------------------+
-   |
-   +-------------------+
-   | Storage Manager   |
-   +-------------------+
-   |
-   +-------------------+
-   | WAL Manager       |
-   +-------------------+
-   |
-   v
-+-------------------+
-| Data Files        |
-+-------------------+
+The PostgreSQL Buffer Manager is responsible for moving pages between disk storage and memory.
+
+Source Location:
+
+```text
+src/backend/storage/buffer/
 ```
 
-When a query arrives, PostgreSQL parses it, creates an execution plan, accesses required pages through the Buffer Manager, updates data if necessary, records changes in WAL, and finally stores data on disk.
+PostgreSQL stores table data in fixed-size pages (8 KB). Frequently accessed pages are loaded into Shared Buffers to reduce expensive disk I/O operations.
 
 ---
 
-# 3. Buffer Manager
+## Shared Buffers
 
-The Buffer Manager is responsible for caching database pages in memory.
+Shared Buffers are a memory cache used by all PostgreSQL backend processes.
 
-Reading data directly from disk for every query would be extremely slow. Instead, PostgreSQL keeps frequently accessed pages in a shared memory region called Shared Buffers.
+Data Flow:
 
-### Shared Buffers
+```text
+Disk
+ ↓
+Shared Buffer Cache
+ ↓
+Query Execution
+```
 
-Shared Buffers act as a cache between PostgreSQL and disk storage.
+When a query requests data:
 
-Process:
-
-1. Query requests a page.
-2. Buffer Manager checks Shared Buffers.
-3. If page exists, it is returned immediately.
-4. Otherwise the page is loaded from disk.
-
-This significantly reduces disk I/O.
-
----
-
-### Page Reads and Writes
-
-When a page is modified:
-
-1. Page is updated in memory.
-2. Page becomes dirty.
-3. WAL record is generated.
-4. Dirty page is flushed later.
-
-This approach improves performance because disk writes can be delayed and grouped together.
+1. PostgreSQL checks Shared Buffers.
+2. If the page is present, it is used directly.
+3. Otherwise, the page is loaded from disk.
 
 ---
 
-### Buffer Replacement
+## Page Caching
 
-Memory is limited, so PostgreSQL cannot keep every page in memory.
+The execution plan showed:
 
-When Shared Buffers become full, PostgreSQL selects pages for eviction using a clock-sweep algorithm.
+```text
+Buffers: shared hit=2
+```
 
-Advantages:
+This indicates that required pages were already present in memory and no additional disk reads were necessary.
 
-* Low overhead.
-* Efficient page management.
-* Better performance than simple FIFO replacement.
+This demonstrates successful page caching by the Buffer Manager.
 
 ---
 
-# 4. B-Tree Index Implementation
+## Buffer Replacement
 
-B-Tree is the default index type in PostgreSQL.
+When Shared Buffers become full, PostgreSQL uses a clock-sweep replacement algorithm.
 
-It is optimized for:
+Frequently accessed pages remain in memory while less frequently used pages are replaced.
 
-* Equality lookups.
-* Range queries.
-* Ordered scans.
+---
+
+## Page Reads and Writes
+
+### Read Path
+
+```text
+Query
+ ↓
+Buffer Cache Check
+ ↓
+Page Found?
+ ├─ Yes → Use Cached Page
+ └─ No → Read From Disk
+```
+
+### Write Path
+
+```text
+Update
+ ↓
+Modify Buffer Page
+ ↓
+Mark Page Dirty
+ ↓
+Checkpoint
+ ↓
+Write To Disk
+```
+
+---
+
+# 2. B-Tree Index Implementation
+
+Source Location:
+
+```text
+src/backend/access/nbtree/
+```
+
+An index was created:
+
+```sql
+CREATE INDEX idx_emp_dept
+ON employees(dept_id);
+```
 
 ---
 
 ## Index Structure
 
-A B-Tree consists of:
+PostgreSQL B-Tree indexes contain:
 
-```text id="qvx3pf"
-Root Page
-   |
-Internal Pages
-   |
-Leaf Pages
-```
+* Root Pages
+* Internal Pages
+* Leaf Pages
 
-Leaf pages contain references to actual table rows.
+Search complexity:
 
-Because the tree remains balanced, searches require very few page accesses even for large datasets.
-
----
-
-## Search Path
-
-When PostgreSQL searches for a value:
-
-1. Start at root page.
-2. Follow internal node pointers.
-3. Reach leaf page.
-4. Locate target entry.
-
-Complexity is approximately:
-
-```text id="a5hclz"
+```text
 O(log n)
 ```
-
-which remains efficient as data grows.
 
 ---
 
 ## Insert Operations
 
-New values are inserted into leaf pages.
+When a new indexed row is inserted:
 
-If sufficient space exists:
-
-```text id="qqp5qt"
-Insert directly
-```
-
-Otherwise PostgreSQL performs a page split.
+1. PostgreSQL navigates from root to leaf.
+2. The key is inserted into the appropriate leaf page.
+3. Parent nodes are updated if required.
 
 ---
 
 ## Page Splits
 
-When a page becomes full:
+If a leaf page becomes full:
 
-1. Create new page.
-2. Move approximately half of entries.
-3. Update parent page.
-4. Maintain tree balance.
+```text
+Before:
+[10 20 30 40]
 
-This ensures search performance remains stable.
+Insert 50
 
----
-
-# 5. Multi-Version Concurrency Control (MVCC)
-
-MVCC is one of PostgreSQL's most important features.
-
-Instead of modifying rows directly, PostgreSQL creates new versions of rows whenever updates occur.
-
-Example:
-
-```text id="d4rj3f"
-Version 1 -> Salary = 50000
-Version 2 -> Salary = 55000
+After:
+[10 20]
+[30 40 50]
 ```
 
-Older transactions can still view Version 1 while newer transactions see Version 2.
+The tree remains balanced after the split.
 
 ---
 
-## xmin and xmax
+# 3. MVCC (Multi-Version Concurrency Control)
 
-Every tuple contains metadata.
+MVCC allows concurrent readers and writers without blocking.
 
-### xmin
+---
 
-Stores the transaction ID that created the row.
+## Heap Tuple Versioning
 
-### xmax
+Instead of modifying rows in place, PostgreSQL creates new tuple versions.
 
-Stores the transaction ID that deleted or replaced the row.
+Each tuple stores:
 
-Example:
-
-```text id="j7e0s6"
-xmin = 100
-xmax = 120
+```text
+xmin
+xmax
 ```
 
-This information helps PostgreSQL determine row visibility.
+---
+
+## MVCC Observation
+
+Query:
+
+```sql
+SELECT xmin, xmax, *
+FROM employees
+LIMIT 5;
+```
+
+Output:
+
+```text
+xmin | xmax
+-----+-----
+754  | 0
+754  | 0
+754  | 0
+754  | 0
+754  | 0
+```
+
+Interpretation:
+
+* `xmin = 754` indicates the transaction that created the rows.
+* `xmax = 0` indicates that the rows have not been deleted or updated.
 
 ---
 
-## Snapshot Isolation
+## Visibility Rules
 
-Each transaction receives a snapshot of visible data.
+A transaction sees:
 
-Benefits:
+* Committed rows
+* Rows visible in its snapshot
 
-* Consistent reads.
-* High concurrency.
-* Reduced locking.
+A transaction does not see:
 
-Readers generally do not block writers, and writers generally do not block readers.
+* Uncommitted changes from other transactions
 
-This is one of the primary reasons PostgreSQL performs well under concurrent workloads.
-
----
-
-# 6. VACUUM
-
-Because PostgreSQL creates new row versions during updates, old versions accumulate over time.
-
-These obsolete versions are called dead tuples.
-
-VACUUM is responsible for:
-
-* Removing dead tuples.
-* Reclaiming storage.
-* Updating visibility information.
-* Preventing transaction ID wraparound.
-
-Without VACUUM, storage consumption would continuously increase.
+This provides snapshot isolation.
 
 ---
 
-# 7. Write Ahead Logging (WAL)
+# Why VACUUM Is Necessary
 
-Durability is achieved through Write Ahead Logging.
+MVCC creates old row versions over time.
 
-Before data pages are written to disk, PostgreSQL records every modification in WAL.
+Without cleanup:
 
-Process:
+* Table size increases
+* Query performance decreases
+* Storage becomes inefficient
 
-```text id="xv0s4u"
-Transaction
-     ↓
-WAL Record
-     ↓
+VACUUM removes dead tuples and maintains database performance.
+
+---
+
+## VACUUM Results
+
+Command:
+
+```sql
+VACUUM VERBOSE employees;
+```
+
+Important Output:
+
+```text
+tuples: 0 removed, 10 remain
+dead but not yet removable: 0
+```
+
+Interpretation:
+
+* No dead tuples existed.
+* The table is clean and requires no# PostgreSQL Internal Architecture Analysis
+
+## Overview
+
+This assignment explores PostgreSQL internal architecture with a focus on:
+
+* Buffer Manager
+* B-Tree Index Implementation
+* MVCC (Multi-Version Concurrency Control)
+* WAL (Write Ahead Logging)
+* Query Planning and Statistics
+
+A practical analysis was performed using `EXPLAIN ANALYZE` on a multi-table join query.
+
+---
+
+# 1. Buffer Manager
+
+## Purpose
+
+The PostgreSQL Buffer Manager is responsible for moving pages between disk storage and memory.
+
+Source Location:
+
+```text
+src/backend/storage/buffer/
+```
+
+PostgreSQL stores table data in fixed-size pages (8 KB). Frequently accessed pages are loaded into Shared Buffers to reduce expensive disk I/O operations.
+
+---
+
+## Shared Buffers
+
+Shared Buffers are a memory cache used by all PostgreSQL backend processes.
+
+Data Flow:
+
+```text
 Disk
-     ↓
-Data Page
+ ↓
+Shared Buffer Cache
+ ↓
+Query Execution
 ```
 
-This guarantees that committed transactions can be recovered after a crash.
+When a query requests data:
+
+1. PostgreSQL checks Shared Buffers.
+2. If the page is present, it is used directly.
+3. Otherwise, the page is loaded from disk.
 
 ---
 
-## WAL Records
+## Page Caching
 
-A WAL record contains information about database modifications.
+The execution plan showed:
 
-Examples:
+```text
+Buffers: shared hit=2
+```
 
-* INSERT
-* UPDATE
-* DELETE
-* Page changes
+This indicates that required pages were already present in memory and no additional disk reads were necessary.
 
-The actual page update may occur later.
+This demonstrates successful page caching by the Buffer Manager.
+
+---
+
+## Buffer Replacement
+
+When Shared Buffers become full, PostgreSQL uses a clock-sweep replacement algorithm.
+
+Frequently accessed pages remain in memory while less frequently used pages are replaced.
+
+---
+
+## Page Reads and Writes
+
+### Read Path
+
+```text
+Query
+ ↓
+Buffer Cache Check
+ ↓
+Page Found?
+ ├─ Yes → Use Cached Page
+ └─ No → Read From Disk
+```
+
+### Write Path
+
+```text
+Update
+ ↓
+Modify Buffer Page
+ ↓
+Mark Page Dirty
+ ↓
+Checkpoint
+ ↓
+Write To Disk
+```
+
+---
+
+# 2. B-Tree Index Implementation
+
+Source Location:
+
+```text
+src/backend/access/nbtree/
+```
+
+An index was created:
+
+```sql
+CREATE INDEX idx_emp_dept
+ON employees(dept_id);
+```
+
+---
+
+## Index Structure
+
+PostgreSQL B-Tree indexes contain:
+
+* Root Pages
+* Internal Pages
+* Leaf Pages
+
+Search complexity:
+
+```text
+O(log n)
+```
+
+---
+
+## Insert Operations
+
+When a new indexed row is inserted:
+
+1. PostgreSQL navigates from root to leaf.
+2. The key is inserted into the appropriate leaf page.
+3. Parent nodes are updated if required.
+
+---
+
+## Page Splits
+
+If a leaf page becomes full:
+
+```text
+Before:
+[10 20 30 40]
+
+Insert 50
+
+After:
+[10 20]
+[30 40 50]
+```
+
+The tree remains balanced after the split.
+
+---
+
+# 3. MVCC (Multi-Version Concurrency Control)
+
+MVCC allows concurrent readers and writers without blocking.
+
+---
+
+## Heap Tuple Versioning
+
+Instead of modifying rows in place, PostgreSQL creates new tuple versions.
+
+Each tuple stores:
+
+```text
+xmin
+xmax
+```
+
+---
+
+## MVCC Observation
+
+Query:
+
+```sql
+SELECT xmin, xmax, *
+FROM employees
+LIMIT 5;
+```
+
+Output:
+
+```text
+xmin | xmax
+-----+-----
+754  | 0
+754  | 0
+754  | 0
+754  | 0
+754  | 0
+```
+
+Interpretation:
+
+* `xmin = 754` indicates the transaction that created the rows.
+* `xmax = 0` indicates that the rows have not been deleted or updated.
+
+---
+
+## Visibility Rules
+
+A transaction sees:
+
+* Committed rows
+* Rows visible in its snapshot
+
+A transaction does not see:
+
+* Uncommitted changes from other transactions
+
+This provides snapshot isolation.
+
+---
+
+# Why VACUUM Is Necessary
+
+MVCC creates old row versions over time.
+
+Without cleanup:
+
+* Table size increases
+* Query performance decreases
+* Storage becomes inefficient
+
+VACUUM removes dead tuples and maintains database performance.
+
+---
+
+## VACUUM Results
+
+Command:
+
+```sql
+VACUUM VERBOSE employees;
+```
+
+Important Output:
+
+```text
+tuples: 0 removed, 10 remain
+dead but not yet removable: 0
+```
+
+Interpretation:
+
+* No dead tuples existed.
+* The table is clean and requires no space reclamation.
+
+---
+
+# 4. Write Ahead Logging (WAL)
+
+WAL ensures durability and crash recovery.
+
+PostgreSQL writes changes to WAL before writing modified pages to disk.
+
+Location:
+
+```text
+pg_wal/
+```
+
+---
+
+## WAL Position
+
+Command:
+
+```sql
+SELECT pg_current_wal_lsn();
+```
+
+Output:
+
+```text
+0/2F8CC70
+```
+
+This Log Sequence Number (LSN) identifies the current WAL position.
+
+---
+
+## Durability Guarantee
+
+PostgreSQL follows the WAL rule:
+
+```text
+WAL Flush
+    ↓
+COMMIT
+```
+
+A transaction is considered committed only after WAL records are safely written.
 
 ---
 
 ## Crash Recovery
 
-If PostgreSQL crashes:
+If a crash occurs:
 
-1. Restart server.
-2. Read WAL records.
-3. Replay committed changes.
-4. Restore consistency.
+```text
+Crash
+ ↓
+Read WAL
+ ↓
+Replay Changes
+ ↓
+Recover Database
+```
 
-This mechanism allows PostgreSQL to recover safely after unexpected failures.
+Committed transactions are preserved.
 
 ---
 
 ## Checkpointing
 
-Writing every page immediately would be inefficient.
+Dirty pages are periodically written to disk during checkpoints.
 
-Instead PostgreSQL periodically creates checkpoints.
+Benefits:
 
-A checkpoint:
-
-* Flushes dirty pages.
-* Establishes a recovery starting point.
-* Limits WAL replay time.
-
-Trade-off:
-
-* Frequent checkpoints increase I/O.
-* Infrequent checkpoints increase recovery time.
+* Reduced recovery time
+* Improved durability
+* Efficient disk writes
 
 ---
 
-# 8. Query Planning and EXPLAIN ANALYZE
+# 5. Query Planning and Statistics
 
-PostgreSQL uses a cost-based query optimizer.
+The PostgreSQL planner uses collected statistics to estimate costs and choose efficient execution plans.
 
-Before executing a query, PostgreSQL estimates:
+Statistics are stored in:
 
-* Number of rows.
-* Cost of operations.
-* Available indexes.
-* Join strategies.
+```text
+pg_statistic
+```
 
-The optimizer chooses the plan with the lowest estimated cost.
+and exposed through:
+
+```text
+pg_stats
+```
 
 ---
 
-## Experiment
+## Statistics Collected
 
-The following query was executed:
+Query:
 
-```sql id="qvob40"
-EXPLAIN ANALYZE
-SELECT * FROM students
-WHERE marks > 88;
+```sql
+SELECT attname, n_distinct
+FROM pg_stats
+WHERE tablename='employees';
 ```
 
 Output:
 
-```text id="6o2xv5"
-Seq Scan on students
-Rows Returned: 3
-Rows Removed by Filter: 2
-Planning Time: 1.150 ms
-Execution Time: 0.020 ms
+```text
+emp_id   | -1
+emp_name | -1
+dept_id  | -0.5
+salary   | -1
+```
+
+Interpretation:
+
+* Negative values represent a fraction of total rows.
+* PostgreSQL uses these values to estimate selectivity and expected row counts.
+
+---
+
+# EXPLAIN ANALYZE Results
+
+Query:
+
+```sql
+SELECT
+    e.emp_name,
+    d.dept_name,
+    e.salary
+FROM employees e
+JOIN departments d
+ON e.dept_id = d.dept_id
+WHERE e.salary > 50000;
+```
+
+Execution Plan:
+
+```text
+Hash Join
+ ├── Seq Scan on employees
+ └── Seq Scan on departments
 ```
 
 ---
 
-## Observation
+## Chosen Execution Plan
 
-PostgreSQL selected a Sequential Scan instead of an index scan.
+PostgreSQL selected a Hash Join because:
 
-Reason:
-
-The table contained only a few rows. Reading the entire table was cheaper than using an index.
-
-This demonstrates how PostgreSQL's query planner makes decisions based on estimated execution costs.
+* The tables are very small.
+* Building a hash table is inexpensive.
+* Sequential scans are cheaper than index lookups for small datasets.
 
 ---
 
-# 9. Design Trade-Offs
+## Planner Estimates
 
-## Advantages
+Estimated rows:
 
-* Excellent concurrency through MVCC.
-* Strong durability guarantees.
-* Sophisticated query optimization.
-* Efficient page caching.
-* Reliable crash recovery.
+```text
+8 rows
+```
 
----
+Actual rows:
 
-## Limitations
+```text
+7 rows
+```
 
-* VACUUM maintenance required.
-* MVCC increases storage usage.
-* Internal architecture is complex.
-* Additional WAL writes create overhead.
+The estimate is very close to reality, indicating accurate planner statistics.
 
 ---
 
-# 10. Key Learnings
+## Execution Statistics
 
-* The Buffer Manager reduces expensive disk access through Shared Buffers.
-* B-Trees provide efficient search and indexing performance.
-* MVCC allows readers and writers to operate concurrently.
-* xmin and xmax determine tuple visibility.
-* VACUUM is necessary because PostgreSQL stores multiple row versions.
-* WAL guarantees durability and crash recovery.
-* PostgreSQL's query planner uses cost estimation to choose execution plans.
-* High performance in database systems is achieved through carefully balanced architectural trade-offs.
+```text
+Planning Time: 0.669 ms
+Execution Time: 1.277 ms
+```
 
----
+The query executed very quickly due to:
 
-# References
-
-1. PostgreSQL Official Documentation
-2. PostgreSQL Storage Documentation
-3. PostgreSQL WAL Documentation
-4. PostgreSQL Source Code Documentation
+* Small dataset size
+* Efficient hash join
+* Cached pages in shared buffers
 
 ---
 
-## Author
+## Buffer Usage
 
-**Tanmay Mittal**
-**Roll Number:** 24BCS10491
+```text
+Buffers: shared hit=2
+```
 
-Submitted as part of the Advanced DBMS System Design Discussion assignment.
+Interpretation:
+
+* Required pages were already present in memory.
+* No additional disk access was required.
+
+This demonstrates effective operation of the Buffer Manager.
+
+---
+
+# Conclusion
+
+This study explored key PostgreSQL internal components.
+
+Key observations:
+
+1. The Buffer Manager efficiently cached pages in Shared Buffers, reducing disk I/O.
+2. PostgreSQL uses B-Tree indexes to provide efficient logarithmic-time searches.
+3. MVCC enables concurrent transactions using tuple versioning with xmin and xmax metadata.
+4. VACUUM is necessary to remove dead tuples and prevent table bloat.
+5. WAL guarantees durability and enables crash recovery.
+6. Query planning relies heavily on statistics stored in pg_statistic.
+7. The planner selected an efficient Hash Join strategy and produced estimates close to actual execution results.
+
+The experiment demonstrates how PostgreSQL combines caching, indexing, MVCC, WAL, and query optimization to deliver reliable and high-performance database operations.
+ space reclamation.
+
+---
+
+# 4. Write Ahead Logging (WAL)
+
+WAL ensures durability and crash recovery.
+
+PostgreSQL writes changes to WAL before writing modified pages to disk.
+
+Location:
+
+```text
+pg_wal/
+```
+
+---
+
+## WAL Position
+
+Command:
+
+```sql
+SELECT pg_current_wal_lsn();
+```
+
+Output:
+
+```text
+0/2F8CC70
+```
+
+This Log Sequence Number (LSN) identifies the current WAL position.
+
+---
+
+## Durability Guarantee
+
+PostgreSQL follows the WAL rule:
+
+```text
+WAL Flush
+    ↓
+COMMIT
+```
+
+A transaction is considered committed only after WAL records are safely written.
+
+---
+
+## Crash Recovery
+
+If a crash occurs:
+
+```text
+Crash
+ ↓
+Read WAL
+ ↓
+Replay Changes
+ ↓
+Recover Database
+```
+
+Committed transactions are preserved.
+
+---
+
+## Checkpointing
+
+Dirty pages are periodically written to disk during checkpoints.
+
+Benefits:
+
+* Reduced recovery time
+* Improved durability
+* Efficient disk writes
+
+---
+
+# 5. Query Planning and Statistics
+
+The PostgreSQL planner uses collected statistics to estimate costs and choose efficient execution plans.
+
+Statistics are stored in:
+
+```text
+pg_statistic
+```
+
+and exposed through:
+
+```text
+pg_stats
+```
+
+---
+
+## Statistics Collected
+
+Query:
+
+```sql
+SELECT attname, n_distinct
+FROM pg_stats
+WHERE tablename='employees';
+```
+
+Output:
+
+```text
+emp_id   | -1
+emp_name | -1
+dept_id  | -0.5
+salary   | -1
+```
+
+Interpretation:
+
+* Negative values represent a fraction of total rows.
+* PostgreSQL uses these values to estimate selectivity and expected row counts.
+
+---
+
+# EXPLAIN ANALYZE Results
+
+Query:
+
+```sql
+SELECT
+    e.emp_name,
+    d.dept_name,
+    e.salary
+FROM employees e
+JOIN departments d
+ON e.dept_id = d.dept_id
+WHERE e.salary > 50000;
+```
+
+Execution Plan:
+
+```text
+Hash Join
+ ├── Seq Scan on employees
+ └── Seq Scan on departments
+```
+
+---
+
+## Chosen Execution Plan
+
+PostgreSQL selected a Hash Join because:
+
+* The tables are very small.
+* Building a hash table is inexpensive.
+* Sequential scans are cheaper than index lookups for small datasets.
+
+---
+
+## Planner Estimates
+
+Estimated rows:
+
+```text
+8 rows
+```
+
+Actual rows:
+
+```text
+7 rows
+```
+
+The estimate is very close to reality, indicating accurate planner statistics.
+
+---
+
+## Execution Statistics
+
+```text
+Planning Time: 0.669 ms
+Execution Time: 1.277 ms
+```
+
+The query executed very quickly due to:
+
+* Small dataset size
+* Efficient hash join
+* Cached pages in shared buffers
+
+---
+
+## Buffer Usage
+
+```text
+Buffers: shared hit=2
+```
+
+Interpretation:
+
+* Required pages were already present in memory.
+* No additional disk access was required.
+
+This demonstrates effective operation of the Buffer Manager.
+
+---
+
+# Conclusion
+
+This study explored key PostgreSQL internal components.
+
+Key observations:
+
+1. The Buffer Manager efficiently cached pages in Shared Buffers, reducing disk I/O.
+2. PostgreSQL uses B-Tree indexes to provide efficient logarithmic-time searches.
+3. MVCC enables concurrent transactions using tuple versioning with xmin and xmax metadata.
+4. VACUUM is necessary to remove dead tuples and prevent table bloat.
+5. WAL guarantees durability and enables crash recovery.
+6. Query planning relies heavily on statistics stored in pg_statistic.
+7. The planner selected an efficient Hash Join strategy and produced estimates close to actual execution results.
+
+The experiment demonstrates how PostgreSQL combines caching, indexing, MVCC, WAL, and query optimization to deliver reliable and high-performance database operations.
