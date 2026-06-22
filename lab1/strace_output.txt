@@ -1,0 +1,89 @@
+================================================================================
+ILLUSTRATIVE SAMPLE STRACE OUTPUT  (captured on Linux x86_64, ext4 filesystem)
+--------------------------------------------------------------------------------
+This file is a REFERENCE SAMPLE, not a live capture from this machine. strace
+is a Linux-only tool, so it cannot run on macOS/Windows. The lines below show
+the relevant file-I/O system calls that file_io_demo emits, with realistic file
+descriptor numbers and return values, as produced by:
+
+    strace -f -e trace=openat,read,write,lseek,fsync,close,fstat,unlink \
+           ./file_io_demo
+
+Notes on reading the trace:
+  - Each line is one system call: name(args) = return_value
+  - fd 0/1/2 are stdin/stdout/stderr; the program's file gets fd 3.
+  - The early openat() calls (with AT_FDCWD on libc/loader paths) are the
+    dynamic linker loading the C++ runtime BEFORE main() runs.
+  - "= -1 ENOENT (No such file or directory)" are normal loader probe misses.
+================================================================================
+
+# --- dynamic linker / C++ runtime startup (before main) ---
+openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+fstat(3, {st_mode=S_IFREG|0644, st_size=78412, ...}) = 0
+close(3)                                = 0
+openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libstdc++.so.6", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(3, {st_mode=S_IFREG|0644, st_size=2260296, ...}) = 0
+close(3)                                = 0
+openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libm.so.6", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+close(3)                                = 0
+openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(3, {st_mode=S_IFREG|0755, st_size=2029224, ...}) = 0
+close(3)                                = 0
+
+# --- the program's own I/O (this is what main() does) ---
+
+# [1] open(path, O_CREAT|O_RDWR|O_TRUNC, 0644) -> openat() returns fd 3
+openat(AT_FDCWD, "lab1_data.bin", O_RDWR|O_CREAT|O_TRUNC, 0644) = 3
+
+# stdout banner lines are flushed by printf -> write() to fd 1
+write(1, "=== Low-level file I/O demo ===\n", 32) = 32
+write(1, "Target file: lab1_data.bin\n\n", 28) = 28
+write(1, "[1] open(lab1_data.bin, O_CREAT|O"..., 51) = 51
+write(1, "    -> got file descriptor fd=3\n\n", 33) = 33
+
+# [2] write(fd=3, payload, 85) -> 85 bytes copied into a dirty page in cache
+write(1, "[2] write(fd=3, buf, 85 bytes)\n", 31) = 31
+write(3, "Hello from the page cache!\nThis t"..., 85) = 85
+write(1, "    -> wrote 85 bytes (file offse"..., 48) = 48
+
+# [3] lseek(fd=3, 0, SEEK_SET) -> reset offset to 0 (pure bookkeeping)
+write(1, "[3] lseek(fd=3, 0, SEEK_SET)\n", 29) = 29
+lseek(3, 0, SEEK_SET)                   = 0
+write(1, "    -> offset reset to 0\n\n", 26) = 26
+
+# [4] read(fd=3, buf, 255) -> served from the warm page cache, returns 85
+write(1, "[4] read(fd=3, buf, 255 bytes)\n", 31) = 31
+read(3, "Hello from the page cache!\nThis t"..., 255) = 85
+write(1, "    -> read 85 bytes back:\n", 27) = 27
+write(1, "    -------- file contents ------"..., 37) = 37
+write(1, "Hello from the page cache!\nThis t"..., 85) = 85
+write(1, "    --------------------------"..., 36) = 36
+
+# [5] fsync(fd=3) -> blocks until dirty pages + metadata reach the device
+write(1, "[5] fsync(fd=3)  (force dirty pag"..., 49) = 49
+fsync(3)                                = 0
+write(1, "    -> data is now durable on the"..., 42) = 42
+
+# [6] fstat(fd=3) -> reads inode metadata (inode number, size, blocks)
+write(1, "[6] fstat(fd=3)\n", 16)       = 16
+fstat(3, {st_mode=S_IFREG|0644, st_ino=11386660, st_size=85, st_blocks=8, st_nlink=1, ...}) = 0
+write(1, "    -> inode number : 11386660\n", 31) = 31
+write(1, "    -> size (bytes) : 85\n", 25) = 25
+write(1, "    -> 512B blocks  : 8\n", 24) = 24
+write(1, "    -> link count   : 1\n\n", 25) = 25
+
+# [7] close(fd=3) -> release the descriptor; inode stays on disk
+write(1, "[7] close(fd=3)\n", 16)       = 16
+close(3)                                = 0
+write(1, "    -> descriptor released\n\n", 28) = 28
+
+# [8] unlink(path) -> drop the directory entry; inode freed at last reference
+write(1, "[8] unlink(lab1_data.bin)\n", 26) = 26
+unlink("lab1_data.bin")                 = 0
+write(1, "    -> directory entry removed (i"..., 76) = 76
+
+write(1, "\n=== done ===\n", 14)        = 14
++++ exited with 0 +++
