@@ -574,7 +574,7 @@ SELECT * FROM orders_innodb WHERE customer_id = 12345;
 
 PK lookup is roughly 2-3x faster than secondary index lookup — because secondary index requires that double lookup.
 
-![Clustered Index Benefit Screenshot](MySQL_InnoDB\clustered_index_benefit.png)
+![Clustered Index Benefit Screenshot](clustered_index_benefit.png)
 
 ### Experiment 2: UUID vs Auto-Increment Primary Key
 
@@ -610,7 +610,7 @@ Yeh kyu hota hai? AUTO_INCREMENT mein naye rows hamesha rightmost leaf page mein
 
 **Lesson:** InnoDB ke saath sequential primary keys use karo (INT AUTO_INCREMENT ya BIGINT) jab possible ho. UUIDs as PK — avoid karo unless zaroorat ho. Agar UUID chahiye toh UUID v7 use karo jo time-ordered hai — better than random UUID v4.
 
-![UUID vs Auto-Increment Screenshot](MySQL_InnoDB\uuid_vs_auto_increment.png)
+![UUID vs Auto-Increment Screenshot](uuid_vs_auto_increment.png)
 
 
 ### Experiment 3: Undo Log Growth with Long Transactions
@@ -637,7 +637,7 @@ Yeh PostgreSQL mein equivalent problem hai — VACUUM can't clean dead tuples th
 
 **Takeaway:** Long-running transactions DONO databases mein problematic hain. Always keep transactions short.
 
-![Undo Log Growth Screenshot](MySQL_InnoDB\undo_log_growth.png)
+![Undo Log Growth Screenshot](undo_log_growth.png)
 
 
 ### Experiment 4: Deadlock Detection
@@ -662,7 +662,7 @@ UPDATE accounts SET bal = bal + 50 WHERE id = 1;  -- DEADLOCK!
 -- try restarting transaction
 ```
 
-![Deadlock Detection](MySQL_InnoDB\deadlock_detection.png)
+![Deadlock Detection](deadlock_detection.png)
 
 InnoDB has a background thread that checks for deadlock cycles in the wait-for graph. Jab detect hota hai, ek transaction ko rollback kar deta hai (usually the one that has done least work). PostgreSQL bhi similar deadlock detection karta hai.
 

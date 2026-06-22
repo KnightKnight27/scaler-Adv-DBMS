@@ -703,7 +703,7 @@ Planning Time: 0.456 ms
 Execution Time: 87.345 ms
 ```
 
-![Terminal Analysis Output Screenshot](PostgreSQL_Internals\explain_analyze_output.png)
+![Terminal Analysis Output Screenshot](explain_analyze_output.png)
 
 
 #### Meri Analysis:

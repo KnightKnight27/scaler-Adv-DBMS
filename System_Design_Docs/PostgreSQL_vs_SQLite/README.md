@@ -495,7 +495,7 @@ Results (approximate):
 
 SQLite significantly smaller! Makes sense — less overhead per row, no per-tuple xmin/xmax headers, simpler page format.
 
-![Database Size Comparison Screenshot](PostgreSQL_vs_SQLite\db_size_experiment.png)
+![Database Size Comparison Screenshot](db_size_experiment.png)
 
 
 ### Experiment 2: Concurrent Access Test
@@ -520,7 +520,7 @@ PostgreSQL: Sab smoothly chala — no locks, no waiting (MVCC ka kamaal!)
 SQLite (Journal mode): Writers ek doosre ka wait karte rahe, "database is locked" errors aaye
 SQLite (WAL mode): Better — readers aur writer parallel chale, but multiple writers still serialized
 
-![Concurrent Access Test Screenshot](PostgreSQL_vs_SQLite\concurrent_access_test.png)
+![Concurrent Access Test Screenshot](concurrent_access_test.png)
 
 ### Experiment 3: Query Plan Comparison
 
@@ -540,9 +540,9 @@ Execution Time: 2.267 ms
 
 Without index, PostgreSQL does a sequential scan — reads every row. Makes sense, there's no index on `city` or `age`.
 
-![Result without index](PostgreSQL_vs_SQLite\result_no_index.png)
+![Result without index](result_no_index.png)
 
-![Query Plan Sequential Scan without index](PostgreSQL_vs_SQLite\query_plan_seq_scan_no_index.png)
+![Query Plan Sequential Scan without index](query_plan_seq_scan_no_index.png)
 
 
 After adding index:
@@ -558,11 +558,11 @@ Index Scan using idx_city_age on students  (cost=0.29..41.23 rows=1012 width=36)
 Planning Time: 0.112 ms  
 Execution Time: 0.567 ms
 ```
-![Query Plan Sequential Scan with index](PostgreSQL_vs_SQLite\query_plan_seq_scan_index.png)
+![Query Plan Sequential Scan with index](query_plan_seq_scan_index.png)
 
 **Massive improvement!** 2.267ms → 0.567ms. And this is just 10,000 rows — larger tables pe difference aur bhi dramatic hota.
 
-![Result Improvement](PostgreSQL_vs_SQLite\result_index.png)
+![Result Improvement](result_index.png)
 
 SQLite mein bhi similar query plan analysis kar sakte ho `EXPLAIN QUERY PLAN` use karke — but PostgreSQL ka output zyada detailed hota hai with actual timings.
 
