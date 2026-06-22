@@ -1,0 +1,23 @@
+SHOW ENGINE INNODB STATUS (parts I cared about)
+MySQL 8.0.42, port 3307
+
+TRANSACTIONS
+  Purge done for trx's n:o < 1840, state: running but idle
+  History list length 13
+
+LOG
+  Log sequence number       19356994
+  Log flushed up to         19356994
+  Pages flushed up to       19280672
+  Last checkpoint at        19280672
+  106 log i/o's done
+
+BUFFER POOL
+  Buffer pool size          8191
+  Database pages            999
+  Modified db pages         95
+  Buffer pool hit rate      999 / 1000
+
+VARIABLES
+  transaction_isolation     REPEATABLE-READ
+  innodb_buffer_pool_size   128 MB

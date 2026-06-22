@@ -1,0 +1,21 @@
+-- ran on postgres 16 (docker), after DISCARD ALL for cold cache test
+-- tables: students (5k), departments (5), enrollments (15k)
+
+--- cold run ---
+ Limit  (actual time=1.560..1.900 rows=100)
+   Buffers: shared hit=42
+   -> Hash Join (actual time=1.558..1.885 rows=100)
+        -> Seq Scan enrollments (filter grade='A', removed 1000 rows)  Buffers: hit=9
+        -> Hash Join
+             -> Seq Scan students (5000 rows)  Buffers: hit=32
+             -> Seq Scan departments (filter Dept_2, 1 row)  Buffers: hit=1
+ Planning Time: 0.943 ms
+ Execution Time: 1.995 ms
+
+--- warm run (same query immediately after) ---
+ Limit  (actual time=0.868..1.008 rows=100)
+   Buffers: shared hit=42
+ Execution Time: 1.039 ms
+
+--- pg_stats for enrollments.grade ---
+ grade | n_distinct=3 | most_common_vals={A,B,C} | freqs ~0.33 each

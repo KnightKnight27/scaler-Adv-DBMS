@@ -1,0 +1,25 @@
+RocksDB 9.10.0 | db_bench | 100k keys | 16 byte keys, 100 byte values | no compression
+built from source on windows (mingw)
+
+TEST 1 — leveled compaction (style=0)
+  fillrandom : 10.494 us/op   95295 ops/sec   1.049s
+  readrandom :  4.090 us/op  244479 ops/sec   0.409s  (63284/100000 found)
+  memtable hit/miss : 63284 / 36716
+  wal bytes         : 13100000
+  compaction bytes  : 0 (didn't trigger at this size)
+  write stalls      : 0
+
+TEST 2 — universal compaction (style=1)
+  fillrandom :  9.803 us/op  102007 ops/sec   0.980s
+  readrandom :  4.090 us/op  244508 ops/sec   0.409s  (63103/100000 found)
+  memtable hit/miss : 63103 / 36897
+  compaction bytes  : 0
+
+disk after each test: ~13.2 MB
+
+notes:
+- reads mostly hit memtable, not SSTable levels (l0/l1 hits were 0)
+- universal slightly faster on writes here (~7%), reads basically same
+- need more keys to actually see compaction kick in
+
+full stats dump in db-bench-full.txt if needed

@@ -1,0 +1,20 @@
+phantom read check @ REPEATABLE-READ
+table: orders (100 rows, 33 pending)
+
+session A                          session B
+-----------                        -----------
+BEGIN
+SELECT COUNT(*) ... pending
+  -> 33
+
+                                   BEGIN
+                                   INSERT pending row
+                                   COMMIT
+                                   SELECT COUNT(*) -> 34
+
+SELECT COUNT(*) ... pending
+  -> 33  (still 33, didn't see B's insert)
+
+COMMIT
+
+takeaway: RR snapshot from first SELECT stays consistent for the whole txn

@@ -1,0 +1,44 @@
+=== PostgreSQL vs SQLite Measured Results ===
+Date: 22-06-2026 20:42:25.93
+
+--- SQLite PRAGMA ---
+4096
+3
+delete
+WAL enabled:
+wal
+
+--- SQLite 5000 inserts (one transaction) ---
+SQLite insert time ms: 126
+SQLite pages after insert: 25
+SQLite row count: 5000
+
+--- SQLite EXPLAIN QUERY PLAN ---
+QUERY PLAN
+`--SCAN bench_users
+
+--- PostgreSQL 5000 inserts (one transaction) ---
+PostgreSQL insert time ms: 1046
+
+--- PostgreSQL size ---
+  size  | pages 
+--------+-------
+ 248 kB |    31
+(1 row)
+
+
+--- PostgreSQL EXPLAIN ANALYZE ---
+                                                   QUERY PLAN                                                   
+----------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=77.55..77.56 rows=1 width=8) (actual time=0.413..0.413 rows=1 loops=1)
+   Buffers: shared hit=31
+   ->  Seq Scan on bench_users  (cost=0.00..77.50 rows=19 width=0) (actual time=0.019..0.356 rows=1000 loops=1)
+         Filter: (dept_id = 3)
+         Rows Removed by Filter: 4000
+         Buffers: shared hit=31
+ Planning:
+   Buffers: shared hit=66
+ Planning Time: 0.639 ms
+ Execution Time: 0.484 ms
+(10 rows)
+
