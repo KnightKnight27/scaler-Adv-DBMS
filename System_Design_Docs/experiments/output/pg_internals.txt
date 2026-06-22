@@ -1,0 +1,41 @@
+=== C1: Buffer manager — what is cached in shared_buffers right now ===
+ shared_buffers 
+----------------
+ 128MB
+(1 row)
+
+       relname       | buffers | cached  | pct_dirty 
+---------------------+---------+---------+-----------
+ orders              |    1528 | 12 MB   |     100.0
+ orders_pkey         |     551 | 4408 kB |     100.0
+ idx_orders_customer |     275 | 2200 kB |     100.0
+ idx_orders_status   |     161 | 1288 kB |     100.0
+ customers           |      78 | 624 kB  |     100.0
+(5 rows)
+
+
+=== C2: B-tree index structure (metapage: root, levels, height) ===
+ magic  | version | root | level | fastroot | fastlevel | last_cleanup_num_delpages | last_cleanup_num_tuples | allequalimage 
+--------+---------+------+-------+----------+-----------+---------------------------+-------------------------+---------------
+ 340322 |       4 |  412 |     2 |      412 |         2 |                         0 |                      -1 | t
+(1 row)
+
+
+=== C3: First few entries of a B-tree leaf page (sorted keys -> heap ctid) ===
+ itemoffset | ctid  | itemlen |        key_bytes        
+------------+-------+---------+-------------------------
+          1 | (2,1) |      16 | 6f 01 00 00 00 00 00 00
+          2 | (0,1) |      16 | 01 00 00 00 00 00 00 00
+          3 | (0,2) |      16 | 02 00 00 00 00 00 00 00
+          4 | (0,3) |      16 | 03 00 00 00 00 00 00 00
+          5 | (0,4) |      16 | 04 00 00 00 00 00 00 00
+(5 rows)
+
+
+=== C4: Table + index on-disk sizes ===
+  relname  |  heap  | indexes | total  
+-----------+--------+---------+--------
+ orders    | 12 MB  | 7896 kB | 20 MB
+ customers | 592 kB | 240 kB  | 872 kB
+(2 rows)
+

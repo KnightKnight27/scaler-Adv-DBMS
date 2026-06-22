@@ -1,0 +1,37 @@
+CREATE TABLE customers(id INTEGER PRIMARY KEY, name TEXT, city TEXT);
+CREATE TABLE orders(id INTEGER PRIMARY KEY, customer_id INT, amount REAL, status TEXT);
+INSERT INTO customers SELECT value, 'Customer_'||value, (SELECT 'City_'||(abs(random())%6)) FROM generate_series(1,10000);
+INSERT INTO orders SELECT value, 1+abs(random())%10000, abs(random())%1000, (SELECT (CASE abs(random())%4 WHEN 0 THEN 'paid' WHEN 1 THEN 'pending' WHEN 2 THEN 'shipped' ELSE 'cancelled' END)) FROM generate_series(1,200000);
+CREATE INDEX idx_orders_customer ON orders(customer_id);
+ANALYZE;
+
+.print '\n=== S1: storage internals (single file, fixed pages) ==='
+\n=== S1: storage internals (single file, fixed pages) ===
+PRAGMA page_size;
+4096
+PRAGMA page_count;
+1781
+PRAGMA journal_mode;
+delete
+
+.print '\n=== S2: EXPLAIN QUERY PLAN — uses index for PK lookup ==='
+\n=== S2: EXPLAIN QUERY PLAN — uses index for PK lookup ===
+EXPLAIN QUERY PLAN SELECT * FROM orders WHERE id = 12345;
+QUERY PLAN
+`--SEARCH orders USING INTEGER PRIMARY KEY (rowid=?)
+.print '--- uses secondary index ---'
+--- uses secondary index ---
+EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 4242;
+QUERY PLAN
+`--SEARCH orders USING INDEX idx_orders_customer (customer_id=?)
+.print '--- full scan for non-indexed predicate ---'
+--- full scan for non-indexed predicate ---
+EXPLAIN QUERY PLAN SELECT count(*) FROM orders WHERE status='paid';
+QUERY PLAN
+`--SCAN orders
+.print '--- join plan ---'
+--- join plan ---
+EXPLAIN QUERY PLAN SELECT c.city, count(*) FROM customers c JOIN orders o ON o.customer_id=c.id WHERE c.city='City_1' GROUP BY c.city;
+QUERY PLAN
+|--SCAN c
+`--SEARCH o USING COVERING INDEX idx_orders_customer (customer_id=?)

@@ -1,0 +1,18 @@
+LSM simulator: 200,000 writes over 20,000 keys (=10x overwrite), memtable=2000
+
+=== No compaction (writes are cheap, reads/space blow up) ===
+  compaction = none
+    sorted runs to search per read : 95
+    WRITE amplification            : 0.95x  (disk bytes / user bytes)
+    SPACE amplification            : 9.49x  (on-disk entries / live entries)
+    READ probes/lookup (no bloom)  : 9.97
+    READ probes/lookup (w/ bloom)  : 1.09
+
+=== Leveled compaction (RocksDB default — pays writes to keep reads/space low) ===
+  compaction = leveled
+    sorted runs to search per read : 4
+    WRITE amplification            : 3.06x  (disk bytes / user bytes)
+    SPACE amplification            : 1.28x  (on-disk entries / live entries)
+    READ probes/lookup (no bloom)  : 3.44
+    READ probes/lookup (w/ bloom)  : 1.02
+
