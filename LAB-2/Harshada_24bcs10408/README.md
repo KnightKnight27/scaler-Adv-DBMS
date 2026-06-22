@@ -32,11 +32,8 @@ sqlite3 --version
 sqlite3 students.db
 ```
 
-## Screenshot
+![create](screenshots/d-creation.png)
 
-![Database Creation](screenshots/database-created.png)
-
----
 
 # Part 3: Table Creation & Data Insertion
 
@@ -60,7 +57,7 @@ SELECT * FROM students;
 
 ## Screenshot
 
-![Table Data](screenshots/table-data.png)
+![Table Data](screenshots/data-table.png)
 
 ---
 
@@ -154,7 +151,7 @@ PRAGMA journal_mode=WAL;
 - WAL (Write-Ahead Logging) improves concurrency.
 - Readers can continue while writes occur.
 
-![Cache Size](screenshots/WAL.png)
+![WAL](screenshots/WAL.png)
 
 ---
 
