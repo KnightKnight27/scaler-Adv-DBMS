@@ -1,0 +1,26 @@
+=== Scenario 1: MVCC Snapshot Isolation ===
+[TX 1] COMMITTED
+[TX 3] COMMITTED
+  [TX 2] READ balance = 1000
+[TX 2] COMMITTED
+
+=== Scenario 2: Concurrent Shared Locks ===
+  [TX 4] READ balance = 2000
+  [TX 5] READ balance = 2000
+[TX 4] COMMITTED
+[TX 5] COMMITTED
+
+=== Scenario 3: Exclusive Lock + Waiting ===
+  [TX 7] waiting for shared lock on balance...
+[TX 6] COMMITTED
+  [TX 7] READ balance = 3000
+[TX 7] COMMITTED
+
+=== Scenario 4: Deadlock Detection ===
+[TX 8] COMMITTED
+[TX 9] COMMITTED
+  Deadlock detected, aborting tx 11
+[TX 11] ABORTED
+[TX 10] COMMITTED
+
+All scenarios complete.
