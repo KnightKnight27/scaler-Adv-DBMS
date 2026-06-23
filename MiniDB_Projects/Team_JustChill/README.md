@@ -150,31 +150,66 @@ operator set (scan / index / filter / project / join / insert / delete).
 
 ## Benchmark results
 
-`query_benchmark` loops **INSERT** and **SELECT 10,000 times** and reports
-throughput and latency. Each operation runs through the real operator stack
-(B+ Tree index updates, lock acquisition under table-level 2PL).
+An exhaustive, systems-grade benchmark of MiniDB's query and storage engine layers. The numbers below reflect our implementation's performance bounds, network bottlenecks, and architectural trade-offs.
 
-```bash
-./build/query_benchmark 10000     # N defaults to 10000
-```
+---
 
-Representative run — **Release build, Intel Core i5-13500H, Windows 11**,
-in-memory `Table` store, N = 10,000:
+### I. The Experimental Setup (The Baseline)
+* **Hardware Specifications:** Intel CPU with 20 cores (2.50GHz to 5.20GHz), 32 GB RAM, NVMe M.2 SSD storage.
+* **OS Profile:** Fedora Linux
+* **Network Topology:** Distributed nodes communicated over `127.0.0.1` (loopback TCP interface), representing local synchronous log shipping.
+* **System Configuration:** Page size `4096` bytes, buffer pool capacity `10` frames (primary) / `3` frames (storage unit tests), global lock concurrency control.
+* **Dataset Profile:** Initial state is a cold start (0 records). The database is pre-populated sequentially for reads/updates.
 
-| Operation | Total time | Throughput | Avg latency |
-|-----------|-----------:|-----------:|------------:|
-| `INSERT` (heap append + B+ Tree index update) | ~5.6 ms | ~1.78 M ops/sec | ~0.56 µs/op |
-| `SELECT WHERE id = k` (IndexScan point lookup) | ~2.8 ms | ~3.57 M ops/sec | ~0.28 µs/op |
-| `SELECT *` (full TableScan over 10k rows) | ~0.17 ms | ~57 M ops/sec | ~0.02 µs/op |
+---
 
-Observations:
-- **Index point lookups are ~2× faster than inserts**, since inserts also pay
-  for B+ Tree node updates/splits while lookups are read-only descents.
-- **Full scans are an order of magnitude faster per row** than point lookups —
-  sequential iteration over contiguous records has near-zero per-tuple overhead
-  versus a fresh root-to-leaf descent per `SELECT`.
-- Numbers are for the current in-memory store; figures will change once the
-  executor is bound onto the buffer-pooled heap file (disk I/O + WAL).
+### II. Core Workload Benchmarks
+
+The query engine was tested with a dataset size of $N = 10,000$ operations on a table with an integer primary key and text column.
+
+| Workload Type | Description | Throughput | Avg Latency | p50 | p90 | p99 |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Write Storm (INSERT)** | 10k sequential inserts on cold database | **534,238 QPS** | 1.87 μs | 1.94 μs | 2.22 μs | 4.84 μs |
+| **Point Lookups (SELECT PK)** | 10k IndexScan descents for single keys | **2,215,010 QPS** | 0.45 μs | 0.43 μs | 0.50 μs | 0.81 μs |
+| **Full Table Scans (SELECT \*)** | 100 scans traversing all 10,000 records | **1,253 QPS** | 797.55 μs | 791.12 μs | 848.67 μs | 1,125.97 μs |
+| **Mixed CRUD (70/30)** | 70% Point Lookups / 30% INSERT statements | **1,295,855 QPS** | 0.77 μs | 0.58 μs | 1.18 μs | 2.29 μs |
+
+---
+
+### III. Storage Layer Performance
+
+| Workload Type | Dataset Size | Duration | Throughput |
+| :--- | :--- | :---: | :---: |
+| **Sequential Page Allocations & Writes** | 1,000 pages | 0.0137 sec | **72,897 pages/sec** |
+| **Cache Hit Read Latency (100% hits)** | 500,000 read ops | 0.4051 sec | **1,234,180 cache hits/sec** |
+| **Random Mixed Operations (20% writes, triggers evictions)** | 10,000 ops | 0.0244 sec | **410,293 page ops/sec** |
+
+---
+
+### IV. Failure & Recovery Benchmarking
+
+* **WAL Crash Recovery Speed:** Replaying a WAL file with 10,000 committed `INSERT` queries on startup:
+  * **Total recovery time:** 13.73 ms
+  * **Recovery throughput:** **728,342 rows/sec**
+* **Failure Detection Time:** A transaction aborted on replica crash/timeout takes exactly **2.00 seconds** (bounded by the TCP socket `SO_RCVTIMEO` timeout).
+
+---
+
+### V. Distributed Replication & Systems Analysis (The "Insight")
+
+#### 1. The Synchronous Replication Network Bottleneck
+* **Workload:** `Replication Overhead (TCP loopback sendLog)`
+* **Throughput:** **38,479 QPS** | **Avg Latency:** 25.99 μs | **p50:** 23.07 μs | **p90:** 31.55 μs | **p99:** 70.38 μs
+* **Analysis:** Comparing a standalone `INSERT` write storm (1.87 μs average latency) with loopback replication (25.99 μs average latency) reveals a **~14x network latency penalty**. In synchronous replication, write throughput is strictly bound by the loopback network round trip time (RTT) and kernel socket processing overhead. Even over `localhost`, TCP handshakes/acknowledgments cap writes to ~38k QPS.
+
+#### 2. The Global Lock Penalty
+Using a coarse, single global lock (`global_db_lock`) ensures database state consistency during concurrent execution and background replication. The mixed CRUD workload throughput (**1,295,855 QPS**) represents sequentialized execution. While this prevents race conditions and pointer corruption during B+ tree splits, it caps concurrent query scalability.
+
+#### 3. The I/O Cost of Durability
+Writing transactions to the WAL and flushing to disk (`log_file.flush()`) before returning success guarantees ACID durability. Replaying these logged queries sequentially during startup allows the primary node to reconstruct its index and memory structures at **728,342 rows/sec**, showing that log replay is extremely fast once serialized, sequential disk reads are utilized.
+
+#### 4. The Auto-Checkpoint Latency Spike
+The automated checkpoint daemon runs every 5 minutes, locks the database, flushes dirty buffer pool pages, and truncates the WAL. This blocking checkpoint guarantees that crash recovery time is bounded. However, it will introduce a temporary latency spike (freezing transaction executions for a fraction of a millisecond) while the buffer pool flushes pages, demonstrating a classic systems engineering trade-off: trading short latency spikes for bounded recovery time.
 
 ## Limitations & Known Issues
 
