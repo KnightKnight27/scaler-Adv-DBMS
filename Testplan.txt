@@ -1,0 +1,32 @@
+Test Plan
+
+1. Compile and run the program:
+
+   ```
+   g++ main.cpp -o main && ./main
+   ```
+
+2. Choose minimum degree:
+
+   ```
+   t = 3
+   ```
+
+3. Insert the following keys:
+
+   ```
+   10, 20, 5, 6, 12, 30, 7, 17
+   ```
+
+4. Search for:
+
+   * `12` → should be found.
+   * `99` → should not be found.
+
+5. Display the inorder traversal and verify that keys appear in sorted order:
+
+   ```
+   5 6 7 10 12 17 20 30
+   ```
+
+6. Insert additional keys and verify that no node exceeds `2t - 1` keys (for `t = 3`, maximum 5 keys per node).
