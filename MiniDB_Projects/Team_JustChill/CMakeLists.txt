@@ -61,6 +61,15 @@ if(MINGW)
 endif()
 add_test(NAME track3_test COMMAND track3_test)
 
+# Track 1 & 2 unit tests
+add_executable(track1_2_test tests/track1_2_test.cpp)
+target_link_libraries(track1_2_test PRIVATE storage query_engine Threads::Threads)
+if(MINGW)
+    target_link_options(track1_2_test PRIVATE -static -static-libgcc -static-libstdc++)
+endif()
+add_test(NAME track1_2_test COMMAND track1_2_test)
+
+
 # Main executable
 add_executable(minidb src/main.cpp)
 target_link_libraries(minidb PRIVATE storage query_engine Threads::Threads)
