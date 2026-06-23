@@ -1,10 +1,13 @@
 # MySQL InnoDB Storage Engine: Architecture and Design Analysis
 
+**Author:** Bhavya Jain  
+**Roll Number:** 23bcs10088
+
 ## Problem Background
 
-The MySQL database server historically supported multiple storage engines behind a common SQL layer, a distinctive architectural choice. Before version 5.5, the default engine was MyISAM — fast for read-heavy workloads but lacking transaction support, row-level locking, and crash recovery. The InnoDB engine, originally developed by Innobase Oy (later acquired by Oracle), addressed these limitations by introducing a full ACID-compliant storage layer with Oracle-style architectural patterns.
+MySQL's power stems largely from its pluggable storage engine architecture, a design that sets it apart from many other RDBMSs. In its earlier iterations, MyISAM was the default — while it was exceptionally fast for read-intensive tasks, it fell short in critical areas like transactional integrity, row-level concurrency, and robust crash recovery. To fill this gap, the InnoDB engine was developed (originally by Innobase Oy). It brought enterprise-grade features to the MySQL ecosystem, including full ACID compliance and sophisticated architectural patterns similar to those found in Oracle.
 
-InnoDB is now the default engine in MySQL and MariaDB. It implements a complete transaction-safe storage system with its own buffer pool, logging infrastructure, locking mechanisms, and MVCC implementation. Understanding InnoDB requires understanding not just what it does, but why its design differs from alternatives like PostgreSQL — particularly around clustered indexes, dual-log architecture, and row-level locking.
+Today, InnoDB is the standard engine for both MySQL and MariaDB. It isn't just a storage layer; it's a comprehensive system with its own memory management (buffer pool), logging (redo/undo), and concurrency control (MVCC). Understanding InnoDB is about more than list of features; it's about grasping how its specific design choices — like clustered indexing and a dual-log architecture — differentiate its operational behavior from systems like PostgreSQL.
 
 ## Architecture Overview
 
@@ -243,10 +246,10 @@ Insert throughput with 10 secondary indexes was measured with and without the ch
 
 ## Key Learnings
 
-**The primary key is a physical design choice, not merely a logical constraint.** In InnoDB, the primary key determines the physical ordering of rows. An auto-increment integer PK produces sequential inserts and dense page utilization. A random UUID PK fragments the clustered index and degrades write throughput. This has no parallel in heap-based systems like PostgreSQL.
+**In InnoDB, the primary key choice is a physical design decision.** Unlike heap-based systems where any column can serve as a logical key, InnoDB use the primary key to define the physical layout of the data on disk. Utilizing an auto-increment integer PK ensures that new data is appended sequentially, maximizing page density. Conversely, using random identifiers like UUIDs can lead to significant fragmentation and performance degradation during writes.
 
-**Undo-based MVCC is elegant but operationally demanding.** The ability to reconstruct consistent snapshots by following undo chains is architecturally clean. However, long-running transactions force undo records to be retained indefinitely, causing tablespace bloat and purge thread backlog. This is the InnoDB equivalent of PostgreSQL's VACUUM problem — different mechanism, same lesson about the cost of long-lived transactions.
+**The operational overhead of Undo-based MVCC is significant.** While the ability to reconstruct data snapshots via undo chains is architecturally elegant, it requires careful management. Long-lived transactions can prevent the purge thread from reclaiming space, leading to "undo bloat." This underscores a universal database lesson: transactions must be kept as short as possible to maintain system health.
 
-**Gap locks are the primary source of production deadlocks in InnoDB.** The default `REPEATABLE READ` isolation level prevents phantom reads through gap and next-key locking, but this creates lock contention that manifests as deadlocks under concurrent insert patterns. Switching to `READ COMMITTED` (which disables gap locks) resolves most deadlock issues in applications that do not require strict repeatable reads.
+**Lock contention often stems from Gap Locking.** While gap and next-key locks are essential for preventing phantoms in `REPEATABLE READ`, they are also the most frequent cause of deadlocks in high-concurrency environments. From my observations, switching to `READ COMMITTED` can often alleviate these issues if the application logic allows for slightly relaxed isolation.
 
-**The dual-log architecture is inherent to in-place updates in a clustered index.** The redo log handles forward recovery; the undo log handles rollback and MVCC. One cannot replace the other because they store different information (new values vs. old values) at different times. This complexity is not a design flaw — it is a necessary consequence of modifying rows in place within the clustered index.
+**Redo and Undo logs are complementary, not redundant.** The dual-log architecture is a direct consequence of InnoDB's in-place update model. The redo log ensures we can recover forward after a crash, while the undo log allows us to roll back or provide historical snapshots. This complexity is a necessary trade-off for the performance benefits of clustered index storage.

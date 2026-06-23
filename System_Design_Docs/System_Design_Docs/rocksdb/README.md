@@ -1,12 +1,15 @@
 # RocksDB Architecture: Log-Structured Merge Trees in Practice
 
+**Author:** Bhavya Jain  
+**Roll Number:** 23bcs10088
+
 ## Problem Background
 
-B-trees have been the dominant on-disk data structure for databases and file systems for decades. Their design optimizes for balanced read and write performance: data is kept sorted in a balanced tree, lookups traverse a logarithmic number of levels, and updates are performed in place. However, in-place updates carry a fundamental cost — even a small modification to a row can require reading an entire page from disk, modifying it, and writing the whole page back. On hard disk drives, this implies physical seeks. On solid-state drives, it means write amplification at the firmware level, where the drive's flash translation layer performs its own garbage collection on top of the database's page rewrites.
+For many years, B-trees were the undisputed champions of on-disk storage. Their balanced design offered a reliable middle ground for both reads and writes. However, as hardware evolved, the fundamental cost of in-place updates became more apparent. Modifying even a small piece of data in a B-tree often requires a "read-modify-write" cycle of an entire page. On modern SSDs, this doesn't just mean latency; it translates to write amplification that can significantly shorten the lifespan of the underlying flash memory.
 
-Log-Structured Merge (LSM) trees invert this assumption. Instead of modifying data in place, LSM trees treat all writes as sequential appends to an in-memory structure that is periodically flushed to disk as immutable sorted files. Organization — merging, deduplication, and space reclamation — is deferred to a background process called compaction. The result is write throughput that substantially exceeds what B-trees can achieve, at the cost of higher read amplification and the operational complexity of managing compaction.
+Log-Structured Merge (LSM) trees offer a radical alternative. Instead of in-place updates, LSM trees treat every write as a sequential append to an in-memory buffer. These buffers are eventually flushed to disk as immutable files. The heavy lifting — merging data and reclaiming space — is deferred to a background process known as compaction. This shift in philosophy yields write speeds that far outstrip traditional B-trees, though it introduces new complexities in read management and compaction scheduling.
 
-RocksDB, originally developed at Facebook and now an Apache project, is the most widely deployed open-source LSM tree implementation. It is not a full database but an embedded key-value store library. It serves as the storage engine for several significant distributed systems, including MyRocks (a MySQL storage engine), TiKV (the storage layer of TiDB), and Apache Flink's state backend.
+RocksDB, a project matured at Facebook and now part of the Apache family, is the industry standard for LSM tree implementations. As an embedded key-value store, it powers some of the world's most critical data infrastructure, from MyRocks in MySQL to the state backends of Apache Flink.
 
 ## Architecture Overview
 
@@ -198,12 +201,12 @@ In each case, the workload is write-intensive, can tolerate moderate read amplif
 
 ## Key Learnings
 
-**LSM trees optimize for a fundamentally different assumption than B-trees.** B-trees assume read-write parity and optimize for balanced performance; LSM trees assume writes should be as cheap as possible and defer the cost to reads and compaction. Neither assumption is universally correct, which is why both data structures persist in production systems.
+**LSM trees represent a fundamental shift in storage assumptions.** While B-trees strive for a balance between reads and writes, LSM trees prioritize write efficiency above all else, deferring the "cleanup" cost. This makes them ideal for the write-heavy, append-only workloads that dominate modern web and telemetry data.
 
-**Compaction is the core engineering challenge of LSM-based storage.** The write path is straightforward. The read path is manageable with bloom filters. But compaction strategy — how aggressively to merge, which files to select, how to schedule the work — determines the system's write throughput, read latency, and space efficiency. Tuning an LSM database is primarily about tuning compaction.
+**The real engineering magic of an LSM tree lies in its compaction logic.** While the write path is elegantly simple, the background compaction process determines the system's overall health. Tuning an LSM-based engine like RocksDB is, at its heart, an exercise in finding the right balance for compaction frequency and strategy.
 
-**Bloom filters transform the economics of LSM reads.** Without them, the read path would be prohibitively expensive for datasets spanning dozens of levels and hundreds of files. Bloom filters are a compact, probabilistic data structure that converts an otherwise intractable search problem into one that typically requires only a small number of disk accesses.
+**Bloom filters are the "secret sauce" that makes LSM reads viable.** Without these probabilistic structures, the cost of checking multiple levels for a missing key would be prohibitive. My analysis highlights how a tiny amount of memory spent on bloom filters can eliminate the vast majority of unnecessary disk I/O.
 
-**The MemTable–Immutable–Flush–Compaction pipeline is a reusable architectural pattern.** It appears across modern storage systems (LevelDB, RocksDB, Cassandra, HBase) because it cleanly separates the concerns of fast ingest (MemTable + WAL), durable persistence (SSTable flush), and background optimization (compaction).
+**The MemTable-to-SSTable pipeline is a robust architectural pattern for modern ingest.** By separating fast, in-memory updates from structured, on-disk persistence and background optimization, this pattern (seen in LevelDB and Cassandra as well) provides a scalable blueprint for high-frequency data handling.
 
-**LSM trees are not universally superior to B-trees — they are superior for specific workload profiles.** Write-heavy workloads with tolerance for moderate read amplification, particularly those with temporal locality (recent data is read more frequently), benefit most from the LSM approach. Read-heavy workloads with strict latency requirements may still be better served by B-tree-based engines.
+**LSM trees aren't a "silver bullet," but they are a powerful tool for specific niches.** They excel in scenarios with high write velocity and temporal locality (where recent data is most relevant). For read-heavy apps with strict latency bounds, the predictable performance of a B-tree might still be preferable. Understanding these trade-offs is the mark of a true storage engineer.

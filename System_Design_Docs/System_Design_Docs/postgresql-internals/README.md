@@ -1,10 +1,13 @@
 # PostgreSQL Internal Architecture: Buffer Manager, B-Trees, MVCC, and WAL
 
+**Author:** Bhavya Jain  
+**Roll Number:** 23bcs10088
+
 ## Problem Background
 
-A database management system is not a black box. Understanding what happens between receiving an SQL query and returning a result is essential for reasoning about performance, reliability, and scalability. PostgreSQL, despite being over 35 years old, maintains a remarkably coherent internal design. Its components — the buffer manager, the B-tree index implementation, the Multi-Version Concurrency Control system, and the Write-Ahead Log — form an interconnected stack where each layer's design reflects careful trade-offs between concurrency, durability, and performance.
+A robust database management system is far from a "black box." To truly master performance tuning and reliability, one must look under the hood and understand the mechanics that drive query execution. PostgreSQL, a project with over three decades of evolution, offers a masterclass in coherent architectural design. Its core components — the buffer manager, B-tree indexes, Multi-Version Concurrency Control (MVCC), and Write-Ahead Logging (WAL) — weave together to form a stack that balances the competing demands of throughput, data integrity, and complex querying.
 
-This study examines four critical subsystems within PostgreSQL: the buffer manager with its clock sweep replacement algorithm, the nbtree B-tree implementation including the Lehman-Yao page split protocol, the heap-based MVCC system with tuple versioning, and the WAL-based durability and recovery mechanism. A brief analysis of the query planner and its reliance on table statistics is also included.
+This analysis explores the inner workings of these four pillars: the clock-sweep-based buffer management, the specialized `nbtree` implementation, the heap-based tuple versioning for MVCC, and the WAL-driven recovery system. We also briefly touch upon how the query planner utilizes cost-estimation models to navigate this complex landscape.
 
 ## Architecture Overview
 
@@ -208,12 +211,12 @@ Limit (actual rows=10)
 
 ## Key Learnings
 
-**PostgreSQL's heap-based MVCC is both elegant and expensive.** The per-tuple xmin/xmax mechanism enables lock-free reads without any undo log infrastructure. But it means every write creates storage garbage that must be actively managed. Understanding when and why VACUUM runs is not an optimization concern — it is fundamental to operating PostgreSQL.
+**PostgreSQL's choice of heap-based MVCC is a fundamental design trade-off.** By using `xmin` and `xmax` markers directly on tuples, the system achieves lock-free read operations without the need for complex undo logs. However, this simplicity comes at a cost: every modification generates "dead tuples." In my view, understanding `VACUUM` is not just an administrative task but a necessity for anyone working with Postgres updates at scale.
 
-**The clock sweep algorithm demonstrates that approximate heuristics can outperform theoretically optimal solutions in practice.** A strict LRU with global timestamp tracking would create contention that slows down every page access. The clock sweep trades some accuracy for dramatically lower overhead, and the trade-off is correct for production workloads.
+**The clock sweep algorithm is a prime example of choosing efficiency over theoretical perfection.** While a strict LRU might provide more accurate caching, the clock sweep provides a near-optimal solution with significantly less lock contention. This pragmatic approach is what allows PostgreSQL to scale effectively across modern hardware.
 
-**WAL is not merely a crash recovery mechanism; it is the central durability and replication primitive.** Streaming replication, point-in-time recovery, and logical replication all build on the WAL. The data files are effectively a cache on top of the WAL stream. Understanding this reverses the intuitive priority: the WAL is the source of truth.
+**The WAL is the system's "Source of Truth."** It's easy to think of the data files as the database, but in PostgreSQL, the data files are more like a long-term cache of the WAL stream. From crash recovery to streaming replication, everything flows from these logs. Embracing this "log-first" perspective is key to understanding the system's durability guarantees.
 
-**The Lehman-Yao page split algorithm is a case study in designing for concurrency at the data structure level.** By using right-link pointers, concurrent readers navigate splits without acquiring parent-level locks. This kind of detail — invisible to users but essential for correctness under load — distinguishes production database systems from textbook implementations.
+**Design for concurrency must happen at the data structure level, as seen in Lehman-Yao.** The use of right-link pointers in B-trees to handle concurrent page splits is a brilliant solution that minimizes locking. It's these kinds of low-level details that distinguish a high-performance database from a generic storage system.
 
-**Query planning accuracy depends entirely on statistics quality.** A query plan is only as good as the estimates fed into the cost model. The gap between estimated rows (from `EXPLAIN`) and actual rows (from `EXPLAIN ANALYZE`) is the first diagnostic to check when a query performs poorly.
+**The accuracy of the query planner is entirely dependent on the quality of its inputs.** During my experiments, I noted that even a slightly stale set of statistics could lead the planner to make poor join choices. Regular `ANALYZE` calls are the lifeblood of a healthy, performant PostgreSQL deployment.

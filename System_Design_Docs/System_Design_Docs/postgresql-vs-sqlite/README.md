@@ -1,14 +1,17 @@
 # PostgreSQL vs SQLite: A Comparative Architecture Study
 
+**Author:** Bhavya Jain  
+**Roll Number:** 23bcs10088
+
 ## Problem Background
 
-Databases are not interchangeable. The architectural decisions made by a database system ripple through every aspect of its deployment — from how you configure it to how it handles concurrent access to what happens when the power fails. PostgreSQL and SQLite represent two fundamentally different answers to the question "how should a relational database be built?" Despite sharing SQL as a query language and B-trees as an indexing structure, their underlying architectures diverge at almost every level.
+In the world of database engineering, there is no such thing as a "perfect" database — only the right tool for a specific job. The architectural path chosen by a system dictates everything from its concurrency model to its deployment footprint. PostgreSQL and SQLite offer two polar-opposite philosophies in relational database design. While they both speak SQL and utilize B-tree variants for storage, their internal structures diverge significantly to meet very different operational goals.
 
-PostgreSQL was developed at UC Berkeley in the 1980s as the POSTGRES project under Michael Stonebraker's direction. It was designed from the start as a research-grade database server capable of handling complex queries, multiple concurrent users, and large datasets — a client-server relational database for data centers before data centers had that name.
+PostgreSQL, tracing its roots to the POSTGRES project at UC Berkeley, was built by Michael Stonebraker as a high-end, multi-user server. It was designed to live in data centers, handling complex workloads and large-scale concurrent access.
 
-SQLite was created by Richard Hipp in 2000 under a contract for the US Navy. The target environment was embedded systems aboard guided-missile destroyers. The requirements were unusual: zero configuration, zero administration, resilience to sudden power loss, and operation on hardware where a full database server process would be impractical. SQLite's answer was to not be a server at all — it is a library, a file format with an SQL parser attached, designed to be linked into the host application.
+SQLite, by contrast, was born out of a practical need for embedded systems. Richard Hipp created it in 2000 for the US Navy, with requirements that favored portability, zero-configuration, and resilience over multi-user scalability. SQLite isn't a server; it's a library that lives within your application.
 
-This study examines the architectural choices made by both systems, explains why those choices differ, and analyzes the resulting trade-offs.
+This study explores these foundational differences, analyzing the trade-offs that define when to reach for a client-server powerhouse and when an embedded engine is the superior choice.
 
 ## Architecture Overview
 
@@ -206,12 +209,12 @@ The fork-per-connection cost makes connection pooling mandatory for PostgreSQL d
 
 ## Key Learnings
 
-**The client-server versus embedded architectural choice is the single most consequential decision in database design.** It determines the process model, the concurrency mechanism, the deployment paradigm, and the administration burden. PostgreSQL and SQLite share SQL syntax and B-tree indexing, but the structural constraint shapes everything else.
+**The fundamental choice between client-server and embedded architectures shapes every other design decision.** It influences the process model, how concurrency is handled, and the overall administrative burden. While Postgres and SQLite share a common language (SQL) and primary data structure (B-trees), they are built for entirely different operational scales.
 
-**PostgreSQL's MVCC model represents a deliberate trade-off: lock-free reads at the cost of storage bloat and mandatory garbage collection.** Other databases store old versions in separate undo segments. PostgreSQL chose to retain them in the heap, simplifying read logic but creating a maintenance burden (VACUUM) that must be actively managed.
+**PostgreSQL's MVCC comes with a maintenance responsibility.** The lock-free read architecture is brilliant for high-concurrency web apps, but it necessitates a strategy for handling dead tuples (bloat). In my analysis, `VACUUM` isn't just an option; it's a core part of the architectural contract you sign when choosing Postgres.
 
-**SQLite's WAL mode is a more significant improvement than commonly recognized.** It provides MVCC-like snapshot isolation for readers during writes, making the database viable for many concurrent-read workloads that would be impossible under the default rollback journal.
+**SQLite's WAL mode significantly expands its utility.** While it doesn't solve the single-writer bottleneck, it brings modern snapshot isolation to the embedded world. It bridges the gap between a "simple" file format and a "real" database engine, making it suitable for much more than just simple config file storage.
 
-**Page size reflects deployment assumptions.** PostgreSQL's 8KB pages match server OS page sizes and RAID configurations. SQLite's 4KB pages minimize wasted space and suit the broadest range of hardware — from microcontrollers to desktop systems.
+**Design for the target platform is evident in page size choices.** PostgreSQL's 8KB pages are optimized for server-grade OSs and hardware configurations, while SQLite's 4KB pages prioritize efficiency and portability across a vast array of devices, from phones to desktops.
 
-**The practical choice between these databases is primarily about operational model and concurrency requirements, not about raw single-query performance.** File sizes and lookup speeds differ less than their architectures suggest. The deciding factors are deployment complexity tolerance, concurrent access patterns, and administration resources.
+**Ultimately, the choice is more about the operational model than raw performance.** For many workloads, the performance differences are negligible compared to the difference in management complexity. Choosing between them is about deciding where your engineering effort should go: into database administration or application logic.
