@@ -1,0 +1,11 @@
+# Build artifacts
+/minidb
+/minidb.exe
+*.exe
+
+# Runtime data directories (heap files, catalog, WAL)
+/data/
+/minidb-data/
+*.tbl
+wal.log
+catalog.json
