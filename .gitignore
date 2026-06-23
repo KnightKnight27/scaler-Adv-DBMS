@@ -1,1 +1,25 @@
+# System files
 .DS_Store
+.cache/
+.vscode/
+
+# Build artifacts and binaries
+build/
+bin/
+out/
+*.o
+*.o.d
+*.out
+compile_commands.json
+
+# Executables
+lab5/rbtree
+lab6/btree
+minidb
+**/minidb
+
+# Generated Database files and logs
+*.db
+*.log
+catalog.txt
+**/catalog.txt
