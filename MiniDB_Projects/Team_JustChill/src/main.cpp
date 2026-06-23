@@ -18,6 +18,9 @@ std::unique_ptr<LogManager> wal_manager;
 std::unique_ptr<ReplicationNode> rep_node;
 bool is_primary = true;
 
+std::mutex global_db_lock;
+std::mutex console_mutex;
+
 // Helper to split string
 std::vector<std::string> split(const std::string& str, char delim) {
     std::vector<std::string> tokens;
@@ -103,10 +106,22 @@ void execute_sql_statement(const std::string& sql) {
     }
 }
 
+// Safely prints from the background thread without breaking the CLI prompt
+void printFromReplica(const std::string& msg) {
+    std::lock_guard<std::mutex> lock(console_mutex);
+    std::cout << "\n" << msg << "\nminidb-replica> " << std::flush;
+}
+
 // Replica node callback wrapper
 void replica_execution_callback(const std::string& sql) {
-    std::cout << "\n[REPLICA] Received replication stream event: " << sql << "\n";
-    execute_sql_statement(sql);
+    printFromReplica("[REPLICA] Received replication stream event: " + sql);
+    std::lock_guard<std::mutex> db_lock(global_db_lock);
+    try {
+        execute_sql_statement(sql);
+    } catch (const std::exception& e) {
+        printFromReplica("[REPLICA ERROR] execution failed: " + std::string(e.what()));
+        throw;
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -164,6 +179,7 @@ int main(int argc, char* argv[]) {
 
             // 3. Execute locally (Commit)
             try {
+                std::lock_guard<std::mutex> db_lock(global_db_lock);
                 execute_sql_statement(line);
             } catch (const std::exception& e) {
                 std::cerr << "[ERROR] Execution error: " << e.what() << "\n";
@@ -175,7 +191,56 @@ int main(int argc, char* argv[]) {
         rep_node = std::make_unique<ReplicationNode>(ip, port);
         std::cout << "Database started in REPLICA mode. Listening on port " << port << "...\n";
         
-        rep_node->startReplicaServer(replica_execution_callback);
+        // 1. Spawn background thread for replica TCP listener
+        std::thread background_listener([]() {
+            try {
+                rep_node->startReplicaServer(replica_execution_callback);
+            } catch (const std::exception& e) {
+                // Clean exit when stopReplicaServer is called
+            }
+        });
+
+        // 2. Interactive CLI loop on the main thread
+        std::string input_sql;
+        while (true) {
+            {
+                std::lock_guard<std::mutex> lock(console_mutex);
+                std::cout << "minidb-replica> " << std::flush;
+            }
+            if (!std::getline(std::cin, input_sql)) break;
+            input_sql = trim(input_sql);
+            if (input_sql == "exit" || input_sql == "quit") {
+                break;
+            }
+            if (input_sql.empty()) continue;
+
+            std::string upper_query = input_sql;
+            std::transform(upper_query.begin(), upper_query.end(), upper_query.begin(), ::toupper);
+
+            // CLI Bouncer for Read-Only replica status
+            if (upper_query.rfind("INSERT", 0) == 0 || upper_query.rfind("DELETE", 0) == 0) {
+                std::lock_guard<std::mutex> lock(console_mutex);
+                std::cout << "[ERROR] Cannot execute write query on a read-only replica.\n";
+                continue;
+            }
+
+            // Execute read-only SELECT query safely
+            {
+                std::lock_guard<std::mutex> db_lock(global_db_lock);
+                try {
+                    execute_sql_statement(input_sql);
+                } catch (const std::exception& e) {
+                    std::lock_guard<std::mutex> lock(console_mutex);
+                    std::cout << "[ERROR] Execution error: " << e.what() << "\n";
+                }
+            }
+        }
+
+        // 3. Stop server and join background thread
+        rep_node->stopReplicaServer();
+        if (background_listener.joinable()) {
+            background_listener.join();
+        }
     } 
     else {
         std::cerr << "Invalid mode: " << mode << ". Use 'primary' or 'replica'.\n";

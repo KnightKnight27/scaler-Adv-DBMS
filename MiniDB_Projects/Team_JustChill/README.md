@@ -169,8 +169,8 @@ Observations:
 
 ## Status & roadmap
 
-- ✅ **Track 2 (storage)** and **Track 3 (index, executor, 2PL)** implemented,
-  built under one CMake project, and tested.
-- 🔜 Bind the executor's `Table` onto `BufferPool`/`HeapFile` (page-backed rows).
-- 🔜 **Track 1** parser/optimizer to feed the executor from SQL text.
-- 🔜 **WAL** recovery and **Track D** primary/replica replication.
+- ✅ **Track 2 (storage)** and **Track 3 (index, executor, 2PL)** implemented, built under one CMake project, and tested.
+- ✅ **Track 1** parser/optimizer (simplified inline parsing for INSERT, DELETE, and SELECT in `main.cpp`).
+- ✅ **WAL** logging and **Track D** primary/replica synchronous replication.
+- ✅ **Phase 3 Integration** complete (two-terminal primary/replica live verification and replication timeout handling).
+- 🔜 Bind the executor's Table onto BufferPool/HeapFile (page-backed rows).
