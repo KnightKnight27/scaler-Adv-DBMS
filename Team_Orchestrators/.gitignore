@@ -1,0 +1,18 @@
+/build/
+*.data
+*.catalog
+*.wal
+*.exe
+*.o
+*.obj
+.cache/
+compile_commands.json
+
+# Build/scratch debris from earlier attempts
+compile*.txt
+compile.err
+compile.out
+foo.cpp
+cmdtest.txt
+test.txt
+tempdb.*
