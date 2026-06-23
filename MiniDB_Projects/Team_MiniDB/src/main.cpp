@@ -1,6 +1,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <mutex>
@@ -9,6 +10,7 @@
 #include <thread>
 
 #include "catalog/catalog.h"
+#include "catalog/record.h"
 #include "common/config.h"
 #include "common/exception.h"
 #include "engine/rowstore_engine.h"
@@ -16,6 +18,8 @@
 #include "parser/ast.h"
 #include "parser/lexer.h"
 #include "parser/parser.h"
+#include "recovery/log_manager.h"
+#include "recovery/recovery_manager.h"
 #include "storage/buffer_pool.h"
 #include "storage/disk_manager.h"
 #include "storage/heap_file.h"
@@ -27,20 +31,26 @@ using namespace minidb;
 using namespace std::chrono_literals;
 
 // Bundles the full engine stack for a database file: disk -> buffer pool ->
-// catalog -> row-store engine -> executor. Member order is the init order.
+// catalog -> row-store engine -> WAL -> executor. On open it runs crash recovery
+// (replays the committed WAL); checkpoint() makes the data file durable and
+// clears the WAL.
 struct Database {
     DiskManager    disk;
     BufferPool     pool;
     Catalog        cat;
     RowStoreEngine engine;
+    LogManager     log;
     Executor       exec;
     explicit Database(const std::string& path)
         : disk(path),
           pool(DEFAULT_BUFFER_POOL_FRAMES, &disk),
           cat(&pool, path + ".cat"),
           engine(&cat, &pool, &disk),
-          exec(&cat, &engine) {}
-    void flush() { engine.flush(); }
+          log(path + ".wal"),
+          exec(&cat, &engine, &log) {
+        RecoveryManager::recover(&engine, log);  // replay committed WAL after a crash
+    }
+    void checkpoint() { engine.flush(); log.truncate(); }  // durable data + clear WAL
 };
 
 // M1 demo: storage stack + buffer-pool stats.
@@ -151,14 +161,14 @@ static std::string read_file(const std::string& path) {
 static int run_file(const std::string& db, const std::string& file) {
     Database d(db);
     d.exec.execute_script(read_file(file));
-    d.flush();
+    d.checkpoint();
     return 0;
 }
 
 static int exec_sql(const std::string& db, const std::string& sql) {
     Database d(db);
     d.exec.execute_script(sql);
-    d.flush();
+    d.checkpoint();
     return 0;
 }
 
@@ -168,9 +178,62 @@ static int repl(const std::string& db) {
     std::string line;
     while (std::cout << "minidb> " && std::getline(std::cin, line)) {
         if (line.empty()) continue;
-        try { d.exec.execute_script(line); d.flush(); }
+        try { d.exec.execute_script(line); d.checkpoint(); }
         catch (const std::exception& e) { std::cerr << "error: " << e.what() << "\n"; }
     }
+    return 0;
+}
+
+// Run SQL, then exit WITHOUT checkpointing -> committed work is durable in the
+// WAL but the data file is not flushed. Simulates a crash; the next open
+// recovers. Uses _Exit to skip all destructors (faithful to kill -9).
+static int crash_run(const std::string& db, const std::string& sql) {
+    Database d(db);
+    d.exec.execute_script(sql);
+    std::cout << "(committed to WAL; data NOT checkpointed) -- simulating crash\n";
+    std::cout.flush();
+    std::_Exit(0);
+}
+
+// Open a database (which recovers from the WAL), report its tables, checkpoint.
+static int recover_open(const std::string& db) {
+    Database d(db);
+    std::cout << "recovered database " << db << "\n";
+    for (const auto& name : d.cat.table_names()) {
+        EngineStats st = d.engine.stats(name);
+        std::cout << "  table " << name << ": " << st.live_rows << " row(s)\n";
+    }
+    d.checkpoint();
+    return 0;
+}
+
+// Self-contained recovery demo: commit some rows + leave one uncommitted, crash
+// (no checkpoint), reopen, and show committed survived while uncommitted rolled back.
+static int recover_demo() {
+    const std::string db = "minidb_recover_demo.db";
+    std::remove(db.c_str()); std::remove((db + ".cat").c_str()); std::remove((db + ".wal").c_str());
+    std::cout << "[recovery demo]\n";
+    {
+        Database d(db);
+        d.exec.execute_script("CREATE TABLE accounts (id INT PRIMARY KEY, balance INT);");
+        std::cout << "commit INSERT (1,100),(2,200)  [WAL flushed; data NOT checkpointed]\n";
+        d.exec.execute_script("INSERT INTO accounts VALUES (1,100),(2,200);");
+        // An uncommitted write: log a PUT with no matching COMMIT, also apply in memory.
+        TableInfo* t = d.cat.get_table("accounts");
+        std::string bytes = Record::serialize(t->schema, {std::int64_t{3}, std::int64_t{300}});
+        d.engine.put("accounts", 3, bytes);
+        d.log.append(LogRecord{LogType::PUT, 999, "accounts", 3, bytes});
+        d.log.flush();
+        std::cout << "wrote UNCOMMITTED row id=3 (PUT logged, no COMMIT)\n";
+        std::cout << "*** crash (no checkpoint) ***\n";
+    }
+    {
+        Database d(db);  // constructor runs recovery
+        std::cout << "after recovery (committed rows survive, uncommitted rolled back):\n";
+        d.exec.execute_script("SELECT id, balance FROM accounts;");
+        d.checkpoint();
+    }
+    std::remove(db.c_str()); std::remove((db + ".cat").c_str()); std::remove((db + ".wal").c_str());
     return 0;
 }
 
@@ -195,6 +258,15 @@ int main(int argc, char** argv) {
             return repl(argv[2]);
         }
         if (cmd == "concurrency") return concurrency_demo();
+        if (cmd == "crash") {
+            if (argc < 4) { std::cerr << "usage: minidb crash <db> \"<sql>\"\n"; return 2; }
+            return crash_run(argv[2], argv[3]);
+        }
+        if (cmd == "recover") {
+            if (argc < 3) { std::cerr << "usage: minidb recover <db>\n"; return 2; }
+            return recover_open(argv[2]);
+        }
+        if (cmd == "recover-demo") return recover_demo();
         std::cout << "MiniDB\n"
                   << "usage:\n"
                   << "  minidb run <db> <file.sql>   execute a SQL script\n"
@@ -202,6 +274,9 @@ int main(int argc, char** argv) {
                   << "  minidb repl <db>             interactive SQL shell\n"
                   << "  minidb parse \"<sql>\"          parse one statement (AST summary)\n"
                   << "  minidb concurrency           2PL concurrency + deadlock demo\n"
+                  << "  minidb crash <db> \"<sql>\"     run SQL then crash (no checkpoint)\n"
+                  << "  minidb recover <db>          open + recover from WAL, report tables\n"
+                  << "  minidb recover-demo          self-contained crash/recovery demo\n"
                   << "  minidb selftest [dbfile]     storage-layer self test\n";
         return 0;
     } catch (const std::exception& e) {

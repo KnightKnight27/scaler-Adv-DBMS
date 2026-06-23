@@ -58,6 +58,9 @@ void Executor::exec_create(CreateTableStmt& s) {
         throw DBException("CREATE TABLE " + s.table + ": primary key must be INT");
     Schema schema(s.columns);
     engine_->create_table(s.table, schema, s.primary_key);
+    // Checkpoint DDL immediately: flush the new (empty) structures to disk and
+    // clear the WAL, so recovery always replays row ops onto a consistent file.
+    if (log_) { engine_->flush(); log_->truncate(); }
     std::cout << "created table " << s.table << " (" << s.columns.size() << " columns)\n";
 }
 
@@ -66,6 +69,7 @@ void Executor::exec_insert(InsertStmt& s) {
     if (!t) throw DBException("INSERT: no such table: " + s.table);
     const Schema& schema = t->schema;
 
+    TxId tx = next_tx_++;
     int inserted = 0, dups = 0;
     for (auto& row : s.rows) {
         if (row.size() != schema.num_columns())
@@ -74,7 +78,16 @@ void Executor::exec_insert(InsertStmt& s) {
             row[i] = coerce(row[i], schema.column(static_cast<int>(i)).type);
         std::int64_t key = std::get<std::int64_t>(row[static_cast<std::size_t>(t->pk_col)]);
         std::string bytes = Record::serialize(schema, row);
-        if (engine_->put(s.table, key, bytes)) ++inserted; else ++dups;
+        if (engine_->put(s.table, key, bytes)) {
+            ++inserted;
+            if (log_) log_->append(LogRecord{LogType::PUT, tx, s.table, key, bytes});  // log-before-data
+        } else {
+            ++dups;
+        }
+    }
+    if (log_ && inserted > 0) {  // force-log-at-commit
+        log_->append(LogRecord{LogType::COMMIT, tx, "", 0, ""});
+        log_->flush();
     }
     std::cout << "inserted " << inserted << " row(s)";
     if (dups) std::cout << " (" << dups << " duplicate key(s) skipped)";
@@ -97,9 +110,18 @@ void Executor::exec_delete(DeleteStmt& s) {
     }
     scan.close();
 
+    TxId tx = next_tx_++;
     int deleted = 0;
-    for (std::int64_t k : keys)
-        if (engine_->erase(s.table, k)) ++deleted;
+    for (std::int64_t k : keys) {
+        if (engine_->erase(s.table, k)) {
+            ++deleted;
+            if (log_) log_->append(LogRecord{LogType::ERASE, tx, s.table, k, ""});
+        }
+    }
+    if (log_ && deleted > 0) {
+        log_->append(LogRecord{LogType::COMMIT, tx, "", 0, ""});
+        log_->flush();
+    }
     std::cout << "deleted " << deleted << " row(s)\n";
 }
 
