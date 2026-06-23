@@ -10,13 +10,21 @@
 
 namespace minidb {
 
+/**
+ * Manages database file layout, loading, persisting, and mapping pages on physical storage.
+ */
 class DiskManager {
 public:
     explicit DiskManager(const std::string& db_file);
     ~DiskManager();
 
+    // Pulls binary 4KB block from physical file into frame buffer
     void ReadPage(page_id_t page_id, char* page_data);
+    
+    // Writes binary 4KB block back to database disk file location
     void WritePage(page_id_t page_id, const char* page_data, lsn_t lsn = 0);
+    
+    // Extends database physical allocation offset footprint by a page
     page_id_t AllocatePage();
 
     lsn_t GetPageLSN(page_id_t page_id);

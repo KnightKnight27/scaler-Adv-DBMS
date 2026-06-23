@@ -14,17 +14,25 @@ struct TransactionTableEntry {
     enum class TxnStatus { RUNNING, COMMITTED, ABORTED } status;
 };
 
+/**
+ * Performs ARIES transactional crash recovery sequence: Analysis, Redo, and Undo.
+ */
 class RecoveryManager {
 public:
     RecoveryManager(DiskManager* disk_manager, BufferPoolManager* bpm, LogManager* log_manager)
         : disk_manager_(disk_manager), bpm_(bpm), log_manager_(log_manager) {}
     ~RecoveryManager() = default;
 
+    // Executes recovery protocol
     void RunRecovery();
 
-    // Exposed for testing
+    // Reconstructs transaction and dirty page table configurations
     void ExecuteAnalysisPhase(std::vector<txn_id_t>& active_txns, std::unordered_map<page_id_t, lsn_t>& dpt);
+    
+    // Re-applies logged updates matching DPT criteria
     void ExecuteRedoPhase(const std::unordered_map<page_id_t, lsn_t>& dpt);
+    
+    // Rolls back changes associated with aborted/loser transactions
     void ExecuteUndoPhase(std::vector<txn_id_t>& active_txns);
 
 private:

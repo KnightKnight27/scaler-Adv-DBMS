@@ -11,14 +11,22 @@
 
 namespace minidb {
 
+/**
+ * Replica-side replication listener processing incoming socket connections and log packet streams.
+ */
 class ReplicationReceiver {
 public:
     ReplicationReceiver(int listen_port, BufferPoolManager* bpm);
     ~ReplicationReceiver();
     
-    void StartListening(); // Spawns background network processing loop
+    // Spawns background network processing loop
+    void StartListening(); 
+    
+    // Terminates connection listeners
     void StopListening();
-    void PromoteToPrimary(); // Toggles role to accept client writes
+    
+    // Toggles role to accept client writes
+    void PromoteToPrimary(); 
 
     // Getter helpers for testing
     NodeRole GetRole() const { return role_; }

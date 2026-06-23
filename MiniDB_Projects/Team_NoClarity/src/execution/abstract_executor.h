@@ -14,6 +14,9 @@
 
 namespace minidb {
 
+/**
+ * Represents a single logical or physical column, holding its identifier name and associated type.
+ */
 class Column {
 public:
     Column(std::string name, std::string type) : name_(std::move(name)), type_(std::move(type)) {}
@@ -24,6 +27,9 @@ private:
     std::string type_;
 };
 
+/**
+ * Tracks schema composition details for execution streams, indexing column structures.
+ */
 class Schema {
 public:
     Schema() = default;
@@ -39,6 +45,9 @@ private:
     std::vector<Column> cols_;
 };
 
+/**
+ * Memory wrapper representing a single query execution unit row of database data.
+ */
 class Tuple {
 public:
     Tuple() = default;
@@ -64,6 +73,9 @@ private:
     Row row_;
 };
 
+/**
+ * Evaluates filter predicates, column references, and logical expression equality comparisons.
+ */
 class Expression {
 public:
     enum class Type { CONSTANT, COLUMN_REF, EQUALS };
@@ -97,6 +109,9 @@ private:
     std::shared_ptr<Expression> right_;
 };
 
+/**
+ * Base executor defining Volcano iterator execution API.
+ */
 class AbstractExecutor {
 public:
     virtual ~AbstractExecutor() = default;

@@ -6,6 +6,9 @@
 
 namespace minidb {
 
+/**
+ * Structural leaf node pages inside B+ Tree index mapping keys to data tuple record identifiers.
+ */
 template <typename KeyType, typename ValueType, typename KeyComparator>
 class BPlusTreeLeafPage : public BPlusTreePage {
 public:
@@ -26,6 +29,7 @@ public:
     inline ValueType ValueAt(int index) const { return array_[index].second; }
     inline void SetValueAt(int index, const ValueType& value) { array_[index].second = value; }
 
+    // Evaluates key presence inside leaf node structures
     bool Lookup(const KeyType& key, ValueType& result, const KeyComparator& comparator) const {
         int idx = KeyIndex(key, comparator);
         if (idx < GetSize() && !comparator(key, array_[idx].first) && !comparator(array_[idx].first, key)) {
@@ -35,6 +39,7 @@ public:
         return false;
     }
 
+    // Resolves key slot offset locations inside leaf key array
     int KeyIndex(const KeyType& key, const KeyComparator& comparator) const {
         int low = 0, high = GetSize() - 1;
         while (low <= high) {

@@ -7,14 +7,24 @@
 
 namespace minidb {
 
+/**
+ * Clock / Second-Chance page replacement tracking policy for frame eviction candidate selection.
+ */
 class ClockReplacer {
 public:
     explicit ClockReplacer(size_t num_pages);
     ~ClockReplacer();
 
+    // Selects a frame victim to evict from buffer pool
     bool Victim(frame_id_t* frame_id);
+    
+    // Removes page frame from replacer consideration (pinned in memory)
     void Pin(frame_id_t frame_id);
+    
+    // Inserts or keeps page frame in replacer consideration (unpinned)
     void Unpin(frame_id_t frame_id);
+    
+    // Size of replacer candidates
     size_t Size();
 
 private:

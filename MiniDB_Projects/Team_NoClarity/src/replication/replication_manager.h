@@ -31,9 +31,13 @@ using socket_t = int;
 
 namespace minidb {
 
+// Enums representing the replication mode and the node's current cluster role
 enum class ReplicationMode { SYNCHRONOUS, ASYNCHRONOUS };
 enum class NodeRole { PRIMARY, REPLICA };
 
+/**
+ * Primary-side replication coordinator managing replication sockets and streaming WAL log packets.
+ */
 class ReplicationManager {
 public:
     ReplicationManager(const std::string& target_ip, int target_port, ReplicationMode mode);

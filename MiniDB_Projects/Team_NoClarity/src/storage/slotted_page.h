@@ -7,6 +7,9 @@
 
 namespace minidb {
 
+/**
+ * Utility functions mapping variable length tuples inside 4KB block bytes sequentially.
+ */
 class SlottedPage {
 public:
     struct Slot {
@@ -44,10 +47,16 @@ public:
     // Initialize an empty slotted page
     static void Init(char* page_data);
 
-    // API Requirements
+    // Appends variable length serialized record to data frames
     static bool InsertTuple(char* page_data, const std::string& tuple, RID* rid, page_id_t page_id);
+    
+    // Marks target record slot offset index with TOMBSTONE marker
     static bool DeleteTuple(char* page_data, uint32_t slot_index);
+    
+    // Deserializes tuple content matching specific index key
     static bool GetTuple(const char* page_data, uint32_t slot_index, std::string& tuple);
+    
+    // Reclaims fragmented deleted tuple spaces in-place
     static void CompactPage(char* page_data);
 };
 

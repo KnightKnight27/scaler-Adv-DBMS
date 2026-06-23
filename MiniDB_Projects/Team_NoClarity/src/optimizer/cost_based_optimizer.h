@@ -15,12 +15,18 @@ namespace minidb {
 using table_id_t = uint8_t;
 using JoinGroupBitmask = uint32_t;
 
+/**
+ * Metadata statistics containing page and tuple count statistics.
+ */
 struct TableStats {
     size_t page_count{0};
     size_t tuple_count{0};
     bool has_index{false};
 };
 
+/**
+ * System catalog containing table statistics for optimizer cost estimation.
+ */
 class SystemCatalog {
 public:
     void AddStats(table_id_t table, TableStats stats) {
@@ -39,10 +45,16 @@ private:
     std::unordered_map<table_id_t, TableStats> stats_;
 };
 
+/**
+ * High-level logical query containing participating table identifiers.
+ */
 struct LogicalQuerySpecification {
     std::vector<table_id_t> tables;
 };
 
+/**
+ * Node within physical execution plan representation, noting estimated costs.
+ */
 struct PhysicalPlanNode {
     enum class PlanType { SEQ_SCAN, INDEX_SCAN, NESTED_LOOP_JOIN, HASH_JOIN };
     
@@ -55,6 +67,9 @@ struct PhysicalPlanNode {
     table_id_t target_table; // populated if scan type
 };
 
+/**
+ * Cost-based optimizer calculating left-deep join order schedules using Selinger DP.
+ */
 class CostBasedOptimizer {
 public:
     explicit CostBasedOptimizer(const SystemCatalog* catalog) : catalog_(catalog) {}

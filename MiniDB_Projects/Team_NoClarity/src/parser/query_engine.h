@@ -17,7 +17,9 @@
 
 namespace minidb {
 
-// Comparator for B+ Tree keys (integer keys)
+/**
+ * Standard comparator evaluating ordering operations on integer values.
+ */
 struct IntComparator {
     bool operator()(const int& lhs, const int& rhs) const {
         return lhs < rhs;
@@ -26,6 +28,9 @@ struct IntComparator {
 
 using Value = std::variant<int, double, std::string>;
 
+/**
+ * Structure mapping columns to typed values, managing serialization structures.
+ */
 struct Row {
     std::unordered_map<std::string, Value> cols;
     
@@ -74,13 +79,18 @@ struct Row {
     }
 };
 
-// Represents a table mapping page_ids
+/**
+ * Maintains basic metadata mappings detailing active table pages and B+ Tree indexes.
+ */
 struct TableMetadata {
     std::string name;
     std::vector<page_id_t> pages;
     std::unordered_map<std::string, std::shared_ptr<BPlusTree<int, RID, IntComparator>>> indexes;
 };
 
+/**
+ * Catalog registering active table configurations and indexing structures.
+ */
 class Catalog {
 public:
     void AddTable(const std::string& name) {
@@ -116,7 +126,9 @@ private:
     std::unordered_map<std::string, std::shared_ptr<TableMetadata>> tables_;
 };
 
-// Abstract plan node
+/**
+ * PlanNode representing execution steps.
+ */
 class PlanNode {
 public:
     virtual ~PlanNode() = default;
@@ -124,7 +136,9 @@ public:
     virtual std::string GetPlanName() const = 0;
 };
 
-// Table Scan: scans all pages and slotted tuples
+/**
+ * Scan plan node scanning tables sequentially.
+ */
 class TableScanNode : public PlanNode {
 public:
     TableScanNode(std::string filter_col, int filter_val)
@@ -164,7 +178,9 @@ private:
     int filter_val_;
 };
 
-// Index Scan: queries the B+ Tree index, gets RIDs, and fetches specific tuples
+/**
+ * Plan node scanning entries via registered B+ Tree index structures.
+ */
 class IndexScanNode : public PlanNode {
 public:
     IndexScanNode(std::string col_name, int val, std::shared_ptr<BPlusTree<int, RID, IntComparator>> index)
@@ -198,7 +214,9 @@ private:
     std::shared_ptr<BPlusTree<int, RID, IntComparator>> index_;
 };
 
-// Optimizer: chooses plan based on index existence
+/**
+ * Heuristic query optimizer selecting between sequential scans and index query structures.
+ */
 class Optimizer {
 public:
     static std::shared_ptr<PlanNode> Optimize(const std::string& col_name, int filter_val, std::shared_ptr<TableMetadata> table) {

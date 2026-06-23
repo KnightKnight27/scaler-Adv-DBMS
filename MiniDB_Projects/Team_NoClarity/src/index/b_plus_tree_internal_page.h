@@ -6,6 +6,9 @@
 
 namespace minidb {
 
+/**
+ * Internal routing nodes inside B+ Tree index structures, linking boundary keys to subpages.
+ */
 template <typename KeyType, typename ValueType, typename KeyComparator>
 class BPlusTreeInternalPage : public BPlusTreePage {
 public:
@@ -22,6 +25,7 @@ public:
     inline ValueType ValueAt(int index) const { return array_[index].second; }
     inline void SetValueAt(int index, const ValueType& value) { array_[index].second = value; }
 
+    // Performs binary boundary key lookups to determine branch direction paths
     ValueType Lookup(const KeyType& key, const KeyComparator& comparator) const {
         if (GetSize() <= 1) return array_[0].second;
         

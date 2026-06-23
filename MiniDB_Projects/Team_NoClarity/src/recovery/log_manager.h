@@ -11,8 +11,12 @@
 
 namespace minidb {
 
+// Struct detailing ARIES log transitions (BEGIN, COMMIT, ABORT, UPDATE, CLR)
 enum class LogRecordType { BEGIN = 0, COMMIT = 1, ABORT = 2, UPDATE = 3, CLR = 4 };
 
+/**
+ * Log record structure encapsulating details of database transaction updates.
+ */
 struct LogRecord {
     lsn_t lsn{0};
     lsn_t prev_lsn{0};
@@ -104,6 +108,9 @@ struct LogRecord {
     }
 };
 
+/**
+ * Manages appending and flushing binary transaction log records to persistent storage.
+ */
 class LogManager {
 public:
     explicit LogManager(const std::string& log_file) : log_file_name_(log_file), next_lsn_(1) {

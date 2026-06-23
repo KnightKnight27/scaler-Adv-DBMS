@@ -7,6 +7,9 @@
 
 namespace minidb {
 
+/**
+ * Standard database block representation holding active raw data frame and pinning flags.
+ */
 class Page {
     friend class BufferPoolManager;
 public:

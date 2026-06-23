@@ -6,11 +6,13 @@
 
 namespace minidb {
 
+// Global types representing pages, frames, log sequence numbers, and transactions
 using page_id_t = int32_t;
 using frame_id_t = int32_t;
 using lsn_t = int32_t;
 using txn_id_t = int32_t;
 
+// Database physical block sizing and invalid sentinel constants
 static constexpr std::size_t PAGE_SIZE = 4096;
 static constexpr page_id_t INVALID_PAGE_ID = -1;
 static constexpr frame_id_t INVALID_FRAME_ID = -1;

@@ -2,7 +2,11 @@
 
 **Team Name:** Team_NoClarity  
 **Team Members:**  
-- **Rachit S** (Roll Number: `24bcs10139`, Email: `vangsur68@gmail.com`)
+- **Rachit S** (Roll Number: `24bcs10139`, Email: `rachit.24bcs10139@sst.scaler.com`)
+- **Aditya Bhaskara** (Roll Number: `24bcs10058`, Email: `aditya.24bcs10058@sst.scaler.com`)
+- **Arman Barbhuiya** (Roll Number: `24bcs10196`, Email: `arman.24bcs10196@sst.scaler.com`)
+- **Rohan Singh Chauhan** (Roll Number: `24bcs10240`, Email: `rohan.24bcs10240@sst.scaler.com`)
+
 
 ---
 
