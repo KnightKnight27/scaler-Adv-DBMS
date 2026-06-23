@@ -1,12 +1,22 @@
 #include "../src/page.h"
 #include "../src/heap_file.h"
 #include "../src/buffer_pool.h"
+#include "../src/wal.h"
+#include "../src/replication.h"
 #include <iostream>
 #include <cassert>
 #include <cstring>
 #include <thread>
 #include <vector>
 #include <filesystem>
+#include <atomic>
+#include <chrono>
+#include <mutex>
+#include <fstream>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
 namespace fs = std::filesystem;
 
@@ -157,12 +167,181 @@ void test_buffer_pool_concurrency() {
     std::cout << "[PASS] test_buffer_pool_concurrency\n";
 }
 
+std::mutex mock_db_lock;
+std::vector<std::string> received_queries;
+
+void mock_execute_sql_callback(const std::string& sql) {
+    std::lock_guard<std::mutex> lock(mock_db_lock);
+    received_queries.push_back(sql);
+}
+
+void test_wal_basics() {
+    std::cout << "[RUN] test_wal_basics\n";
+    std::string filename = "test_wal.log";
+    if (fs::exists(filename)) {
+        fs::remove(filename);
+    }
+
+    {
+        LogManager lm(filename);
+        lm.writeLog("INSERT INTO students VALUES (1, 'Alice');");
+        lm.writeLog("DELETE FROM students WHERE id = 1;");
+    }
+
+    // Verify log contents
+    std::ifstream infile(filename);
+    std::string line;
+    std::vector<std::string> lines;
+    while (std::getline(infile, line)) {
+        lines.push_back(line);
+    }
+    assert(lines.size() == 2);
+    assert(lines[0] == "INSERT INTO students VALUES (1, 'Alice');");
+    assert(lines[1] == "DELETE FROM students WHERE id = 1;");
+
+    fs::remove(filename);
+    std::cout << "[PASS] test_wal_basics\n";
+}
+
+void test_replication_basics() {
+    std::cout << "[RUN] test_replication_basics\n";
+    received_queries.clear();
+
+    // Start replica server on port 9999 in a background thread
+    ReplicationNode replica("127.0.0.1", 9999);
+    std::thread replica_thread([&]() {
+        try {
+            replica.startReplicaServer(mock_execute_sql_callback);
+        } catch (...) {
+            // Ignore error when stopped
+        }
+    });
+
+    // Wait for the replica server to start listening
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Send logs from primary
+    ReplicationNode primary("127.0.0.1", 9999);
+    bool ok1 = primary.sendLogToReplica("INSERT INTO t VALUES (1, 'Bob')");
+    bool ok2 = primary.sendLogToReplica("DELETE FROM t WHERE id = 1");
+
+    assert(ok1 == true);
+    assert(ok2 == true);
+
+    // Stop replica server
+    replica.stopReplicaServer();
+    if (replica_thread.joinable()) {
+        replica_thread.join();
+    }
+
+    // Verify replication
+    std::lock_guard<std::mutex> lock(mock_db_lock);
+    assert(received_queries.size() == 2);
+    assert(received_queries[0] == "INSERT INTO t VALUES (1, 'Bob')");
+    assert(received_queries[1] == "DELETE FROM t WHERE id = 1");
+
+    std::cout << "[PASS] test_replication_basics\n";
+}
+
+// Dummy hanging server function
+void run_hanging_replica_server(int port, std::atomic<bool>& stop_flag) {
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) return;
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
+    struct sockaddr_in address;
+    std::memset(&address, 0, sizeof(address));
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(port);
+    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
+        close(server_fd);
+        return;
+    }
+    if (listen(server_fd, 1) < 0) {
+        close(server_fd);
+        return;
+    }
+
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    setsockopt(server_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+
+    while (!stop_flag) {
+        struct sockaddr_in client_addr;
+        socklen_t addrlen = sizeof(client_addr);
+        int new_socket = accept(server_fd, (struct sockaddr*)&client_addr, &addrlen);
+        if (new_socket >= 0) {
+            char buffer[1024] = {0};
+            recv(new_socket, buffer, sizeof(buffer) - 1, 0);
+            
+            // Sleep for 3 seconds to exceed the primary's 2-second timeout
+            std::this_thread::sleep_for(std::chrono::seconds(3));
+            close(new_socket);
+        }
+    }
+    close(server_fd);
+}
+
+void test_replication_failure_scenarios() {
+    std::cout << "[RUN] test_replication_failure_scenarios\n";
+
+    // Scenario A: Replica server is down (no one listening on port)
+    ReplicationNode primary_to_dead("127.0.0.1", 9997);
+    bool ok_dead = primary_to_dead.sendLogToReplica("INSERT INTO t VALUES (2)");
+    assert(ok_dead == false);
+
+    // Scenario B: Replica accepts but hangs (exceeds 2-second timeout)
+    std::atomic<bool> stop_flag(false);
+    std::thread hang_thread(run_hanging_replica_server, 9998, std::ref(stop_flag));
+    
+    // Wait for the hanging server to boot up
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    ReplicationNode primary_to_hanging("127.0.0.1", 9998);
+    auto start_time = std::chrono::steady_clock::now();
+    bool ok_hanging = primary_to_hanging.sendLogToReplica("INSERT INTO t VALUES (3)");
+    auto end_time = std::chrono::steady_clock::now();
+    std::chrono::duration<double> diff = end_time - start_time;
+
+    // Must return false due to timeout
+    assert(ok_hanging == false);
+    // Timeout should take approximately 2 seconds (definitely >= 1.5s and < 2.5s)
+    std::cout << "[INFO] Hanging replica replication call took " << diff.count() << " seconds\n";
+    assert(diff.count() >= 1.5 && diff.count() < 2.5);
+
+    // Clean up
+    stop_flag = true;
+    // Unblock the accept loop in case it's waiting
+    int dummy_sock = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in serv_addr;
+    std::memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(9998);
+    inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr);
+    connect(dummy_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+    close(dummy_sock);
+
+    if (hang_thread.joinable()) {
+        hang_thread.join();
+    }
+
+    std::cout << "[PASS] test_replication_failure_scenarios\n";
+}
+
 int main() {
     try {
         test_heap_file_basics();
         test_buffer_pool_basics();
         test_buffer_pool_concurrency();
-        std::cout << "\nAll Track 2 tests PASSED successfully!\n";
+        
+        // Track 1 Tests
+        test_wal_basics();
+        test_replication_basics();
+        test_replication_failure_scenarios();
+        
+        std::cout << "\nAll Track 1 & 2 tests PASSED successfully!\n";
     } catch (const std::exception& e) {
         std::cerr << "\nTest FAILED with exception: " << e.what() << "\n";
         return 1;

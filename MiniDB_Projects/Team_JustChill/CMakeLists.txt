@@ -4,11 +4,13 @@ project(Team_JustChill CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Source files for Track 2 (The Storage Mechanic)
+# Source files for Track 2 (The Storage Mechanic) and Track 1 (WAL & Replication)
 set(SOURCES
     src/page.cpp
     src/heap_file.cpp
     src/buffer_pool.cpp
+    src/wal.cpp
+    src/replication.cpp
 )
 
 # Header files
@@ -16,6 +18,8 @@ set(HEADERS
     src/page.h
     src/heap_file.h
     src/buffer_pool.h
+    src/wal.h
+    src/replication.h
 )
 
 # Build a static library for storage
@@ -24,7 +28,7 @@ target_include_directories(storage PUBLIC src)
 
 # Build the benchmark/test executable
 add_executable(benchmark benchmarks/benchmark.cpp)
-target_link_libraries(benchmark PRIVATE storage)
+target_link_libraries(benchmark PRIVATE storage query_engine Threads::Threads)
 
 # --- Track 3 (The Executor: Query & Concurrency) ---
 find_package(Threads REQUIRED)
@@ -56,3 +60,8 @@ if(MINGW)
     target_link_options(track3_test PRIVATE -static -static-libgcc -static-libstdc++)
 endif()
 add_test(NAME track3_test COMMAND track3_test)
+
+# Main executable
+add_executable(minidb src/main.cpp)
+target_link_libraries(minidb PRIVATE storage query_engine Threads::Threads)
+
