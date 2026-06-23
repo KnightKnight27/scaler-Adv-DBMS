@@ -90,6 +90,7 @@ void Executor::execute(const ParsedQuery& q) {
             } else {
                 wal_.logCommit(current_txid_);
                 txm_.commit(current_txid_);
+                undo_buffer_.erase(current_txid_);
                 current_txid_ = 0;
             }
             break;
@@ -98,6 +99,7 @@ void Executor::execute(const ParsedQuery& q) {
             if (current_txid_ == 0) {
                 std::cout << "ERROR: no active transaction.\n";
             } else {
+                rollback(current_txid_);
                 wal_.logAbort(current_txid_);
                 txm_.abort(current_txid_);
                 current_txid_ = 0;
@@ -179,6 +181,7 @@ void Executor::doInsert(const ParsedQuery& q) {
         txm_.lockWrite(txid, rkey);
     } catch (DeadlockException& e) {
         std::cout << "DEADLOCK: " << e.what() << "\n";
+        rollback(txid);
         txm_.abort(txid);
         if (auto_commit) current_txid_ = 0;
         return;
@@ -199,6 +202,11 @@ void Executor::doInsert(const ParsedQuery& q) {
 
     // Update primary key index
     entry->index->insert(q.key, rid);
+
+    // Track insert undo action
+    if (!auto_commit) {
+        undo_buffer_[txid].push_back({UndoOpType::INSERT, q.table1, q.key, "", rid});
+    }
 
     if (auto_commit) {
         wal_.logCommit(txid);
@@ -360,6 +368,7 @@ void Executor::doDelete(const ParsedQuery& q) {
         txm_.lockWrite(txid, rkey);
     } catch (DeadlockException& e) {
         std::cout << "DEADLOCK: " << e.what() << "\n";
+        rollback(txid);
         txm_.abort(txid);
         return;
     }
@@ -372,11 +381,20 @@ void Executor::doDelete(const ParsedQuery& q) {
         return;
     }
 
+    // Fetch the record so we can undo if needed
+    auto rec_opt = entry->heap->getRecord(*rid_opt);
+    std::string old_val = rec_opt ? rec_opt->value : "";
+
     // Log before deleting (Write-Ahead rule)
     wal_.logDelete(txid, q.table1, q.key);
 
     entry->heap->deleteRecord(*rid_opt);
     entry->index->remove(q.key);
+
+    // Track delete undo action
+    if (!auto_commit) {
+        undo_buffer_[txid].push_back({UndoOpType::DELETE, q.table1, q.key, old_val, *rid_opt});
+    }
 
     if (auto_commit) {
         wal_.logCommit(txid);
@@ -384,4 +402,29 @@ void Executor::doDelete(const ParsedQuery& q) {
     }
 
     std::cout << "Deleted key=" << q.key << " from '" << q.table1 << "'.\n";
+}
+
+void Executor::rollback(TxID txid) {
+    auto it = undo_buffer_.find(txid);
+    if (it == undo_buffer_.end()) return;
+
+    auto& records = it->second;
+    for (auto rit = records.rbegin(); rit != records.rend(); ++rit) {
+        TableEntry* entry = getTable(rit->table_name);
+        if (!entry) continue;
+
+        if (rit->type == UndoOpType::INSERT) {
+            entry->heap->deleteRecord(rit->rid);
+            entry->index->remove(rit->key);
+            std::cout << "[Rollback] Undone INSERT key=" << rit->key << " from '" << rit->table_name << "'\n";
+        } else if (rit->type == UndoOpType::DELETE) {
+            Record rec{rit->key, rit->value};
+            RecordID new_rid = entry->heap->insertRecord(rec);
+            if (new_rid.isValid()) {
+                entry->index->insert(rit->key, new_rid);
+            }
+            std::cout << "[Rollback] Undone DELETE key=" << rit->key << " in '" << rit->table_name << "'\n";
+        }
+    }
+    undo_buffer_.erase(it);
 }

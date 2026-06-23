@@ -70,6 +70,9 @@ private:
     // Get a table entry or print an error and return nullptr.
     TableEntry* getTable(const std::string& name);
 
+    // Rollback all changes made by the transaction
+    void rollback(TxID txid);
+
     // ── Members ──────────────────────────────────────────────────────────────
 
     BufferPool&   bp_;
@@ -82,4 +85,17 @@ private:
 
     // Current active transaction (0 = auto-commit mode)
     TxID current_txid_ = 0;
+
+    enum class UndoOpType { INSERT, DELETE };
+
+    struct UndoRecord {
+        UndoOpType type;
+        std::string table_name;
+        int32_t key;
+        std::string value;
+        RecordID rid;
+    };
+
+    // Tracks undo actions for active transactions: TxID -> list of undo records
+    std::unordered_map<TxID, std::vector<UndoRecord>> undo_buffer_;
 };
