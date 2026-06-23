@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/minidb.dir/link.d CMakeFiles/minidb.dir/src/main.cpp.o -o minidb  libminidb_core.a
