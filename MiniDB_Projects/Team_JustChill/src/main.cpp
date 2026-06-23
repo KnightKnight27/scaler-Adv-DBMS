@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -8,6 +9,8 @@
 #include "wal.h"
 #include "replication.h"
 #include "execution.h"
+#include "buffer_pool.h"
+#include "heap_file.h"
 
 using namespace minidb;
 
@@ -124,6 +127,33 @@ void replica_execution_callback(const std::string& sql) {
     }
 }
 
+void auto_checkpoint_loop(BufferPool* bp) {
+    while (true) {
+        // Sleep for 5 minutes
+        std::this_thread::sleep_for(std::chrono::minutes(5));
+        
+        {
+            std::lock_guard<std::mutex> console_lock(console_mutex);
+            std::cout << "\n[SYSTEM] Auto-Checkpoint triggered. Freezing transactions...\n" << std::flush;
+        }
+
+        // 1. Lock the database so no queries run mid-flush
+        std::lock_guard<std::mutex> db_lock(global_db_lock);
+        
+        // 2. Flush dirty pages
+        bp->checkpointFlush();
+        
+        // 3. Wipe the WAL clean
+        std::ofstream clear_wal("wal.log", std::ios::trunc);
+        clear_wal.close();
+
+        {
+            std::lock_guard<std::mutex> console_lock(console_mutex);
+            std::cout << "[SYSTEM] Checkpoint complete. WAL truncated. Transactions unpaused.\nminidb-primary> " << std::flush;
+        }
+    }
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <mode: primary|replica> [replica_ip] [replica_port]\n";
@@ -143,6 +173,37 @@ int main(int argc, char* argv[]) {
 
     if (mode == "primary") {
         is_primary = true;
+
+        // 1. Run recovery from wal.log if it exists
+        std::ifstream wal_check("wal.log");
+        if (wal_check.is_open()) {
+            std::cout << "[RECOVERY] wal.log found. Replaying WAL for crash recovery...\n";
+            std::string log_line;
+            int applied_count = 0;
+            std::lock_guard<std::mutex> db_lock(global_db_lock);
+            while (std::getline(wal_check, log_line)) {
+                log_line = trim(log_line);
+                if (log_line.empty()) continue;
+                try {
+                    execute_sql_statement(log_line);
+                    applied_count++;
+                } catch (const std::exception& e) {
+                    std::cerr << "[RECOVERY ERROR] Failed to replay statement: " << log_line << " (" << e.what() << ")\n";
+                }
+            }
+            std::cout << "[RECOVERY] Recovery complete. Applied " << applied_count << " log entries from WAL.\n\n";
+            wal_check.close();
+        }
+
+        // 2. Initialize storage components for checkpointing
+        std::unique_ptr<HeapFile> heap_file = std::make_unique<HeapFile>("students.db");
+        std::unique_ptr<BufferPool> buffer_pool = std::make_unique<BufferPool>(10, heap_file.get());
+
+        // 3. Spawn the automated checkpoint thread
+        std::thread checkpoint_daemon(auto_checkpoint_loop, buffer_pool.get());
+        checkpoint_daemon.detach(); // Let it run independently in the background
+
+        // 4. Initialize log manager and replication node
         wal_manager = std::make_unique<LogManager>("wal.log");
         rep_node = std::make_unique<ReplicationNode>(ip, port);
 

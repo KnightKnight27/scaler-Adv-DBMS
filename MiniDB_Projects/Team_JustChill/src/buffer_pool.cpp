@@ -118,3 +118,13 @@ bool BufferPool::evictPage() {
     }
     return false; // No page can be evicted (all are pinned)
 }
+
+void BufferPool::checkpointFlush() {
+    std::lock_guard<std::mutex> lock(pool_lock); // Protect internal memory map
+    for (int i = 0; i < capacity; ++i) {
+        if (frames[i].page_id != -1 && frames[i].is_dirty) {
+            disk_manager->writePage(frames[i].page_id, &frames[i]);
+            frames[i].is_dirty = false; // Mark clean after writing
+        }
+    }
+}

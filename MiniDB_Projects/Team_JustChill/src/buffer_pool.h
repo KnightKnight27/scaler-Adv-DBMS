@@ -26,4 +26,5 @@ public:
 
     Page* getPage(int page_id);
     void unpinPage(int page_id, bool is_dirty);
+    void checkpointFlush();
 };
