@@ -1,0 +1,37 @@
+############ PostgreSQL MVCC / concurrency demo ############
+
+===== Snapshot isolation: reader keeps seeing old value while another txn commits a change =====
+-- baseline value of order 10:
+ id | total 
+----+-------
+ 10 | 20.00
+(1 row)
+
+[A] BEGIN REPEATABLE READ; first read
+BEGIN
+ id | a_first_read 
+----+--------------
+ 10 |        20.00
+(1 row)
+
+[B] (1s later) update order 10 and COMMIT immediately:
+UPDATE 1
+ pg_sleep 
+----------
+ 
+(1 row)
+
+[A] second read AFTER B has committed (should be UNCHANGED = snapshot):
+ id | a_second_read 
+----+---------------
+ 10 |         20.00
+(1 row)
+
+COMMIT
+[A] read after COMMIT (now sees B change):
+ id | a_after_commit 
+----+----------------
+ 10 |       99999.00
+(1 row)
+
+----- done -----

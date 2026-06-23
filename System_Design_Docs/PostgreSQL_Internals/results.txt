@@ -1,0 +1,185 @@
+===== 1. EXPLAIN ANALYZE: 3-table join (no helpful secondary indexes yet) =====
+                                                                         QUERY PLAN                                                                          
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=5159.47..8114.10 rows=1 width=47) (actual time=25.794..26.702 rows=1 loops=1)
+   Buffers: shared hit=3153
+   ->  Gather  (cost=5159.47..8114.08 rows=1 width=47) (actual time=25.690..26.697 rows=2 loops=1)
+         Workers Planned: 1
+         Workers Launched: 1
+         Buffers: shared hit=3153
+         ->  Partial GroupAggregate  (cost=4159.47..7113.98 rows=1 width=47) (actual time=24.171..24.172 rows=1 loops=2)
+               Buffers: shared hit=3153
+               ->  Parallel Hash Join  (cost=4159.47..6996.87 rows=23419 width=12) (actual time=13.996..23.162 rows=20000 loops=2)
+                     Hash Cond: (i.order_id = o.id)
+                     Buffers: shared hit=3153
+                     ->  Parallel Seq Scan on order_items i  (cost=0.00..2258.47 rows=117647 width=4) (actual time=0.003..3.154 rows=100000 loops=2)
+                           Buffers: shared hit=1082
+                     ->  Parallel Hash  (cost=3866.73..3866.73 rows=23419 width=16) (actual time=13.926..13.926 rows=20000 loops=2)
+                           Buckets: 65536  Batches: 1  Memory Usage: 2432kB
+                           Buffers: shared hit=1990
+                           ->  Hash Join  (cost=1107.41..3866.73 rows=23419 width=16) (actual time=2.908..12.146 rows=20000 loops=2)
+                                 Hash Cond: (o.customer_id = c.id)
+                                 Buffers: shared hit=1990
+                                 ->  Parallel Seq Scan on orders o  (cost=0.00..2450.47 rows=117647 width=13) (actual time=0.003..3.557 rows=100000 loops=2)
+                                       Buffers: shared hit=1274
+                                 ->  Hash  (cost=983.00..983.00 rows=9953 width=11) (actual time=2.890..2.890 rows=10000 loops=2)
+                                       Buckets: 16384  Batches: 1  Memory Usage: 558kB
+                                       Buffers: shared hit=716
+                                       ->  Seq Scan on customers c  (cost=0.00..983.00 rows=9953 width=11) (actual time=0.015..2.311 rows=10000 loops=2)
+                                             Filter: (city = 'Pune'::text)
+                                             Rows Removed by Filter: 40000
+                                             Buffers: shared hit=716
+ Planning:
+   Buffers: shared hit=266
+ Planning Time: 0.606 ms
+ Execution Time: 26.752 ms
+(32 rows)
+
+===== 2. Same query AFTER adding a secondary index on orders.customer_id =====
+CREATE INDEX
+CREATE INDEX
+ANALYZE
+                                                                         QUERY PLAN                                                                          
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=5162.27..8118.61 rows=1 width=47) (actual time=18.138..18.823 rows=1 loops=1)
+   Buffers: shared hit=3138
+   ->  Gather  (cost=5162.27..8118.59 rows=1 width=47) (actual time=18.089..18.819 rows=2 loops=1)
+         Workers Planned: 1
+         Workers Launched: 1
+         Buffers: shared hit=3138
+         ->  Partial GroupAggregate  (cost=4162.27..7118.49 rows=1 width=47) (actual time=16.762..16.763 rows=1 loops=2)
+               Buffers: shared hit=3138
+               ->  Parallel Hash Join  (cost=4162.27..7000.59 rows=23576 width=12) (actual time=9.473..16.203 rows=20000 loops=2)
+                     Hash Cond: (i.order_id = o.id)
+                     Buffers: shared hit=3138
+                     ->  Parallel Seq Scan on order_items i  (cost=0.00..2258.47 rows=117647 width=4) (actual time=0.001..2.300 rows=100000 loops=2)
+                           Buffers: shared hit=1082
+                     ->  Parallel Hash  (cost=3867.57..3867.57 rows=23576 width=16) (actual time=9.410..9.410 rows=20000 loops=2)
+                           Buckets: 65536  Batches: 1  Memory Usage: 2400kB
+                           Buffers: shared hit=1990
+                           ->  Hash Join  (cost=1108.25..3867.57 rows=23576 width=16) (actual time=1.865..8.182 rows=20000 loops=2)
+                                 Hash Cond: (o.customer_id = c.id)
+                                 Buffers: shared hit=1990
+                                 ->  Parallel Seq Scan on orders o  (cost=0.00..2450.47 rows=117647 width=13) (actual time=0.002..2.402 rows=100000 loops=2)
+                                       Buffers: shared hit=1274
+                                 ->  Hash  (cost=983.00..983.00 rows=10020 width=11) (actual time=1.855..1.855 rows=10000 loops=2)
+                                       Buckets: 16384  Batches: 1  Memory Usage: 558kB
+                                       Buffers: shared hit=716
+                                       ->  Seq Scan on customers c  (cost=0.00..983.00 rows=10020 width=11) (actual time=0.013..1.489 rows=10000 loops=2)
+                                             Filter: (city = 'Pune'::text)
+                                             Rows Removed by Filter: 40000
+                                             Buffers: shared hit=716
+ Planning:
+   Buffers: shared hit=52 read=12
+ Planning Time: 0.150 ms
+ Execution Time: 18.845 ms
+(32 rows)
+
+===== 3. Planner statistics the optimizer relied on (pg_stats) =====
+ attname | n_distinct |           most_common_vals            |                most_common_freqs                 | null_frac 
+---------+------------+---------------------------------------+--------------------------------------------------+-----------
+ city    |          5 | {Bangalore,Mumbai,Pune,Delhi,Chennai} | {0.20183334,0.20143333,0.2004,0.1988,0.19753334} |         0
+ id      |         -1 |                                       |                                                  |         0
+(2 rows)
+
+===== 4. Estimate vs actual on a selective predicate =====
+                                                  QUERY PLAN                                                  
+--------------------------------------------------------------------------------------------------------------
+ Seq Scan on customers  (cost=0.00..983.00 rows=10020 width=25) (actual time=0.002..1.262 rows=10000 loops=1)
+   Filter: (city = 'Pune'::text)
+   Rows Removed by Filter: 40000
+ Planning Time: 0.017 ms
+ Execution Time: 1.406 ms
+(5 rows)
+
+===== 5. MVCC: physical row header columns (xmin, xmax, ctid) =====
+ ctid  | xmin | xmax | id | total 
+-------+------+------+----+-------
+ (0,1) |  748 |  749 |  1 | 11.00
+ (0,2) |  748 |  749 |  2 | 12.00
+ (0,3) |  748 |  749 |  3 | 13.00
+(3 rows)
+
+===== 6. MVCC update creates a NEW version (ctid changes, old xmax set) =====
+BEGIN
+ ctid  | xmin | xmax | total 
+-------+------+------+-------
+ (0,1) |  748 |  749 | 11.00
+(1 row)
+
+UPDATE 1
+    ctid    | xmin | xmax | total  
+------------+------+------+--------
+ (1273,140) |  839 |    0 | 111.00
+(1 row)
+
+COMMIT
+===== 7. Dead tuples after the update, before VACUUM =====
+ n_live_tup | n_dead_tup 
+------------+------------
+     200000 |          0
+(1 row)
+
+ table_len | tuple_count | tuple_len | tuple_percent | dead_tuple_count | dead_tuple_len | dead_tuple_percent | free_space | free_percent 
+-----------+-------------+-----------+---------------+------------------+----------------+--------------------+------------+--------------
+  10436608 |      200000 |   8200000 |         78.57 |                1 |             41 |                  0 |        884 |         0.01
+(1 row)
+
+===== 8. Buffer manager: what is cached in shared_buffers right now =====
+     relname     | buffers |  cached  
+-----------------+---------+----------
+ orders          |    1278 | 10224 kB
+ order_items     |    1086 | 8688 kB
+ customers       |     362 | 2896 kB
+ idx_orders_cust |       6 | 48 kB
+(4 rows)
+
+===== 9. WAL: current write position, generate some, measure bytes =====
+ lsn_before 
+------------
+ 0/6A27F00
+(1 row)
+
+UPDATE 200
+ lsn_after 
+-----------
+ 0/6A35BF8
+(1 row)
+
+ total_wal_written 
+-------------------
+ 106 MB
+(1 row)
+
+===== 10. B-tree index page inspection (pageinspect) =====
+ magic  | version | root | level | fastroot | fastlevel | last_cleanup_num_delpages | last_cleanup_num_tuples | allequalimage 
+--------+---------+------+-------+----------+-----------+---------------------------+-------------------------+---------------
+ 340322 |       4 |  412 |     2 |      412 |         2 |                         0 |                      -1 | t
+(1 row)
+
+ type | live_items | dead_items | avg_item_size | page_size | free_size 
+------+------------+------------+---------------+-----------+-----------
+ l    |        368 |          0 |            16 |      8192 |       788
+(1 row)
+
+===== 11. VACUUM reclaims dead tuples =====
+psql:/private/tmp/claude-501/-Users-gaurishukla-Desktop-ADBMS-Project/6b972655-a792-4e2e-a4f0-7ecb4e433c99/scratchpad/experiments/postgres/queries.sql:61: INFO:  vacuuming "shop.public.orders"
+psql:/private/tmp/claude-501/-Users-gaurishukla-Desktop-ADBMS-Project/6b972655-a792-4e2e-a4f0-7ecb4e433c99/scratchpad/experiments/postgres/queries.sql:61: INFO:  launched 1 parallel vacuum worker for index vacuuming (planned: 1)
+psql:/private/tmp/claude-501/-Users-gaurishukla-Desktop-ADBMS-Project/6b972655-a792-4e2e-a4f0-7ecb4e433c99/scratchpad/experiments/postgres/queries.sql:61: INFO:  finished vacuuming "shop.public.orders": index scans: 1
+pages: 0 removed, 1276 remain, 1276 scanned (100.00% of total)
+tuples: 200 removed, 200000 remain, 0 are dead but not yet removable
+removable cutoff: 841, which was 0 XIDs old when operation ended
+frozen: 0 pages from table (0.00% of total) had 0 tuples frozen
+index scan needed: 201 pages from table (15.75% of total) had 201 dead item identifiers removed
+index "orders_pkey": pages: 551 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+index "idx_orders_cust": pages: 304 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+avg read rate: 244.971 MB/s, avg write rate: 0.000 MB/s
+buffer usage: 3384 hits, 249 misses, 0 dirtied
+WAL usage: 856 records, 0 full page images, 46673 bytes
+system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+VACUUM
+ n_live_tup | n_dead_tup 
+------------+------------
+     200000 |          0
+(1 row)
+
