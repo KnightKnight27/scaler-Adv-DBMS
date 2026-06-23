@@ -1,3 +1,0 @@
-Understanding file I/O operations.
-This is a test file for our custom reader program.
-Tracing system calls helps us learn OS internals!
