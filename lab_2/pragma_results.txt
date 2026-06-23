@@ -1,0 +1,71 @@
+=== SQLite3 PRAGMA Exploration ===
+
+1. PAGE SIZE
+   Default page size (must match OS page size for optimal performance)
+4096
+
+2. PAGE COUNT
+   Total number of pages allocated in the database file
+5
+
+3. FILE SIZE = page_size × page_count
+   (calculated programmatically in results)
+
+4. MMAP SIZE (Current)
+   0 = disabled, >0 = enabled (bytes)
+0
+
+5. JOURNAL MODE
+   DELETE: traditional rollback journal
+   WAL: Write-Ahead Logging (better concurrency)
+delete
+
+6. CACHE SIZE
+   Number of pages held in memory (negative = KB)
+2000
+
+7. PAGE CACHE STATS
+5
+0
+
+8. DATABASE LIST
+   All attached databases
+0|main|/Users/amriteshindal/Jai/Scaler/Year 2 Last Term/Adv DBMS/scaler-Adv-DBMS/lab_2/students.db
+
+9. ENCODING
+UTF-8
+
+10. TABLE INFO (students)
+0|id|INTEGER|0||1
+1|name|TEXT|1||0
+2|age|INTEGER|0||0
+3|gpa|REAL|0||0
+4|major|TEXT|0||0
+
+11. INDEX LIST (students)
+
+12. INTEGRITY CHECK
+ok
+
+13. QUICK CHECK
+ok
+
+14. FOREIGN KEYS
+0
+
+15. SYNCHRONOUS MODE
+   0=OFF, 1=NORMAL, 2=FULL, 3=EXTRA
+2
+
+16. AUTO VACUUM
+   0=NONE, 1=FULL, 2=INCREMENTAL
+0
+
+17. SCHEMA VERSION
+3
+
+18. USER VERSION
+0
+
+
+=== End of PRAGMA Exploration ===
