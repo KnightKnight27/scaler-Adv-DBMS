@@ -1,0 +1,6 @@
+metric,row_store,lsm
+write_ops_per_sec,154752,1.00492e+06
+read_us_per_op,1.15524,4.44923
+read_ops_per_sec,865623,224758
+space_amp,1.25226,1.11818
+lsm_space_amp_after_compaction,,1.11818

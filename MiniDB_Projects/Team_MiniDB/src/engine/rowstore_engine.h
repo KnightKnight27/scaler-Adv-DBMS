@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 
 #include "catalog/catalog.h"
 #include "engine/storage_engine.h"
@@ -37,6 +38,9 @@ private:
     Catalog*     catalog_;
     BufferPool*  bp_;
     DiskManager* disk_;
+    // In-memory hint of each heap's tail page, so inserts append in O(1) instead
+    // of re-walking the page chain.
+    std::unordered_map<std::string, PageId> heap_tail_;
 };
 
 } // namespace minidb

@@ -27,7 +27,10 @@ bool RowStoreEngine::put(const std::string& table, std::int64_t key, const std::
     if (idx.search(key, existing)) return false;  // duplicate primary key
 
     HeapFile heap(bp_, t.heap_first);
-    RID rid = heap.insert(row);
+    auto it = heap_tail_.find(table);
+    PageId tail = (it == heap_tail_.end()) ? INVALID_PAGE_ID : it->second;
+    RID rid = heap.append(row, tail);   // O(1) append using the tail hint
+    heap_tail_[table] = tail;
 
     PageId old_root = idx.root_page();
     idx.insert(key, rid);

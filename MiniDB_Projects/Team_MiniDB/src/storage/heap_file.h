@@ -23,7 +23,13 @@ public:
     PageId first_page() const { return first_page_; }
 
     // Insert a record's bytes; returns its RID. Grows the chain if no page has room.
+    // Walks from the first page, so it reuses space freed by erase (O(pages)).
     RID insert(const std::string& record);
+
+    // Append-oriented insert that tries `tail` first and only allocates a new
+    // page when it is full (O(1) amortised). `tail` is an in/out hint of the last
+    // page; pass INVALID_PAGE_ID the first time. Does not reuse earlier free space.
+    RID append(const std::string& record, PageId& tail);
 
     // Read the record at `rid` into `out`. Returns false if the slot is erased.
     bool get(RID rid, std::string& out);

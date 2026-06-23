@@ -52,6 +52,38 @@ RID HeapFile::insert(const std::string& record) {
     return RID{new_pid, slot};
 }
 
+RID HeapFile::append(const std::string& record, PageId& tail) {
+    if (record.size() > PAGE_SIZE - SlottedPage::HEADER_SIZE - SlottedPage::SLOT_SIZE)
+        throw DBException("HeapFile: record too large for a page");
+    if (tail == INVALID_PAGE_ID) tail = first_page_;
+
+    // Try the current tail page first.
+    Page* page = bp_->fetch_page(tail);
+    SlottedPage sp(page->data());
+    std::int16_t slot;
+    if (sp.insert(record.data(), static_cast<std::uint16_t>(record.size()), slot)) {
+        bp_->unpin_page(tail, /*dirty=*/true);
+        return RID{tail, slot};
+    }
+    bp_->unpin_page(tail, /*dirty=*/false);
+
+    // Tail is full: allocate a new page and link it on.
+    PageId new_pid;
+    Page* np = bp_->new_page(new_pid);
+    SlottedPage nsp(np->data());
+    nsp.init();
+    if (!nsp.insert(record.data(), static_cast<std::uint16_t>(record.size()), slot))
+        throw DBException("HeapFile: record does not fit in a fresh page");
+    bp_->unpin_page(new_pid, /*dirty=*/true);
+
+    Page* tail_page = bp_->fetch_page(tail);
+    SlottedPage(tail_page->data()).set_next_page(new_pid);
+    bp_->unpin_page(tail, /*dirty=*/true);
+
+    tail = new_pid;
+    return RID{new_pid, slot};
+}
+
 bool HeapFile::get(RID rid, std::string& out) {
     Page* page = bp_->fetch_page(rid.page_id);
     bool ok = SlottedPage(page->data()).get(rid.slot, out);
