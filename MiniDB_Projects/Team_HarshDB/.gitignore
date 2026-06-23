@@ -1,0 +1,12 @@
+# build artifacts
+minidb
+minidb_bench
+*.o
+*.out
+*.dSYM/
+
+# database data files produced at runtime
+*.db
+*.wal
+*.catalog
+minidb_data.*
