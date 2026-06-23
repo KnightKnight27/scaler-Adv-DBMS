@@ -1,0 +1,6 @@
+build/
+docs/
+.agents/
+*.db
+viva_presentation_guide.md
+.DS_Store
