@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+minidb_data/
+mydata/
+*.data
+*.meta
+wal.log
+catalog.json
+.DS_Store
