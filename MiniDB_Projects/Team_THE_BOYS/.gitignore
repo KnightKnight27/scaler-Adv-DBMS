@@ -1,0 +1,75 @@
+# --- Build outputs ---
+/minidb
+/benchmark
+/core_demos
+/test_insert
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# --- CMake / build dirs ---
+/build/
+/build-*/
+/cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+Makefile.cmake
+install_manifest.txt
+
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# --- Debug symbols (macOS) ---
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# --- MiniDB runtime / data files ---
+*.dat
+*.wal
+catalog.meta
+minidb.dat
+minidb.wal
+
+# --- Local database directories ---
+/data/
+/test_data/
+/demo_data/
+/demo/
+/recover_demo/
+/benchmark_data/
+/benchmark_data_*/
+/asan_data/
+/tdata*/
+
+# --- Test-generated directories ---
+/tests/tmp*/
+/tests/persist/
+/tests/split/
+/tests/joinorder/
+/tests/recover/
+/tests/join/
+/tests/debug/
+/tests/audit/
+/tests/audit2/
+
+# --- IDE / editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.cproject
+.settings/
+
+# --- Logs & temp ---
+*.log
+*.tmp
+/tmp/
