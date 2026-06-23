@@ -1,0 +1,6 @@
+/run/media/abhay/e/DBMS_Project_miniDB/build/CMakeFiles/minidb_core.dir
+/run/media/abhay/e/DBMS_Project_miniDB/build/CMakeFiles/minidb.dir
+/run/media/abhay/e/DBMS_Project_miniDB/build/CMakeFiles/bench_insert.dir
+/run/media/abhay/e/DBMS_Project_miniDB/build/CMakeFiles/bench_select.dir
+/run/media/abhay/e/DBMS_Project_miniDB/build/CMakeFiles/edit_cache.dir
+/run/media/abhay/e/DBMS_Project_miniDB/build/CMakeFiles/rebuild_cache.dir
