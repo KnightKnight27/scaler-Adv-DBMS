@@ -1,0 +1,13 @@
+# Build artifacts
+*.o
+*.d
+*.dSYM/
+minidb
+bench
+/build/
+
+# Database files produced at runtime
+*.db
+*.catalog
+*.wal
+*_lsm_*/
