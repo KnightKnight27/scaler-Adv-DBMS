@@ -1,0 +1,23 @@
+# Python venv & caches
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# MiniDB runtime artifacts (databases, WAL, SSTables produced by tests/demos)
+*.db
+*.wal
+*.sst
+*.minidb
+data/
+scratch/
+
+# OS / editor
+.DS_Store
+.idea/
+
+# Keep benchmark charts/results that are committed deliverables; ignore raw temp
+benchmarks/_tmp/
