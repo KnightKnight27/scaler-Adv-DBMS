@@ -1,0 +1,7 @@
+System_Design_Docs/*.db
+System_Design_Docs/*.db-wal
+System_Design_Docs/*.db-shm
+__pycache__/
+*.pyc
+*.swp
+.DS_Store
