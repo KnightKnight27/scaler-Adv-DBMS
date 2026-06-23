@@ -1,0 +1,25 @@
+# CMake build trees and generated tooling metadata
+build/
+cmake-build-*/
+compile_commands.json
+CMakeCache.txt
+CMakeFiles/
+
+# Compiled artifacts
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+
+# MiniDB runtime state and demo output
+*.db
+*.log
+catalog.txt
+catalog.txt.tmp
+
+# Editor / OS metadata
+.DS_Store
