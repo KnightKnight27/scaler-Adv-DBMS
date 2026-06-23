@@ -144,4 +144,32 @@ std::optional<std::string> BPlusTree::Search(const std::string& key) const {
     return std::nullopt;
 }
 
+void BPlusTree::Delete(const std::string& key) {
+    std::unique_lock<std::shared_mutex> lock(rw_latch_);
+    if (root_) {
+        DeleteInternal(root_, key);
+    }
+}
+
+bool BPlusTree::DeleteInternal(std::shared_ptr<BPlusNode> node, const std::string& key) {
+    MarkDirty(node->page_id);
+
+    // If we hit the leaf, find and erase the key
+    if (node->is_leaf) {
+        auto it = std::lower_bound(node->keys.begin(), node->keys.end(), key);
+        if (it != node->keys.end() && *it == key) {
+            int index = std::distance(node->keys.begin(), it);
+            node->keys.erase(node->keys.begin() + index);
+            node->values.erase(node->values.begin() + index);
+            return true;
+        }
+        return false; // Key not found
+    }
+
+    // Otherwise, route down the tree
+    auto it = std::upper_bound(node->keys.begin(), node->keys.end(), key);
+    int index = std::distance(node->keys.begin(), it);
+    return DeleteInternal(node->children[index], key);
+}
+
 } // namespace minidb

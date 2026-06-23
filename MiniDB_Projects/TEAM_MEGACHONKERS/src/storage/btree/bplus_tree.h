@@ -50,12 +50,14 @@ private:
     };
 
     std::optional<SplitResult> InsertInternal(std::shared_ptr<BPlusNode> node, const std::string& key, const std::string& value);
+    bool DeleteInternal(std::shared_ptr<BPlusNode> node, const std::string& key);
 
 public:
     explicit BPlusTree(size_t order = 50);
     ~BPlusTree();
 
     void Insert(const std::string& key, const std::string& value);
+    void Delete(const std::string& key);
     std::optional<std::string> Search(const std::string& key) const;
 };
 
