@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Database runtime files
+*.db
+*.log
+*.catalog
+
+# Demo/test generated directories
+demo*_db/
+minidb_data/
+test_run_data/
+benchmark_data/
