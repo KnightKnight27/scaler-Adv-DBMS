@@ -1,30 +1,38 @@
-# Lab Session 4: Red-Black Tree & Full B-Tree in C++
+# Lab Session 4: Red-Black Trees & B-Trees
 
-## Objective
-Implement a Red-Black Tree (self-balancing BST used in database index structures) and a full B-Tree (the actual on-disk index structure used by PostgreSQL, MySQL, SQLite) supporting insert, merge (split promotion), and delete with underflow merging.
+## 🎯 The Goal
 
----
+In this lab, we will build two of the most important self-balancing tree structures in computer science:
 
-# Part 1: Red-Black Tree
+1. **Red-Black Tree (RBT):** An ultra-fast, in-memory binary search tree that keeps itself balanced using a clever coloring system.
+2. **B-Tree:** A wide, short tree designed specifically for secondary storage (like SSDs/HDDs). This is the exact data structure behind popular databases like **PostgreSQL, MySQL, and SQLite**.
 
-## Properties
-1. Every node is Red or Black.
-2. Root is Black.
-3. No two consecutive Red nodes (Red node's parent must be Black).
-4. Every path from a node to its NULL descendants has the same number of Black nodes.
 
-These invariants guarantee O(log n) height.
 
-## Implementation
+## Part 1: Red-Black Trees (In-Memory Speed)
+
+### Why do we need it?
+
+A regular Binary Search Tree (BST) can become unbalanced if you insert sorted data (e.g., 1, 2, 3, 4, 5 turns into a straight line). When that happens, your fast $O(\log n)$ lookup speed degrades into a slow $O(n)$ linear scan.
+
+A Red-Black Tree prevents this by enforcing **4 strict rules**:
+
+1. Every node is painted either **Red** or **Black**.
+2. The **Root** of the tree is always **Black**.
+3. **No Red-to-Red connections:** A Red node cannot have a Red child or a Red parent.
+4. **Black-Height Balance:** Every path from a node to its empty leaf pointers must contain the exact same number of Black nodes.
+
+### The Code (`rbt.cpp`)
 
 ```cpp
 #include <iostream>
+#include <initializer_list>
 
 enum Color { RED, BLACK };
 
 struct RBNode {
-    int     key;
-    Color   color;
+    int key;
+    Color color;
     RBNode *left, *right, *parent;
 
     explicit RBNode(int k)
@@ -32,14 +40,16 @@ struct RBNode {
 };
 
 class RedBlackTree {
+private:
     RBNode* root = nullptr;
 
+    // Rotations: The physical movements used to rebalance the tree
     void left_rotate(RBNode* x) {
         RBNode* y = x->right;
         x->right = y->left;
         if (y->left) y->left->parent = x;
         y->parent = x->parent;
-        if (!x->parent)       root = y;
+        if (!x->parent)                root = y;
         else if (x == x->parent->left) x->parent->left  = y;
         else                           x->parent->right = y;
         y->left = x;
@@ -51,38 +61,44 @@ class RedBlackTree {
         x->left = y->right;
         if (y->right) y->right->parent = x;
         y->parent = x->parent;
-        if (!x->parent)       root = y;
+        if (!x->parent)                 root = y;
         else if (x == x->parent->right) x->parent->right = y;
         else                            x->parent->left  = y;
         y->right = x;
         x->parent = y;
     }
 
+    // Fixup Functions: Fixing violations of the 4 rules 
     void fix_insert(RBNode* z) {
         while (z->parent && z->parent->color == RED) {
-            RBNode* gp = z->parent->parent;
+            RBNode* gp = z->parent->parent; // Grandparent
+            
             if (z->parent == gp->left) {
                 RBNode* uncle = gp->right;
-                if (uncle && uncle->color == RED) {         // Case 1: recolor
+                
+                // Case 1: Uncle is Red -> Just recolor
+                if (uncle && uncle->color == RED) {
                     z->parent->color = BLACK;
-                    uncle->color     = BLACK;
-                    gp->color        = RED;
-                    z = gp;
+                    uncle->color = BLACK;
+                    gp->color = RED;
+                    z = gp; // Move up to check grandparent
                 } else {
-                    if (z == z->parent->right) {            // Case 2: left-rotate parent
+                    // Case 2: Uncle is Black & z forms a triangle -> Rotate parent
+                    if (z == z->parent->right) {
                         z = z->parent;
                         left_rotate(z);
                     }
-                    z->parent->color = BLACK;               // Case 3: right-rotate grandparent
-                    gp->color        = RED;
+                    // Case 3: Uncle is Black & z forms a straight line -> Rotate grandparent
+                    z->parent->color = BLACK;
+                    gp->color = RED;
                     right_rotate(gp);
                 }
-            } else {                                        // Mirror cases
+            } else { // Symmetrical Mirror Cases
                 RBNode* uncle = gp->left;
                 if (uncle && uncle->color == RED) {
                     z->parent->color = BLACK;
-                    uncle->color     = BLACK;
-                    gp->color        = RED;
+                    uncle->color = BLACK;
+                    gp->color = RED;
                     z = gp;
                 } else {
                     if (z == z->parent->left) {
@@ -90,16 +106,16 @@ class RedBlackTree {
                         right_rotate(z);
                     }
                     z->parent->color = BLACK;
-                    gp->color        = RED;
+                    gp->color = RED;
                     left_rotate(gp);
                 }
             }
         }
-        root->color = BLACK;
+        root->color = BLACK; // Rule 2 insurance
     }
 
     void transplant(RBNode* u, RBNode* v) {
-        if (!u->parent)           root = v;
+        if (!u->parent)                root = v;
         else if (u == u->parent->left) u->parent->left  = v;
         else                           u->parent->right = v;
         if (v) v->parent = u->parent;
@@ -113,9 +129,9 @@ class RedBlackTree {
     void fix_delete(RBNode* x, RBNode* x_parent) {
         while (x != root && (!x || x->color == BLACK)) {
             if (x == (x_parent ? x_parent->left : nullptr)) {
-                RBNode* w = x_parent->right;
+                RBNode* w = x_parent->right; // Sibling
                 if (w && w->color == RED) {
-                    w->color        = BLACK;
+                    w->color = BLACK;
                     x_parent->color = RED;
                     left_rotate(x_parent);
                     w = x_parent->right;
@@ -123,7 +139,8 @@ class RedBlackTree {
                 if ((!w->left || w->left->color == BLACK) &&
                     (!w->right || w->right->color == BLACK)) {
                     if (w) w->color = RED;
-                    x = x_parent; x_parent = x->parent;
+                    x = x_parent; 
+                    x_parent = x->parent;
                 } else {
                     if (!w->right || w->right->color == BLACK) {
                         if (w->left) w->left->color = BLACK;
@@ -137,18 +154,19 @@ class RedBlackTree {
                     left_rotate(x_parent);
                     x = root;
                 }
-            } else {
+            } else { // Symmetrical cases for deletion
                 RBNode* w = x_parent->left;
                 if (w && w->color == RED) {
-                    w->color        = BLACK;
+                    w->color = BLACK;
                     x_parent->color = RED;
                     right_rotate(x_parent);
                     w = x_parent->left;
                 }
                 if ((!w->right || w->right->color == BLACK) &&
-                    (!w->left  || w->left->color  == BLACK)) {
+                    (!w->left || w->left->color == BLACK)) {
                     if (w) w->color = RED;
-                    x = x_parent; x_parent = x->parent;
+                    x = x_parent; 
+                    x_parent = x->parent;
                 } else {
                     if (!w->left || w->left->color == BLACK) {
                         if (w->right) w->right->color = BLACK;
@@ -186,20 +204,21 @@ public:
         z->parent = y;
         if (!y)                  root = z;
         else if (z->key < y->key) y->left  = z;
-        else                       y->right = z;
+        else                      y->right = z;
         fix_insert(z);
     }
 
     void remove(int key) {
         RBNode* z = root;
-        while (z && z->key != key)
+        while (z && z->key != key) {
             z = (key < z->key) ? z->left : z->right;
+        }
         if (!z) return;
 
         RBNode* y = z;
         RBNode* x = nullptr;
         RBNode* x_parent = nullptr;
-        Color   y_orig_color = y->color;
+        Color y_orig_color = y->color;
 
         if (!z->left) {
             x = z->right; x_parent = z->parent;
@@ -211,8 +230,9 @@ public:
             y = minimum(z->right);
             y_orig_color = y->color;
             x = y->right;
-            if (y->parent == z) { x_parent = y; }
-            else {
+            if (y->parent == z) { 
+                x_parent = y; 
+            } else {
                 x_parent = y->parent;
                 transplant(y, y->right);
                 y->right = z->right;
@@ -226,80 +246,84 @@ public:
         if (y_orig_color == BLACK) fix_delete(x, x_parent);
     }
 
-    void print() const { inorder(root); std::cout << "\n"; }
+    void print() const { 
+        inorder(root); 
+        std::cout << "\n"; 
+    }
 };
 
 int main() {
     RedBlackTree rbt;
-    for (int k : {10, 20, 30, 15, 25, 5, 1})
-        rbt.insert(k);
+    for (int k : {10, 20, 30, 15, 25, 5, 1}) rbt.insert(k);
 
-    std::cout << "Inorder (key + color R/B):\n";
+    std::cout << "Inorder Traversal (Key + Color R/B):\n";
     rbt.print();
 
     rbt.remove(20);
     std::cout << "After removing 20:\n";
     rbt.print();
+    return 0;
 }
+
 ```
 
-```bash
-g++ -std=c++17 -o rbt rbt.cpp && ./rbt
-```
 
----
 
-# Part 2: Full B-Tree (order t)
+## 🗄️ Part 2: Full B-Tree (Disk Optimization)
 
-Every internal node holds between `t-1` and `2t-1` keys, and has between `t` and `2t` children. A leaf holds `t-1` to `2t-1` keys. Root may hold as few as 1 key.
+### Why do we need it?
 
-Supported operations: **insert** (split on the way down), **search**, **delete** (merge / borrow on the way down).
+Reading data from a hard drive or SSD is **thousands of times slower** than reading from RAM.
+
+* Binary trees are bad for disks because every step down a path requires chasing a new pointer (which triggers a slow disk read).
+* **The Solution:** Make the nodes *wide* and *fat*. If a single node can store hundreds of keys, we can load a massive block of keys into memory with just a single disk read.
+
+### The Rules of Degree $t$:
+
+Think of $t$ as the factor controlling a node's capacity:
+
+* **Minimum keys:** Every node (except the root) must have at least $t - 1$ keys.
+* **Maximum keys:** A node can hold at most $2t - 1$ keys. If it hits this limit, it is **full** and must split down the middle!
+
+### The Code (`btree.cpp`)
 
 ```cpp
 #include <iostream>
 #include <vector>
+#include <initializer_list>
 
-const int T = 2;   // minimum degree; change to increase fanout
+const int T = 2; // Minimum degree factor. Change this to scale up node capacity.
 
 struct BNode {
-    std::vector<int>    keys;
+    std::vector<int> keys;
     std::vector<BNode*> children;
-    bool                leaf = true;
+    bool leaf = true;
 
     BNode() = default;
 };
 
 class BTree {
+private:
     BNode* root = nullptr;
 
-    // Split child[i] of parent (child must be full: 2T-1 keys)
+    // Splits a full child node down the middle, promoting the median key up
     void split_child(BNode* parent, int i) {
         BNode* y = parent->children[i];
-        BNode* z = new BNode();
-        z->leaf  = y->leaf;
+        BNode* z = new BNode(); // New right-side sibling
+        z->leaf = y->leaf;
 
-        // z gets the right half of y's keys
+        // Give the right half of y's keys to z
         z->keys.assign(y->keys.begin() + T, y->keys.end());
+        int med = y->keys[T - 1]; // Save the middle element
         y->keys.resize(T - 1);
 
+        // If not a leaf, hand over the matching child pointers too
         if (!y->leaf) {
             z->children.assign(y->children.begin() + T, y->children.end());
             y->children.resize(T);
         }
 
-        // Promote median key to parent
-        int median = z->keys.front();   // was y->keys[T-1] before resize... hold it
-        // Redo: median is y->keys[T-1] before we erase it
-        // Correct split:
-        z->keys.clear();
-        z->keys.assign(y->keys.begin() + T, y->keys.end());
-        int med = y->keys[T - 1];
-        y->keys.resize(T - 1);
-        if (!y->leaf) {
-            z->children.assign(y->children.begin() + T, y->children.end());
-            y->children.resize(T);
-        }
-
+        // Insert the middle key and new pointer into the parent node
         parent->keys.insert(parent->keys.begin() + i, med);
         parent->children.insert(parent->children.begin() + i + 1, z);
     }
@@ -307,6 +331,7 @@ class BTree {
     void insert_non_full(BNode* node, int key) {
         int i = (int)node->keys.size() - 1;
         if (node->leaf) {
+            // Find where to slide the key inside the leaf array
             node->keys.push_back(0);
             while (i >= 0 && key < node->keys[i]) {
                 node->keys[i + 1] = node->keys[i];
@@ -314,8 +339,11 @@ class BTree {
             }
             node->keys[i + 1] = key;
         } else {
+            // Figure out which child path to descend
             while (i >= 0 && key < node->keys[i]) i--;
             i++;
+            
+            // Proactive split: if a child is full, split it *before* going down
             if ((int)node->children[i]->keys.size() == 2 * T - 1) {
                 split_child(node, i);
                 if (key > node->keys[i]) i++;
@@ -324,42 +352,41 @@ class BTree {
         }
     }
 
-    // Find predecessor (largest key in left subtree of keys[idx])
     int get_predecessor(BNode* node, int idx) {
         BNode* cur = node->children[idx];
         while (!cur->leaf) cur = cur->children.back();
         return cur->keys.back();
     }
 
-    // Find successor (smallest key in right subtree of keys[idx])
     int get_successor(BNode* node, int idx) {
         BNode* cur = node->children[idx + 1];
         while (!cur->leaf) cur = cur->children.front();
         return cur->keys.front();
     }
 
-    // Merge children[idx] and children[idx+1] around keys[idx]
+    // Merges child[idx] and child[idx+1] into a single node
     void merge(BNode* node, int idx) {
-        BNode* left  = node->children[idx];
+        BNode* left = node->children[idx];
         BNode* right = node->children[idx + 1];
 
         left->keys.push_back(node->keys[idx]);
         left->keys.insert(left->keys.end(), right->keys.begin(), right->keys.end());
-        if (!left->leaf)
-            left->children.insert(left->children.end(),
-                                  right->children.begin(), right->children.end());
+        
+        if (!left->leaf) {
+            left->children.insert(left->children.end(), right->children.begin(), right->children.end());
+        }
 
         node->keys.erase(node->keys.begin() + idx);
         node->children.erase(node->children.begin() + idx + 1);
         delete right;
     }
 
-    // Ensure child[idx] has at least T keys before descending
+    // Ensures child[idx] has enough keys (>= T) before we step into it
     void fill(BNode* node, int idx) {
-        if (idx > 0 && (int)node->children[idx-1]->keys.size() >= T) {
-            // Borrow from left sibling
-            BNode* child  = node->children[idx];
-            BNode* sibling= node->children[idx - 1];
+        if (idx > 0 && (int)node->children[idx - 1]->keys.size() >= T) {
+            // Borrow from left neighbor
+            BNode* child = node->children[idx];
+            BNode* sibling = node->children[idx - 1];
             child->keys.insert(child->keys.begin(), node->keys[idx - 1]);
             node->keys[idx - 1] = sibling->keys.back();
             sibling->keys.pop_back();
@@ -367,11 +394,10 @@ class BTree {
                 child->children.insert(child->children.begin(), sibling->children.back());
                 sibling->children.pop_back();
             }
-        } else if (idx < (int)node->children.size()-1 &&
-                   (int)node->children[idx+1]->keys.size() >= T) {
-            // Borrow from right sibling
-            BNode* child  = node->children[idx];
-            BNode* sibling= node->children[idx + 1];
+        } else if (idx < (int)node->children.size() - 1 && (int)node->children[idx + 1]->keys.size() >= T) {
+            // Borrow from right neighbor
+            BNode* child = node->children[idx];
+            BNode* sibling = node->children[idx + 1];
             child->keys.push_back(node->keys[idx]);
             node->keys[idx] = sibling->keys.front();
             sibling->keys.erase(sibling->keys.begin());
@@ -380,8 +406,9 @@ class BTree {
                 sibling->children.erase(sibling->children.begin());
             }
         } else {
+            // If neighbors are poor too, merge them together
             if (idx < (int)node->children.size() - 1) merge(node, idx);
-            else                                        merge(node, idx - 1);
+            else                                     merge(node, idx - 1);
         }
     }
 
@@ -390,36 +417,40 @@ class BTree {
         while (idx < (int)node->keys.size() && key > node->keys[idx]) idx++;
 
         if (idx < (int)node->keys.size() && node->keys[idx] == key) {
-            // Key is in this node
             if (node->leaf) {
                 node->keys.erase(node->keys.begin() + idx);
             } else if ((int)node->children[idx]->keys.size() >= T) {
                 int pred = get_predecessor(node, idx);
                 node->keys[idx] = pred;
                 delete_key(node->children[idx], pred);
-            } else if ((int)node->children[idx+1]->keys.size() >= T) {
+            } else if ((int)node->children[idx + 1]->keys.size() >= T) {
                 int succ = get_successor(node, idx);
                 node->keys[idx] = succ;
-                delete_key(node->children[idx+1], succ);
+                delete_key(node->children[idx + 1], succ);
             } else {
                 merge(node, idx);
                 delete_key(node->children[idx], key);
             }
         } else {
-            if (node->leaf) { std::cout << "Key not found\n"; return; }
+            if (node->leaf) {
+                std::cout << "Key not found\n";
+                return;
+            }
             bool last = (idx == (int)node->children.size());
-            if ((int)node->children[last ? idx-1 : idx]->keys.size() < T)
-                fill(node, last ? idx-1 : idx);
-            if (last && idx > (int)node->keys.size())
-                delete_key(node->children[idx-1], key);
-            else
+            if ((int)node->children[last ? idx - 1 : idx]->keys.size() < T) {
+                fill(node, last ? idx - 1 : idx);
+            }
+            if (last && idx > (int)node->keys.size()) {
+                delete_key(node->children[idx - 1], key);
+            } else {
                 delete_key(node->children[idx], key);
+            }
         }
     }
 
     void inorder(BNode* node) const {
         if (!node) return;
-        for (int i = 0; i < (int)node->keys.size(); i++) {
+        for (size_t i = 0; i < node->keys.size(); i++) {
             if (!node->leaf) inorder(node->children[i]);
             std::cout << node->keys[i] << " ";
         }
@@ -433,6 +464,7 @@ public:
             root->keys.push_back(key);
             return;
         }
+        // If root is full, split it and make the tree taller
         if ((int)root->keys.size() == 2 * T - 1) {
             BNode* s = new BNode();
             s->leaf = false;
@@ -456,22 +488,20 @@ public:
     bool search(BNode* node, int key) const {
         int i = 0;
         while (i < (int)node->keys.size() && key > node->keys[i]) i++;
-        if (i < (int)node->keys.size() && node->keys[i] == key) return true;
-        if (node->leaf) return false;
+        if (i < (int)node->keys.size() && node->keys[i] == key)   return true;
+        if (node->leaf)                                           return false;
         return search(node->children[i], key);
     }
 
     bool search(int key) const { return root && search(root, key); }
-
     void print() const { inorder(root); std::cout << "\n"; }
 };
 
 int main() {
     BTree bt;
-    for (int k : {10, 20, 5, 6, 12, 30, 7, 17, 3, 1, 25})
-        bt.insert(k);
+    for (int k : {10, 20, 5, 6, 12, 30, 7, 17, 3, 1, 25}) bt.insert(k);
 
-    std::cout << "Inorder after inserts:\n";
+    std::cout << "Inorder Traversal after insertions:\n";
     bt.print();
 
     std::cout << "Search 17: " << (bt.search(17) ? "found" : "not found") << "\n";
@@ -479,34 +509,31 @@ int main() {
 
     bt.remove(6);
     bt.remove(20);
-    std::cout << "Inorder after removing 6 and 20:\n";
+    std::cout << "Inorder Traversal after removing 6 and 20:\n";
     bt.print();
+    return 0;
 }
-```
 
-```bash
-g++ -std=c++17 -o btree btree.cpp && ./btree
 ```
 
 ---
 
-## Red-Black Tree vs B-Tree — When to use which
+## Red-Black Tree vs B-Tree Cheat Sheet
 
-| Property           | Red-Black Tree                        | B-Tree (order t)                          |
-|--------------------|---------------------------------------|-------------------------------------------|
-| Storage            | In-memory                             | Designed for disk (large node = 1 page)   |
-| Node size          | 1 key per node                        | Up to `2t-1` keys per node                |
-| Height             | O(log n)                              | O(log_t n) — much shorter for large t     |
-| Use in databases   | In-memory indexes, std::map           | On-disk indexes (PostgreSQL, MySQL, InnoDB)|
-| Cache friendliness | Poor (pointer chasing)                | Excellent (sequential keys in one node)   |
-| Merge/split        | Rotation only                         | Child split / sibling borrow / merge      |
+| Feature | Red-Black Tree | B-Tree (Order $t$) |
+| --- | --- | --- |
+| **Where does it live?** | RAM (Fast, volatile memory) | Disk (SSDs, hard drives) |
+| **Keys per node** | Exactly 1 key | Ranges from $t-1$ up to $2t-1$ keys |
+| **Height profile** | Taller ($O(\log_2 n)$) | Short & flat ($O(\log_t n)$) |
+| **Real-world use** | C++ `std::map`, Linux kernel process scheduler | PostgreSQL indexes, OS Filesystems |
+| **Hardware trick** | Fast pointer traversal | Grabs a huge continuous array block at once |
 
-PostgreSQL's B-Tree index pages are 8 KB by default — matching `page_size` from Lab 2 — so one disk read fetches an entire B-Tree node.
+> 💡 **Storage Alignment Note** PostgreSQL uses an 8 KB page block layout. A B-Tree allows one single disk fetch to load an entire node block packed with entries, maximizing input/output efficiency.
 
----
 
-## Key Takeaways
-- Red-Black Trees maintain balance via color + rotation; ideal for in-memory sorted maps.
-- B-Trees minimize disk I/O by packing many keys into one node = one page read.
-- Delete in B-Trees has three cases: borrow from sibling, merge with sibling, or replace with predecessor/successor.
-- The `T` (minimum degree) directly controls the fanout and tree height — higher T → shorter tree → fewer disk seeks.
+
+## 📝 Key Takeaways for Your Notes
+
+* **Red-Black Trees** keep operations fast in memory by recoloring nodes and twisting them via rotations.
+* **B-Trees** prioritize minimizing slow hardware disk steps. They expand horizontally, clustering multiple search paths into compact arrays.
+* **Underflow Management:** When a B-Tree node drops below the minimum safe occupancy limit ($t-1$), it handles the issue using a structural process: **Borrow** elements from an immediate neighbor if possible; if both neighbors are empty, **Merge** them into a unified storage block.

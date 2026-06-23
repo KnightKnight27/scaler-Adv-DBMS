@@ -1,3 +1,0 @@
-/home/kartik/scaler-Adv-DBMS/Index/build/CMakeFiles/Btree.dir
-/home/kartik/scaler-Adv-DBMS/Index/build/CMakeFiles/edit_cache.dir
-/home/kartik/scaler-Adv-DBMS/Index/build/CMakeFiles/rebuild_cache.dir
