@@ -1,3 +1,8 @@
 *.db
 prog1
 prog2
+main
+build/
+docs/
+data/
+Team_idkDB/
