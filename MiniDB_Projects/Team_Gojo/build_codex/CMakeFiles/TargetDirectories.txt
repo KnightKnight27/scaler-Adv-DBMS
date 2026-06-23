@@ -1,3 +1,0 @@
-/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build_codex/CMakeFiles/minidb.dir
-/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build_codex/CMakeFiles/edit_cache.dir
-/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build_codex/CMakeFiles/rebuild_cache.dir
