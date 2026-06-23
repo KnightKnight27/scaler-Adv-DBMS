@@ -2,7 +2,7 @@
 
 ## 1. Problem Background
 
-RocksDB was developed at Meta (Facebook) in 2012 as a fork of Google's **LevelDB** project. Traditional relational engines (like MySQL or PostgreSQL) rely on B-Tree index structures. While B-Trees provide fast read access ($O(\log N)$ seeks), they are heavily optimized for random page reads and writes. 
+RocksDB was developed at Meta (Facebook) in 2012 as a fork of Google's **LevelDB** project. Traditional database engines (like MySQL or PostgreSQL) rely on B-Tree index structures. While B-Trees provide fast read access ($O(\log N)$ seeks), they are heavily optimized for in-place modifications and random page writes. 
 
 With the emergence of modern Solid State Drives (SSDs) and write-heavy distributed storage systems, B-Trees present several problems:
 *   **Write Amplification**: Updating a single byte in a B-Tree page requires writing the entire page (typically 8KB or 16KB) to disk. This causes severe flash wear and reduces SSD lifespans.
@@ -15,7 +15,7 @@ RocksDB was built to solve these issues. It is a high-performance, embedded, key
 
 ## 2. Architecture Overview
 
-RocksDB implements a **Log-Structured Merge-Tree (LSM-Tree)** architecture. Instead of modifying files in place, RocksDB performs all write operations sequentially.
+RocksDB implements a **Log-Structured Merge-Tree (LSM-Tree)** architecture. Instead of modifying files in place, RocksDB converts random writes into sequential memory inserts and sequential disk appends.
 
 ```mermaid
 graph TD
@@ -39,36 +39,31 @@ graph TD
     end
 ```
 
-*   **Active MemTable**: An in-memory write buffer (usually implemented as a lock-free Skip-List) where keys are sorted.
-*   **Immutable MemTable**: A MemTable that is full and read-only, waiting to be flushed to disk.
-*   **Write-Ahead Log (WAL)**: An append-only log on disk that records writes for crash durability.
-*   **SSTables (Sorted String Tables)**: Immutable files stored on disk. Keys within each SSTable are sorted sequentially. SSTables are divided into Levels (L0 to Ln).
-*   **Bloom Filters**: Probabilistic data structures loaded in memory to quickly check if a key exists in an SSTable, bypassing disk seeks.
+When a write command (Put or Delete) is executed, RocksDB performs two steps:
+1.  It appends the key-value pair to the Write-Ahead Log (WAL) on disk to guarantee durability.
+2.  It inserts the key-value pair into an in-memory structure called the **Active MemTable** (typically implemented as a lock-free Skip-List).
+
+Because both steps are sequential, writes avoid random disk seeks and complete quickly. 
+
+When the active MemTable fills up, it becomes read-only (an **Immutable MemTable**), and a new active MemTable is initialized. A background flush thread writes the contents of the Immutable MemTable to disk as a Level 0 (L0) **Sorted String Table (SSTable)** file, after which the old WAL entries are cleared.
 
 ---
 
 ## 3. Internal Design
 
-### 3.1. MemTable & Immutable MemTable
-When a write (Put or Delete) occurs:
-1.  It is written sequentially to the WAL.
-2.  It is inserted into the active MemTable.
-3.  Once the active MemTable reaches its configured size (e.g. 64MB), it becomes an **Immutable MemTable**.
-4.  A new active MemTable is initialized to accept incoming writes.
-5.  A background **Flush thread** writes the Immutable MemTable content to disk as a Level 0 (L0) SSTable, clearing the WAL up to that point.
+### 3.1. MemTables and SSTables
+*   **MemTable**: The active in-memory structure where keys are sorted as they are inserted. While Skip-Lists are default, RocksDB also supports vector and prefix-hash memtables to optimize specific read patterns.
+*   **SSTable File Layout**: SSTables are immutable sorted files on disk. They are divided into:
+    *   *Data Blocks*: Store key-value pairs sorted sequentially.
+    *   *Index Block*: Maps the last key of each data block to its file offset, enabling binary search within the file.
+    *   *Filter Block (Bloom Filter)*: Stores a bit array representing the keys inside the SSTable, allowing RocksDB to check for key existence without reading the data blocks.
 
-### 3.2. Sorted String Tables (SSTables)
-SSTable files are structured into blocks:
-*   **Data Blocks**: Store key-value pairs sorted sequentially.
-*   **Index Block**: Maps the last key of each data block to its file offset, enabling binary search.
-*   **Filter Block (Bloom Filter)**: Stores a bit array representing keys in the file.
+### 3.2. L0 to Ln Storage Levels
+SSTables are organized into levels:
+*   **Level 0 (L0)**: Direct flush outputs from Immutable MemTables. Because these files are written independently, their key ranges can **overlap** (e.g. File A has keys 1–50, File B has keys 25–75).
+*   **Level 1 to Level N**: Key ranges **never overlap** within the same level (e.g. in L1, File A has keys 1–30, File B has keys 31–60, File C has keys 61–90). Each level is typically 10× larger than the level above it.
 
-### 3.3. L0 to Ln Storage Levels
-*   **Level 0 (L0)**: Direct dump of MemTables. Since L0 files are written independently, their key ranges can **overlap** (e.g. File A has keys 1–50, File B has keys 25–75).
-*   **Level 1 to Level N**: Key ranges **never overlap** within the same level. For instance, in L1, File A has keys 1–30, File B has keys 31–60, and File C has keys 61–90.
-*   Each level is typically 10× larger than the level above it (e.g., L1 = 10MB, L2 = 100MB, L3 = 1GB).
-
-### 3.4. Bloom Filters
+### 3.3. Bloom Filters
 Because keys can reside in any level, a read for a non-existent key would normally force RocksDB to search every level and binary search multiple SSTables, causing massive read performance drops.
 *   A **Bloom Filter** uses multiple hash functions to map keys to a bit array.
 *   If the filter returns **false**, the key **definitely does not exist** in that SSTable, allowing RocksDB to skip reading it.
@@ -77,7 +72,7 @@ Because keys can reside in any level, a read for a non-existent key would normal
 
 ---
 
-### 3.5. Compaction
+### 3.4. Compaction
 As new SSTables are flushed to L0, duplicate keys and deletion markers (tombstones) accumulate across levels. To reclaim space and keep levels balanced, RocksDB runs background **Compaction**:
 
 ```
@@ -88,11 +83,10 @@ As new SSTables are flushed to L0, duplicate keys and deletion markers (tombston
       Level 2:  [ File A: Keys 1-20 ]  [ File B: Keys 21-40 ]  [ File C: Keys 41-60 ]
 ```
 
-1.  **L0 to L1 Compaction**: Since L0 files overlap, L0 files are merged with all L1 files that intersect their key ranges.
-2.  **Ln to Ln+1 Compaction**: When a level (e.g., L1) exceeds its size limit:
-    *   RocksDB selects an L1 file.
-    *   It performs a **multi-way merge sort** combining the L1 file with all L2 files that overlap its key range.
-    *   It writes new sorted, non-overlapping L2 files, discarding old versions and tombstones.
+When a level (e.g., L1) exceeds its size limit:
+1.  RocksDB selects an L1 file.
+2.  It performs a **multi-way merge sort** combining the L1 file with all L2 files that overlap its key range.
+3.  It writes new sorted, non-overlapping L2 files, discarding old versions and tombstones.
 
 **Compaction Strategies**:
 *   *Leveled Compaction (LCS - Default)*: Keeps levels strictly organized. Low space amplification, but high write amplification.
@@ -100,7 +94,7 @@ As new SSTables are flushed to L0, duplicate keys and deletion markers (tombston
 
 ---
 
-### 3.6. Read and Write Paths
+### 3.5. Read and Write Paths
 *   **Write Path**:
     `Client Write -> Append to WAL -> Insert to Active MemTable -> Success`
     This process is extremely fast because it requires **zero random writes** to disk.
