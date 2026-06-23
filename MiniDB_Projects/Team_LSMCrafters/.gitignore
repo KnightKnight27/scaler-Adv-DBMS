@@ -1,0 +1,9 @@
+# CMake build directory
+build/
+
+# Generated benchmark results (CSV files)
+benchmarks/results/*.csv
+
+# Runtime artifacts
+*.db
+*.wal
