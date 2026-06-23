@@ -1,12 +1,12 @@
-# MiniDB Makefile — Member 1 storage build (Members 2 & 3 add their files later)
-
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Isrc
-
-# Member 1 files (current)
-SRCS = src/main.cpp \
-       src/storage/Page.cpp src/storage/PageManager.cpp \
-       src/storage/HeapFile.cpp src/storage/BufferPool.cpp
+SRCS = src/main.cpp src/Database.cpp \
+       src/storage/Page.cpp src/storage/PageManager.cpp src/storage/HeapFile.cpp src/storage/BufferPool.cpp \
+       src/index/BPlusTree.cpp src/catalog/Catalog.cpp \
+       src/parser/Lexer.cpp src/parser/Parser.cpp \
+       src/optimizer/Optimizer.cpp src/execution/Executor.cpp \
+       src/transaction/LockManager.cpp src/transaction/TransactionManager.cpp \
+       src/recovery/WAL.cpp src/recovery/RecoveryManager.cpp
 
 minidb: $(SRCS)
 	$(CXX) $(CXXFLAGS) -o minidb $(SRCS)

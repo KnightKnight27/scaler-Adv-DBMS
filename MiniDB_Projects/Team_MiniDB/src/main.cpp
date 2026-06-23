@@ -1,51 +1,36 @@
-// main.cpp — Member 1 demo: storage layer (Page, BufferPool, HeapFile)
-// After Member 2 and Member 3 add their code, this becomes the full SQL REPL.
-
 #include <iostream>
+#include <string>
 
-#include "common/Config.hpp"
-#include "common/Types.hpp"
-#include "storage/BufferPool.hpp"
-#include "storage/HeapFile.hpp"
-#include "storage/PageManager.hpp"
+#include "Database.hpp"
 
 using namespace std;
 using namespace minidb;
 
 int main() {
     cout << "===========================================\n";
-    cout << "  MiniDB — Storage Layer Demo (Member 1)\n";
+    cout << "  MiniDB — Minimal Educational Database\n";
+    cout << "  Type SQL ending with ;  (exit to quit)\n";
     cout << "===========================================\n";
 
-    BufferPool pool;
-    PageManager pm(pool);
-    pm.open(string(DATA_DIR) + "/demo.db");
-
-    uint32_t page_id = pm.allocatePage(PageType::HEAP);
-    HeapFile heap(pm, page_id);
-
-    Row r1;
-    r1["id"] = "1";
-    r1["name"] = "Alice";
-    heap.insertRow(r1);
-
-    Row r2;
-    r2["id"] = "2";
-    r2["name"] = "Bob";
-    heap.insertRow(r2);
-
-    cout << "Inserted 2 rows into heap file.\n";
-    cout << "Scanning all rows:\n";
-
-    RowList rows = heap.scanAll();
-    for (const Row& row : rows) {
-        cout << "  | ";
-        for (const auto& kv : row) cout << kv.first << "=" << kv.second << " ";
-        cout << "|\n";
+    Database db;
+    if (!db.open("default")) {
+        cerr << "Failed to open database.\n";
+        return 1;
     }
 
-    pm.flushAll();
-    pm.close();
-    cout << "Done. Pages flushed to disk.\n";
+    int current_txn = 0;
+    string line;
+    while (true) {
+        cout << "minidb> ";
+        if (!getline(cin, line)) break;
+        if (line == "exit" || line == "quit") break;
+        if (line.empty()) continue;
+        if (line == "SET BATCH ON") { db.setBatchMode(true); cout << "OK: batch mode on\n"; continue; }
+        if (line == "SET BATCH OFF") { db.setBatchMode(false); cout << "OK: batch mode off\n"; continue; }
+        cout << db.executeSQL(line, current_txn);
+    }
+
+    db.close();
+    cout << "Goodbye.\n";
     return 0;
 }
