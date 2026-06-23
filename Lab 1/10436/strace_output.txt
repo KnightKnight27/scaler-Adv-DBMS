@@ -1,0 +1,48 @@
+Simulated strace output for:
+  strace -e trace=openat,read,write,close,fsync,fstat ./file_io
+Run on: Fedora Linux (kernel 6.x), filesystem ext4
+
+--------------------------------------------------------------------------------
+
+openat(AT_FDCWD, "lab1_output.txt", O_WRONLY|O_CREAT|O_TRUNC, 0644) = 3
+# Kernel opens the file. AT_FDCWD means relative to current working directory.
+# O_CREAT: create the file if it does not exist.
+# O_TRUNC: if file exists, reset its size to 0 (truncate).
+# Kernel assigns fd=3 (fd 0=stdin, 1=stdout, 2=stderr are already taken).
+# Internally: dentry lookup -> inode lookup/create -> new entry in process fd table.
+
+write(3, "Hello from raw C++ syscalls!\n", 29) = 29
+# Data goes into the PAGE CACHE (kernel RAM buffer), NOT directly to disk.
+# Kernel marks those pages as "dirty" -- they will need writeback to disk.
+# Return value 29 = number of bytes successfully queued for writing.
+
+fsync(3) = 0
+# Forces kernel to flush all dirty pages associated with fd=3 to the block device.
+# Without fsync, a crash between write() and the eventual writeback loses the data.
+# This is expensive: it stalls until the disk confirms the write (physical I/O).
+# Return value 0 = success.
+
+close(3) = 0
+# Releases fd=3 from the process's open-file-description table.
+# Kernel decrements the reference count on the open file description.
+# If count reaches zero, associated kernel structures are freed.
+
+openat(AT_FDCWD, "lab1_output.txt", O_RDONLY) = 3
+# fd=3 is reused -- kernel always picks the lowest available file descriptor number.
+# O_RDONLY: open for reading only. No O_CREAT needed -- file already exists.
+
+fstat(3, {st_mode=S_IFREG|0644, st_size=29, st_blksize=4096, st_blocks=8, ...}) = 0
+# Kernel reads inode metadata for fd=3.
+# st_size=29: confirms exactly 29 bytes are stored.
+# st_mode=S_IFREG|0644: regular file with rw-r--r-- permissions.
+# st_blocks=8: number of 512-byte blocks allocated on disk.
+# st_blksize=4096: preferred I/O block size for this filesystem (ext4 default).
+
+read(3, "Hello from raw C++ syscalls!\n", 64) = 29
+# Page cache HIT: the data was just written and those pages are still in RAM.
+# No physical disk read is required -- kernel copies directly from page cache.
+# Buffer size requested was 64 bytes; only 29 bytes are available, so 29 returned.
+
+close(3) = 0
+# Releases fd=3 again. The file's inode reference count is decremented.
+# Pages may remain in the page cache for future reads (LRU eviction policy).
