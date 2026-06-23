@@ -1,0 +1,72 @@
+Compare 2PL vs MVCC
+Feature	2PL	MVCC
+Full Form	Two Phase Locking	Multi-Version Concurrency Control
+Concurrency	Medium	High
+Reads Block Writes	Yes	No
+Writes Block Reads	Yes	No
+Deadlocks	Possible	Rare
+Storage Usage	Lower	Higher
+Read Performance	Moderate	Excellent
+Write Performance	Good	Good
+Snapshot Reads	No	Yes
+Two Phase Locking (2PL)
+Phases
+Growing Phase
+
+Acquire locks only.
+
+Shrinking Phase
+
+Release locks only.
+
+Lock(A)
+Lock(B)
+Read(A)
+Write(B)
+Unlock(A)
+Unlock(B)
+Advantages
+Simple
+Strong serializability
+Disadvantages
+Deadlocks
+Blocking
+
+Example:
+
+T1 holds A
+T2 holds B
+
+T1 wants B
+T2 wants A
+
+Deadlock
+MVCC
+
+Stores multiple row versions.
+
+Example:
+
+Version	Value
+V1	100
+V2	150
+V3	180
+
+Readers access old versions.
+
+Writers create new versions.
+
+Advantages
+Non-blocking reads
+Better throughput
+Ideal for OLTP
+Disadvantages
+More storage
+Garbage collection needed
+Real Systems
+PostgreSQL → MVCC
+MySQL InnoDB → MVCC + locking
+SQL Server → lock-based + row versioning
+Conclusion
+
+Modern databases generally prefer MVCC because reads do not block writes, leading to higher concurrency.
