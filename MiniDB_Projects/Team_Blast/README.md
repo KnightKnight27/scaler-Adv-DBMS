@@ -15,6 +15,38 @@
 
 ---
 
+## Team Contributions
+
+### Lavanya Soni (Storage & Memory Cache Subsystem)
+* **Assigned Modules**: Storage Layer (`disk_manager.cpp`, `page.h`, `buffer_pool.cpp`)
+* **Key Contributions**:
+  * Implemented the binary slotted-page structure managing variable-length rows, headers, and slot updates.
+  * Developed the `DiskManager` page allocator executing direct system-level POSIX file I/O operations.
+  * Built the Clock-Sweep buffer pool caching system (64 frames) coordinating thread-safe page pinning/unpinning and dirty page flushing.
+
+### Mayank Soni (Indexing & Parser Subsystem)
+* **Assigned Modules**: Indexing Layer (`bplus_tree.cpp`) & SQL Parser (`parser.cpp`)
+* **Key Contributions**:
+  * Programmed the primary-key B+ Tree structure (ORDER=4) handling leaf splits, internal routing splits, and traversal.
+  * Connected leaf nodes into a double-linked sequence to support fast $O(\log N + K)$ range queries.
+  * Designed the SQL command parser tokenizing and converting strings into structured query plan parameters.
+
+### Tirth Bhalani (Volcano Engine & Query Optimizer)
+* **Assigned Modules**: Execution Engine (`executor.cpp`) & Cost-Based Optimizer (`optimizer.cpp`)
+* **Key Contributions**:
+  * Implemented the Volcano iterator model execution operators (`TableScanOp`, `IndexScanOp`, `NestedLoopJoinOp`, `ProjectionOp`).
+  * Developed the disk cost estimation formula comparing table page costs against index heights.
+  * Designed selectivity cost multipliers ($S = \frac{1}{N}$ for point lookups, $S = 0.5$ for range lookups) and outer/inner join ordering logic.
+
+### Sarthak Agarwal (Transactions, Concurrency, WAL & Replication)
+* **Assigned Modules**: Concurrency & Recovery (`lock_manager.cpp`, `tx_manager.cpp`, `wal.cpp`, `recovery.cpp`) & Replication (`primary.cpp`, `replica.cpp`)
+* **Key Contributions**:
+  * Built the Strict Two-Phase Locking (Strict 2PL) engine enforcing shared and exclusive transaction boundaries.
+  * Programmed waits-for dependency graphs and DFS deadlock cycle detection, as well as transaction abort rollback undo logs.
+  * Implemented WAL redo-only recovery and primary-replica log shipping streams using sequential file offsets.
+
+---
+
 ## 1. Project Overview
 
 ### Problem Statement
