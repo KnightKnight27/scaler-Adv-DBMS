@@ -1,4 +1,4 @@
-# Lab 2: SQLite3 vs PostgreSQL Comparison
+# PostgreSQL vs SQLite Architecture Comparison
 
 **Roll Number:** `24BCS10230`  
 **Name:** `Parth Taneja`
