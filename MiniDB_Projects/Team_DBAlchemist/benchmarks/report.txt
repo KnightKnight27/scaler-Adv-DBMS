@@ -1,0 +1,28 @@
+MiniDB Benchmark Report
+============================================================
+
+1. Insert Throughput
+   100 rows: 438 rows/sec (0.2284s)
+   500 rows: 511 rows/sec (0.9782s)
+   1000 rows: 489 rows/sec (2.0459s)
+   2000 rows: 440 rows/sec (4.5461s)
+
+2. MVCC Concurrent Read Throughput
+   1 readers: 482 q/s per reader, total 482 q/s
+   2 readers: 262 q/s per reader, total 525 q/s
+   4 readers: 117 q/s per reader, total 470 q/s
+   Note: readers see consistent snapshots, writer runs concurrently without blocking readers
+
+3. Snapshot Isolation
+   T1 snapshot (pre-commit): 500 rows
+   Fresh read (post-commit): 550 rows
+   Correct: True
+
+4. Index vs Sequential Scan
+   200 rows: SeqScan=1.05ms, IndexScan=0.68ms, speedup=1.54x
+   500 rows: SeqScan=1.72ms, IndexScan=1.6ms, speedup=1.08x
+   1000 rows: SeqScan=4.11ms, IndexScan=0.03ms, speedup=131.48x
+   2000 rows: SeqScan=7.25ms, IndexScan=0.03ms, speedup=225.09x
+
+5. WAL Recovery
+   Committed: 200 | Recovered: 200 | Correct: True | Time: 5.01ms
