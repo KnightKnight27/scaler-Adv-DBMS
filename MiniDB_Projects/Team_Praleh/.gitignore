@@ -1,0 +1,10 @@
+# MiniDB — gitignore
+build/
+*.o
+*.a
+*.so
+*.db
+*.wal
+*.log
+.DS_Store
+Thumbs.db

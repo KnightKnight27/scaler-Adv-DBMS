@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/bench_insert.dir/link.d CMakeFiles/bench_insert.dir/benchmarks/bench_insert.cpp.o -o bench_insert  libminidb_core.a
