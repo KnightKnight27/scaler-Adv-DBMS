@@ -3,7 +3,7 @@
 Build first:
 
 ```bash
-cd MiniDB_Projects/Team_MiniDB
+cd MiniDB_Projects/Team_BlueLeaf
 make            # builds ./minidb   (or ./build.sh, which uses cmake if installed)
 make test       # builds + runs all unit tests
 make bench      # builds the benchmark binary at build/minidb_bench
