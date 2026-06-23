@@ -8,12 +8,12 @@ Unlike traditional relational databases, RocksDB is an embeddable key-value stor
 
 ```mermaid
 graph TD
-    App[Application] --> MemTable[MemTable (In-Memory)]
+    App[Application] --> MemTable["MemTable (In-Memory)"]
     App --> WAL[(Write-Ahead Log)]
     
     MemTable -->|Flush| L0[Level 0 SSTables]
     
-    subgraph On-Disk Storage (LSM-Tree)
+    subgraph On-Disk Storage
         L0 -->|Compaction| L1[Level 1 SSTables]
         L1 -->|Compaction| L2[Level 2 SSTables]
         L2 -->|Compaction| Lmax[Level N SSTables]
