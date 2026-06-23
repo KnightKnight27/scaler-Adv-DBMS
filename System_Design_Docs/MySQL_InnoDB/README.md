@@ -198,10 +198,14 @@ Without redo, committed data in memory could be lost on crash. Without undo, rol
 "query_cost": "0.35"
 ```
 
-Both examine one row, but:
+Both report `rows_examined_per_scan: 1`, so EXPLAIN alone hides the real cost difference. That is the main thing I took away from this experiment.
 
-- PK `const` access reads the **clustered leaf** directly—data is there.
-- Secondary index `ref` access reads index leaf, then uses embedded PK to fetch clustered leaf (回表) if non-covering columns (`name`, `city`) are selected.
+| Query | `access_type` | `key` | What I think happens on disk |
+|-------|---------------|-------|------------------------------|
+| `WHERE id = 2500` | `const` | `PRIMARY` | One clustered B+Tree descent; row bytes are in the leaf |
+| `WHERE email = 'user2500@...'` | `ref` | `idx_customers_email` | Index leaf gives PK → **second** clustered lookup to fetch `name`, `city` |
+
+The email query had *lower* `query_cost` (0.35 vs 1.00) in the optimizer model, but that model does not always equal I/O in the field. For wide rows or cold buffer pools, the extra回表 hop matters; for narrow hot rows in memory, secondary access can look deceptively cheap in JSON plans.
 
 ### 5.2 Join via Secondary Index
 
@@ -235,13 +239,9 @@ Join `orders` to `customers` on email:
 4. **Secondary indexes carry PK overhead**—wide UUID PKs inflate every index.
 5. **PostgreSQL and InnoDB both implement MVCC** but with opposite update philosophies: append-only heap versions vs in-place updates with undo chains.
 
-### Assignment Questions — Answered
+### Connecting back to PostgreSQL (from my own comparison)
 
-| Question | Answer |
-|----------|--------|
-| Why both undo and redo? | Redo = durability after crash; undo = rollback + consistent reads for in-place updates. |
-| Clustered index advantages? | Single-hop PK access, ordered range scans, better locality. |
-| Why different MVCC from PostgreSQL? | Historical Oracle influence; in-place updates suit B+Tree clustered layout; PostgreSQL research heritage favored heap extensibility. |
+After running the PostgreSQL `EXPLAIN ANALYZE` join, the InnoDB experiment clicked differently: PostgreSQL secondary indexes point to heap TIDs; InnoDB secondaries point to PK values that *are* the table ordering. Neither is "free"—PostgreSQL pays VACUUM on the heap; InnoDB pays purge on undo and回表 on secondaries.
 
 ---
 

@@ -190,15 +190,19 @@ readrandom : 1.845 micros/op  541,917 ops/sec  60.0 MB/s
 3. **Bloom filters:** `readrandom` found all 200K keys with sub-3µs average—bloom filters + level structure limited file checks.
 4. **Compression:** Reduces space amplification and can improve read throughput on I/O-bound workloads.
 
-### 5.6 Compaction Strategy Impact (Conceptual)
+### 5.6 What I could not isolate in this run (honest limit)
 
-| Strategy | Expected write amp | Expected read amp | When to use |
-|----------|-------------------|-------------------|-------------|
-| Leveled | Higher | Lower | Read-heavy |
-| Universal | Lower | Higher | Write-heavy, log ingestion |
-| FIFO | Lowest | Highest | Append-only time-series with TTL |
+The assignment suggests comparing **compaction strategies** (leveled vs universal). The packaged `db_bench` 6.11 in Ubuntu Docker exposed `compression_type` and fill patterns, but not an easy side-by-side leveled/universal toggle without rebuilding RocksDB from source with custom options. I did **not** fabricate compaction-strategy numbers.
 
-*Industry benchmarks (RocksDB wiki) show leveled compaction can reach 30×+ write amplification on sustained random writes while keeping read amplification near 1–5× per level.*
+From my three real runs, the pattern still supports the LSM argument:
+
+| Run | Write throughput | Read throughput | Interpretation |
+|-----|------------------|-----------------|----------------|
+| Random fill, no compression | 204K ops/s | 321K ops/s | Baseline |
+| Random fill + Snappy | ~same writes | 414K ops/s (+29%) | Less bytes per SST block helps reads |
+| Sequential fill | 391K ops/s writes | 542K ops/s reads | Sorted ingest → cleaner L0/L1 layout before heavy compaction |
+
+**Inference (reasoned, not measured here):** leveled compaction would likely cut read amplification further at the expense of background write spikes—that is the usual trade-off named in the LSM literature, but I would need a source build to cite my own leveled vs universal numbers.
 
 ---
 
@@ -210,13 +214,9 @@ readrandom : 1.845 micros/op  541,917 ops/sec  60.0 MB/s
 4. **RocksDB complements, not replaces, B-tree databases** — use LSM for write-heavy KV/log workloads; use PostgreSQL/InnoDB for complex queries and strong relational semantics.
 5. **Amplification metrics are the LSM tuning language** — optimizing one metric without watching the others leads to production incidents.
 
-### Assignment Questions — Answered
+### Why this felt different from PostgreSQL/InnoDB
 
-| Question | Answer |
-|----------|--------|
-| Why LSM for write-heavy workloads? | Sequential WAL + MemTable append avoids random disk writes; compaction batches rewrites. |
-| Why is compaction expensive? | Must read and rewrite entire SST files; competes for disk bandwidth; causes write amplification spikes. |
-| How do Bloom filters help? | Skip SST files that cannot contain the key, reducing read amplification especially on misses. |
+In the same week I watched PostgreSQL do hash joins over 8 KB heap pages and InnoDB do回表 through a clustered tree. RocksDB's `readrandom` at 1.8–3.1 µs/op looked faster in micro-benchmark terms, but the API is only point `Get`—no ad-hoc join, no MVCC snapshot rules. The speed comes from narrowing the problem, not from beating PostgreSQL at its own workload.
 
 ---
 

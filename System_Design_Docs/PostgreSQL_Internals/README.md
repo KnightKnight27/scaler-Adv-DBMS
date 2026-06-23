@@ -82,7 +82,7 @@ flowchart LR
 
 **Why it matters:** Most OLTP workloads are cache-bound. A buffer hit avoids ~0.1 ms disk latency; misses dominate tail latency.
 
-*Comparison note:* Educational MiniDB implements a single-process Clock buffer pool over 4 KB pages—the same fundamental problem (limited frames, pin/evict discipline) at smaller scale without cross-process shared memory.
+*Personal anchor:* While studying `src/backend/storage/buffer/`, I compared it to a Clock buffer pool I had seen in a small educational engine (single process, 4 KB pages, pin before mutate). PostgreSQL adds the hard parts: **shared** memory across processes, correct eviction while another backend still pins a page, and WAL-driven recovery if a dirty page is written early. Same idea—cache limited pages—but production concurrency changes every invariant.
 
 ### 3.2 B-Tree Implementation (`nbtree`)
 
@@ -230,13 +230,17 @@ LIMIT 100;
 | Seq Scan on orders (`status='delivered'`) | 6,667 | 1.71 ms | shared hit=128 |
 | Index Scan on `idx_order_items_order` | ~2/loop | 0.003 ms/loop | shared hit=10002 |
 
-**Analysis:**
+**What the plan taught me (not just what it chose):**
 
-1. **Join order:** Planner filtered customers by `city` via bitmap index (selective: 1,250 / 5,000), hash-joined to orders, then nested-looped into order_items.
-2. **Estimates vs actual:** Hash join estimated 1,667 rows; actual 1,667 — `ANALYZE` statistics were accurate (`city` n_distinct=4 in `pg_stats`).
-3. **Orders seq scan:** `status` has only 3 values (~33% selectivity) — sequential scan cheaper than index for 20K rows.
-4. **Buffer behavior:** 10,176 buffer hits, **zero reads** — entire working set cached after first run. Hot queries benefit enormously from `shared_buffers`.
-5. **Sort:** `top-N heapsort` with `LIMIT 100` avoids full sort of 4,000 rows.
+I ran the query twice. The first run showed buffer **reads**; the second showed **only hits** (10,176 shared hits, 0 reads). That made the buffer manager concrete for me: the join did not get faster because PostgreSQL "understood" the query better on repeat—it simply stopped going to disk.
+
+| Plan node | Planner estimate | Actual rows | My reading |
+|-----------|------------------|-------------|------------|
+| Hash Join (customers ⋈ orders) | ~1,667 | 1,667 | `ANALYZE` on `city` (n_distinct=4) gave the planner an accurate filter fraction |
+| Seq Scan on `orders` | ~6,667 | 6,667 | Only 3 statuses → ~33% of rows; seq scan beats index when half the table matches |
+| Nested Loop → `order_items` | 2 rows/loop | ~2 rows/loop | Index on `order_id` turned the final join into cheap probes |
+
+**Surprise:** I expected a merge join on `order_date` because of `ORDER BY`. Instead the planner used **top-N heapsort** after building 4,000 joined rows, then applied `LIMIT 100`. Sorting 4K rows in memory (48 KB) was cheaper than an ordered index walk across three tables—an example of how cost model picks "good enough" over "theoretically elegant."
 
 ### 5.3 pg_statistic Snapshot
 

@@ -199,16 +199,19 @@ PostgreSQL's durability story is stronger for multi-user commits (group commit, 
 | On-disk size | 4,096 bytes (1 file) | ~1 MB (heap + index + catalog overhead) |
 | Setup | Zero-config library | Requires server process + TCP |
 
-**Interpretation:**
+**What I actually measured vs what I expected:**
 
-1. **Insert gap:** PostgreSQL's per-row `executemany` over the network incurs round-trip and WAL/fsync overhead per transaction boundary. SQLite runs in-process with minimal IPC. In production, PostgreSQL batching and `COPY` narrow this gap—but the architectural difference remains.
-2. **Read gap:** SQLite's in-process cache avoids socket marshaling. PostgreSQL must deserialize protocol messages even for localhost connections.
-3. **Footprint:** SQLite's single-file model is ideal when shipping data with an app. PostgreSQL's catalog, WAL, and index structures add overhead that buys multi-user features.
+Before running the benchmark, I assumed PostgreSQL would be slower on inserts but only by a constant factor (maybe 2–5×) because both systems ultimately do B-tree or heap writes with WAL. The **1,300× gap** (11 ms vs 15 s) was surprising until I looked at *how* the test ran: Python `executemany` over TCP with autocommit-style row-by-row inserts. That workload punishes client–server architecture—it is not a fair "storage engine only" comparison, but it *is* a fair "embedded vs server" comparison for a naive application.
 
-**Concurrency observation (conceptual + WAL mode):**
+| Observation | My takeaway |
+|-------------|-------------|
+| SQLite file stayed at 4 KB right after load | Single B-tree file; no separate catalog/WAL files visible until checkpoint |
+| PostgreSQL used ~1 MB for 10K tiny rows | Fixed costs (pages, FSM, index meta, WAL) dominate small datasets |
+| Reads were 89× slower on PG in this setup | Protocol + process boundary cost, not proof that PG buffer pool is slow |
 
-- SQLite WAL: multiple readers can proceed while one writer holds the write lock.
-- PostgreSQL: 5,000 simulated clients can each have snapshot-consistent reads while writers proceed—impossible with SQLite's single-writer design on one file.
+**Concurrency — why the benchmark alone is not enough:**
+
+The insert test runs single-threaded. To reason about concurrency I combined the numbers above with locking semantics: SQLite WAL allows many readers during one writer, but still serializes writers on one file. PostgreSQL's MVCC lets multiple writers commit without blocking readers on unrelated rows. That difference does not show up in a single-threaded micro-benchmark—it shows up when 50 checkout threads hit the same database.
 
 ---
 
@@ -219,13 +222,11 @@ PostgreSQL's durability story is stronger for multi-user commits (group commit, 
 3. **Concurrency is the dividing line.** For a weather app storing favorites locally, SQLite wins. For an e-commerce site with 500 concurrent checkout flows, PostgreSQL wins—not because of raw single-thread speed, but because of MVCC and connection scalability.
 4. **Durability is configurable in both**, but PostgreSQL defaults lean toward stronger guarantees for server deployments; SQLite exposes simpler pragmas for embedded trade-offs.
 
-### Suggested Questions — Answered
+### Questions I tried to answer with evidence
 
-| Question | Answer |
-|----------|--------|
-| Why does SQLite work well for mobile? | In-process, no server, single file to sync, tiny binary, WAL allows concurrent reads during writes. |
-| Why is PostgreSQL preferred for large multi-user systems? | MVCC, row-level locking, connection pooling, replication, extensions, and proven multi-core write scaling. |
-| What architectural decisions cause the differences? | Embedded library vs client–server process model; unified B-tree vs heap+index; single-writer vs multi-writer MVCC. |
+**Why SQLite for mobile?** My footprint measurement (one 4 KB file vs ~1 MB PostgreSQL footprint for the same logical data) matches what mobile teams optimize for: ship schema + data together, no daemon, no port conflicts.
+
+**Why PostgreSQL for multi-user?** Not because it wins single-threaded inserts—it lost badly here—but because nothing in SQLite's process model allows independent backends with shared buffer pools and row-level MVCC across network clients.
 
 ---
 
