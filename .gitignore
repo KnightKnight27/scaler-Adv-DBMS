@@ -5,3 +5,16 @@ __pycache__/
 *.pyc
 *.swp
 .DS_Store
+
+# IDE configs
+.vscode/
+.clangd
+
+# Build outputs & binaries
+build/
+rbtree
+txn_manager
+query_engine
+sql_parser
+concurrency_scheduler
+txmgr
