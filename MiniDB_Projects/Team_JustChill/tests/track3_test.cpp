@@ -1,12 +1,16 @@
 // Standalone Track 3 verification driver.
 #include <cassert>
 #include <chrono>
+#include <fstream>
 #include <iostream>
 #include <thread>
 
 #include "btree.h"
+#include "buffer_pool.h"
 #include "execution.h"
+#include "heap_file.h"
 #include "lock_manager.h"
+#include "page.h"
 
 using namespace minidb;
 
@@ -21,7 +25,14 @@ static int g_checks = 0;
   } while (0)
 
 static void testBTree() {
+  // The B+ tree is page-backed; give it a fresh (truncated) index file.
+  const std::string idx = "track3_btree.idx";
+  std::ofstream(idx, std::ios::binary | std::ios::trunc);
+  HeapFile hf(idx);
+  BufferPool bp(256, &hf);
   BPlusTree t;
+  t.open(&bp, &hf, /*fresh=*/true);
+
   // Insert enough keys to force several splits (kOrder = 64).
   for (int k = 0; k < 1000; ++k) t.insert(k, RID{static_cast<uint32_t>(k), 0});
 

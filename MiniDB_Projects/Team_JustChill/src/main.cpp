@@ -6,12 +6,16 @@
 #include <thread>
 #include <memory>
 #include <algorithm>
+#include <filesystem>
+#include <cstdint>
 #include "wal.h"
 #include "replication.h"
 #include "execution.h"
-#include "buffer_pool.h"
-#include "heap_file.h"
+#include "parser.h"
+#include "optimizer.h"
+#include "transaction.h"
 
+namespace fs = std::filesystem;
 using namespace minidb;
 
 // Globals for DB state in main.cpp
@@ -21,19 +25,11 @@ std::unique_ptr<LogManager> wal_manager;
 std::unique_ptr<ReplicationNode> rep_node;
 bool is_primary = true;
 
+LockManager lock_mgr;          // Strict 2PL (Phase D)
+TransactionManager txn_mgr;    // per-statement auto-commit transactions
+
 std::mutex global_db_lock;
 std::mutex console_mutex;
-
-// Helper to split string
-std::vector<std::string> split(const std::string& str, char delim) {
-    std::vector<std::string> tokens;
-    std::string token;
-    std::stringstream ss(str);
-    while (std::getline(ss, token, delim)) {
-        tokens.push_back(token);
-    }
-    return tokens;
-}
 
 // Trims whitespace
 std::string trim(const std::string& str) {
@@ -43,69 +39,70 @@ std::string trim(const std::string& str) {
     return str.substr(first, (last - first + 1));
 }
 
-// Executes a SQL statement on the local database table
-void execute_sql_statement(const std::string& sql) {
-    std::string query = trim(sql);
-    std::string upper_query = query;
-    std::transform(upper_query.begin(), upper_query.end(), upper_query.begin(), ::toupper);
+// Executes one SQL statement against the catalog through the full pipeline:
+//   raw text -> Parser (AST) -> Optimizer (cost-based plan) -> operator tree.
+// Each statement runs as its own transaction (auto-commit): it acquires table
+// locks under Strict 2PL via the shared LockManager and records undo actions,
+// so a failure rolls back. `EXPLAIN <query>` prints the plan instead of running
+// it. Returns true on success. Never throws.
+bool execute_sql_statement(const std::string& sql) {
+    Statement stmt;
+    try {
+        stmt = Parser::parse(sql);
+    } catch (const std::exception& e) {
+        std::cout << e.what() << "\n";
+        return false;
+    }
 
-    if (upper_query.rfind("INSERT", 0) == 0) {
-        // Simple parser: INSERT INTO students VALUES (<id>, '<name>')
-        size_t open_paren = query.find('(');
-        size_t close_paren = query.find(')');
-        if (open_paren == std::string::npos || close_paren == std::string::npos) {
-            std::cout << "Invalid INSERT statement format.\n";
-            return;
+    Optimizer optimizer(catalog);
+
+    if (stmt.explain) {
+        try {
+            ExecContext ctx;  // plan only; no execution, no locks
+            PhysicalPlan plan = optimizer.optimize(stmt, ctx);
+            std::cout << "\nQuery plan (estimated cost " << plan.cost << "):\n"
+                      << plan.explain << "\n";
+            return true;
+        } catch (const std::exception& e) {
+            std::cout << "[ERROR] " << e.what() << "\n";
+            return false;
         }
-        std::string vals_str = query.substr(open_paren + 1, close_paren - open_paren - 1);
-        auto parts = split(vals_str, ',');
-        if (parts.size() != 2) {
-            std::cout << "Arity mismatch for table 'students'. Expected 2 values.\n";
-            return;
-        }
-        int64_t id = std::stoll(trim(parts[0]));
-        std::string name = trim(parts[1]);
-        if (name.front() == '\'' && name.back() == '\'') {
-            name = name.substr(1, name.length() - 2);
+    }
+
+    Transaction* txn = txn_mgr.begin();
+    ExecContext ctx{&lock_mgr, txn->id(), txn};
+    try {
+        PhysicalPlan plan = optimizer.optimize(stmt, ctx);
+
+        if (plan.is_dml) {
+            execute(*plan.root);
+            if (auto* ins = dynamic_cast<Insert*>(plan.root.get()))
+                std::cout << "Executed locally: " << ins->inserted() << " row(s) inserted.\n";
+            else if (auto* del = dynamic_cast<Delete*>(plan.root.get()))
+                std::cout << "Executed locally: " << del->deleted() << " row(s) deleted.\n";
+        } else {
+            const Schema& out = plan.root->schema();
+            auto rows = execute(*plan.root);
+            std::cout << "\n";
+            for (size_t c = 0; c < out.size(); ++c)
+                std::cout << (c ? "\t" : "") << out[c].name;
+            std::cout << "\n-----------------\n";
+            for (const auto& row : rows) {
+                for (size_t c = 0; c < row.size(); ++c)
+                    std::cout << (c ? "\t" : "") << row[c].toString();
+                std::cout << "\n";
+            }
+            std::cout << "(" << rows.size() << " rows)\n\n";
         }
 
-        Tuple row = { Value::Int(id), Value::Text(name) };
-        ExecContext ctx;
-        Insert insert_op(students_table, row, ctx);
-        execute(insert_op);
-        std::cout << "Executed locally: 1 row inserted (id: " << id << ", name: " << name << ")\n";
-    }
-    else if (upper_query.rfind("DELETE", 0) == 0) {
-        // Simple parser: DELETE FROM students WHERE id = <id>
-        size_t eq_idx = query.find('=');
-        if (eq_idx == std::string::npos) {
-            std::cout << "Invalid DELETE statement format.\n";
-            return;
-        }
-        int64_t id = std::stoll(trim(query.substr(eq_idx + 1)));
-        
-        ExecContext ctx;
-        auto scan = std::make_unique<TableScan>(students_table, ctx);
-        Predicate pred{ 0, CompareOp::Eq, Value::Int(id) };
-        auto filter = std::make_unique<Filter>(std::move(scan), pred);
-        Delete delete_op(students_table, std::move(filter), ctx);
-        execute(delete_op);
-        std::cout << "Executed locally: deleted rows with id = " << id << "\n";
-    }
-    else if (upper_query.rfind("SELECT", 0) == 0) {
-        // SELECT * FROM students
-        ExecContext ctx;
-        TableScan scan(students_table, ctx);
-        auto rows = execute(scan);
-        std::cout << "\nid\tname\n";
-        std::cout << "-----------------\n";
-        for (const auto& row : rows) {
-            std::cout << row[0].toString() << "\t" << row[1].toString() << "\n";
-        }
-        std::cout << "(" << rows.size() << " rows)\n\n";
-    }
-    else {
-        std::cout << "Unknown or unsupported command.\n";
+        txn_mgr.commit(txn);            // success: keep changes
+        lock_mgr.release_all(txn->id());
+        return true;
+    } catch (const std::exception& e) {
+        txn_mgr.abort(txn);             // failure: roll back via undo log
+        lock_mgr.release_all(txn->id());
+        std::cout << "[ERROR] " << e.what() << "\n";
+        return false;
     }
 }
 
@@ -119,39 +116,34 @@ void printFromReplica(const std::string& msg) {
 void replica_execution_callback(const std::string& sql) {
     printFromReplica("[REPLICA] Received replication stream event: " + sql);
     std::lock_guard<std::mutex> db_lock(global_db_lock);
-    try {
-        execute_sql_statement(sql);
-    } catch (const std::exception& e) {
-        printFromReplica("[REPLICA ERROR] execution failed: " + std::string(e.what()));
-        throw;
-    }
+    execute_sql_statement(sql);
 }
 
-void auto_checkpoint_loop(BufferPool* bp) {
+// Background daemon: every 5 minutes, flush all table pages to disk (real
+// checkpoint) and truncate the WAL up to that point, bounding recovery work.
+void auto_checkpoint_loop() {
     while (true) {
-        // Sleep for 5 minutes
         std::this_thread::sleep_for(std::chrono::minutes(5));
-        
         {
             std::lock_guard<std::mutex> console_lock(console_mutex);
             std::cout << "\n[SYSTEM] Auto-Checkpoint triggered. Freezing transactions...\n" << std::flush;
         }
-
-        // 1. Lock the database so no queries run mid-flush
         std::lock_guard<std::mutex> db_lock(global_db_lock);
-        
-        // 2. Flush dirty pages
-        bp->checkpointFlush();
-        
-        // 3. Wipe the WAL clean
-        std::ofstream clear_wal("wal.log", std::ios::trunc);
-        clear_wal.close();
-
+        catalog.checkpointAll();                  // flush dirty pages to .dat/.idx
+        std::ofstream("wal.log", std::ios::trunc); // truncate WAL up to checkpoint
         {
             std::lock_guard<std::mutex> console_lock(console_mutex);
             std::cout << "[SYSTEM] Checkpoint complete. WAL truncated. Transactions unpaused.\nminidb-primary> " << std::flush;
         }
     }
+}
+
+// A table is "fresh" (truncate + create) only if its data file is absent/empty;
+// otherwise reopen the durable state so it survives restarts (recovery).
+static bool freshFor(const std::string& name) {
+    std::error_code ec;
+    std::string p = name + ".dat";
+    return !fs::exists(p, ec) || fs::file_size(p, ec) == 0;
 }
 
 int main(int argc, char* argv[]) {
@@ -167,53 +159,53 @@ int main(int argc, char* argv[]) {
     if (argc >= 3) ip = argv[2];
     if (argc >= 4) port = std::stoi(argv[3]);
 
-    // Initialize database schema
+    // Initialize database schema. Tables are page-backed and durable: pass
+    // fresh=false when their files already exist so data survives a restart.
     Schema schema = { {"id", ValueType::Int}, {"name", ValueType::Text} };
-    students_table = catalog.createTable("students", schema, 0); // pk_index = 0
+    students_table = catalog.createTable("students", schema, 0, freshFor("students"));
+
+    // A second table so JOINs are demonstrable end-to-end through SQL, e.g.:
+    //   SELECT * FROM students JOIN enroll ON students.id = enroll.sid
+    Schema enroll_schema = { {"sid", ValueType::Int}, {"course", ValueType::Text} };
+    catalog.createTable("enroll", enroll_schema, -1, freshFor("enroll"));
 
     if (mode == "primary") {
         is_primary = true;
 
-        // 1. Run recovery from wal.log if it exists
-        std::ifstream wal_check("wal.log");
-        if (wal_check.is_open()) {
-            std::cout << "[RECOVERY] wal.log found. Replaying WAL for crash recovery...\n";
-            std::string log_line;
-            int applied_count = 0;
-            std::lock_guard<std::mutex> db_lock(global_db_lock);
-            while (std::getline(wal_check, log_line)) {
-                log_line = trim(log_line);
-                if (log_line.empty()) continue;
-                try {
-                    execute_sql_statement(log_line);
-                    applied_count++;
-                } catch (const std::exception& e) {
-                    std::cerr << "[RECOVERY ERROR] Failed to replay statement: " << log_line << " (" << e.what() << ")\n";
+        // 1. Recovery: durable pages are already loaded above; now replay the
+        //    committed transactions recorded in the WAL after the last
+        //    checkpoint, then re-checkpoint and truncate the log.
+        if (fs::exists("wal.log")) {
+            std::cout << "[RECOVERY] Replaying committed transactions from wal.log...\n";
+            auto stmts = committedStatements("wal.log");
+            int applied = 0;
+            {
+                std::lock_guard<std::mutex> db_lock(global_db_lock);
+                for (const auto& s : stmts) {
+                    if (execute_sql_statement(s)) ++applied;
                 }
+                catalog.checkpointAll();                   // make durable
+                std::ofstream("wal.log", std::ios::trunc); // start a fresh log
             }
-            std::cout << "[RECOVERY] Recovery complete. Applied " << applied_count << " log entries from WAL.\n\n";
-            wal_check.close();
-
-            // Clear WAL since the database state is now recovered and consistent
-            std::ofstream clear_wal("wal.log", std::ios::trunc);
-            clear_wal.close();
+            std::cout << "[RECOVERY] Complete. Replayed " << applied
+                      << " committed statement(s).\n\n";
         }
 
-        // 2. Initialize storage components for checkpointing
-        std::unique_ptr<HeapFile> heap_file = std::make_unique<HeapFile>("students.db");
-        std::unique_ptr<BufferPool> buffer_pool = std::make_unique<BufferPool>(10, heap_file.get());
+        // 2. Spawn the automated checkpoint thread (flushes table pages).
+        std::thread checkpoint_daemon(auto_checkpoint_loop);
+        checkpoint_daemon.detach();
 
-        // 3. Spawn the automated checkpoint thread
-        std::thread checkpoint_daemon(auto_checkpoint_loop, buffer_pool.get());
-        checkpoint_daemon.detach(); // Let it run independently in the background
-
-        // 4. Initialize log manager and replication node
+        // 3. Initialize log manager and replication node.
         wal_manager = std::make_unique<LogManager>("wal.log");
         rep_node = std::make_unique<ReplicationNode>(ip, port);
 
         std::cout << "Database started in PRIMARY mode. Replicating to " << ip << ":" << port << "\n";
-        std::cout << "Enter SQL queries (INSERT INTO students VALUES (id, 'name') | DELETE FROM students WHERE id = val | SELECT * FROM students | exit):\n\n";
+        std::cout << "SQL supported: INSERT INTO <t> VALUES (...) | DELETE FROM <t> [WHERE <bool-expr>]\n"
+                  << "               SELECT <cols|*> FROM <t> [JOIN <t2> ON a=b] [WHERE <bool-expr>]\n"
+                  << "               (<bool-expr> supports AND/OR and parentheses)\n"
+                  << "               EXPLAIN <query>   (show the optimizer's plan) | exit\n\n";
 
+        uint64_t wal_txn = 0;
         std::string line;
         while (true) {
             std::cout << "minidb-primary> ";
@@ -224,48 +216,54 @@ int main(int argc, char* argv[]) {
 
             std::string upper = line;
             std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
-
             bool is_write = (upper.rfind("INSERT", 0) == 0 || upper.rfind("DELETE", 0) == 0);
 
             if (is_write) {
-                // 1. Write WAL
-                wal_manager->writeLog(line);
-                std::cout << "[WAL] Log entry written to disk.\n";
+                // Write-ahead: log BEGIN + statement (durable) BEFORE applying.
+                uint64_t t = ++wal_txn;
+                wal_manager->logBegin(t);
+                wal_manager->logStatement(t, line);
+                std::cout << "[WAL] BEGIN + STMT logged (txn " << t << ").\n";
 
-                // 2. Replicate to Replica
+                // Synchronously replicate; on failure abort (no COMMIT logged).
                 std::cout << "[REPLICATION] Replicating statement to backup...\n";
-                bool rep_ok = rep_node->sendLogToReplica(line);
-                if (!rep_ok) {
-                    std::cerr << "[ERROR] Replication failed! Timeout or connection lost. Aborting transaction.\n";
-                    continue; // Skip executing locally to simulate abort
+                if (!rep_node->sendLogToReplica(line)) {
+                    std::cerr << "[ERROR] Replication failed; aborting (no COMMIT logged).\n";
+                    continue;
                 }
-                std::cout << "[REPLICATION] Replication success (Replica ACKed OK).\n";
-            }
+                std::cout << "[REPLICATION] Replica ACKed OK.\n";
 
-            // 3. Execute locally (Commit)
-            try {
+                bool ok;
+                { std::lock_guard<std::mutex> db_lock(global_db_lock); ok = execute_sql_statement(line); }
+                if (ok) {
+                    wal_manager->logCommit(t);            // commit point
+                    std::cout << "[WAL] COMMIT logged (txn " << t << ").\n";
+                }
+            } else {
                 std::lock_guard<std::mutex> db_lock(global_db_lock);
                 execute_sql_statement(line);
-            } catch (const std::exception& e) {
-                std::cerr << "[ERROR] Execution error: " << e.what() << "\n";
             }
         }
-    } 
+
+        // Clean shutdown: flush pages to disk, then truncate the WAL so a fresh
+        // start sees the durable data and an empty log (no double replay).
+        std::lock_guard<std::mutex> db_lock(global_db_lock);
+        catalog.checkpointAll();
+        std::ofstream("wal.log", std::ios::trunc);
+    }
     else if (mode == "replica") {
         is_primary = false;
         rep_node = std::make_unique<ReplicationNode>(ip, port);
         std::cout << "Database started in REPLICA mode. Listening on port " << port << "...\n";
-        
-        // 1. Spawn background thread for replica TCP listener
+
         std::thread background_listener([]() {
             try {
                 rep_node->startReplicaServer(replica_execution_callback);
-            } catch (const std::exception& e) {
+            } catch (const std::exception&) {
                 // Clean exit when stopReplicaServer is called
             }
         });
 
-        // 2. Interactive CLI loop on the main thread
         std::string input_sql;
         while (true) {
             {
@@ -274,39 +272,30 @@ int main(int argc, char* argv[]) {
             }
             if (!std::getline(std::cin, input_sql)) break;
             input_sql = trim(input_sql);
-            if (input_sql == "exit" || input_sql == "quit") {
-                break;
-            }
+            if (input_sql == "exit" || input_sql == "quit") break;
             if (input_sql.empty()) continue;
 
             std::string upper_query = input_sql;
             std::transform(upper_query.begin(), upper_query.end(), upper_query.begin(), ::toupper);
 
-            // CLI Bouncer for Read-Only replica status
+            // Read-only replica: bounce writes.
             if (upper_query.rfind("INSERT", 0) == 0 || upper_query.rfind("DELETE", 0) == 0) {
                 std::lock_guard<std::mutex> lock(console_mutex);
                 std::cout << "[ERROR] Cannot execute write query on a read-only replica.\n";
                 continue;
             }
 
-            // Execute read-only SELECT query safely
             {
                 std::lock_guard<std::mutex> db_lock(global_db_lock);
-                try {
-                    execute_sql_statement(input_sql);
-                } catch (const std::exception& e) {
-                    std::lock_guard<std::mutex> lock(console_mutex);
-                    std::cout << "[ERROR] Execution error: " << e.what() << "\n";
-                }
+                execute_sql_statement(input_sql);
             }
         }
 
-        // 3. Stop server and join background thread
         rep_node->stopReplicaServer();
         if (background_listener.joinable()) {
             background_listener.join();
         }
-    } 
+    }
     else {
         std::cerr << "Invalid mode: " << mode << ". Use 'primary' or 'replica'.\n";
         return 1;

@@ -70,6 +70,16 @@ void HeapFile::writePage(int page_id, Page* page) {
     page->is_dirty = false;
 }
 
+int HeapFile::numPages() {
+    std::lock_guard<std::mutex> lock(disk_io_lock);
+    if (!file.is_open()) return 0;
+    file.clear();
+    file.seekg(0, std::ios::end);
+    std::streamoff file_size = file.tellg();
+    if (file_size < 0) file_size = 0;
+    return static_cast<int>(file_size / PAGE_SIZE);
+}
+
 int HeapFile::allocatePage() {
     std::lock_guard<std::mutex> lock(disk_io_lock);
     if (!file.is_open()) {

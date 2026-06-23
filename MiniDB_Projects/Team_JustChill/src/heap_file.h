@@ -17,4 +17,5 @@ public:
     void readPage(int page_id, Page* page);
     void writePage(int page_id, Page* page);
     int allocatePage(); // Returns the next available page_id based on file size
+    int numPages();     // Number of pages currently in the file (size / PAGE_SIZE)
 };

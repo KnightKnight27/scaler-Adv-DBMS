@@ -12,5 +12,6 @@ run_benchmarks
 # Database storage and log files
 *.log
 *.dat
+*.idx
 *.db
 wal.log

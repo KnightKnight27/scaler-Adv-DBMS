@@ -1,23 +1,26 @@
-// btree.h — Track 3 (Query & Concurrency)
+// btree.h — Phase B: page-backed primary-key B+ Tree (int64 key -> RID).
 //
-// Primary-key B+ Tree index mapping an int64 key -> RID (record id).
-// Supports point Search, range scans (via leaf-linked Iterator, used by the
-// IndexScan operator) and Insert with node splits.
+// Every node is exactly one page, stored through the same BufferPool/HeapFile
+// as the rest of the engine, so the index is durable and survives restarts.
+// The root page id lives in a meta page (page 0) so it can be recovered.
 //
-// Per the track brief we SKIP rebalancing on delete: remove() just sets a
-// tombstone (is_deleted) flag on the leaf entry. Searches and scans skip
-// tombstoned entries, so deleted keys disappear logically without any merge.
+// Supports point Search, range scans (leaf-linked Iterator, used by IndexScan)
+// and Insert with node splits. Per the project brief we SKIP rebalancing on
+// delete: remove() tombstones a leaf entry (its RID page_id is set to a
+// sentinel) and searches/scans skip it — no merge.
 #pragma once
 
 #include <cstdint>
 #include <optional>
 #include <vector>
 
+// Storage backends live in the global namespace (page.h / buffer_pool.h).
+class BufferPool;
+class HeapFile;
+
 namespace minidb {
 
-// Record identifier. With the in-memory storage used by the executor we set
-// page_id = row index and slot_id = 0; the heap-file track can later use the
-// real (page, slot) pair without changing this struct.
+// Record identifier: (page_id, slot_id) into the page-backed heap table.
 struct RID {
   uint32_t page_id = 0;
   uint16_t slot_id = 0;
@@ -31,63 +34,77 @@ using Key = int64_t;
 
 class BPlusTree {
  public:
-  // Max keys per node. Small enough to exercise splits in tests, large enough
-  // to stay shallow for the benchmarks.
+  // Max keys per node. A leaf holds up to 64×(8B key + 6B RID) ≈ 1 KB and an
+  // internal node up to 64×8B keys + 65×4B children ≈ 780 B — both fit a 4 KB
+  // page with room for the temporary (kOrder+1) overflow before a split.
   static constexpr int kOrder = 64;
 
   BPlusTree() = default;
-  ~BPlusTree();
+  ~BPlusTree() = default;  // pages are owned by the BufferPool, not by us
 
   BPlusTree(const BPlusTree&) = delete;
   BPlusTree& operator=(const BPlusTree&) = delete;
 
-  // Insert a key/RID pair. Duplicate keys are allowed (a re-inserted PK simply
-  // shadows the old one on search); primary-key uniqueness is enforced above
-  // this layer.
+  // Bind the tree to its page storage. `fresh` creates a new empty tree (meta
+  // page + one empty leaf); otherwise the root page id is read back from the
+  // meta page. `fresh` requires a truncated/empty file (the caller guarantees
+  // this — see Table).
+  void open(::BufferPool* pool, ::HeapFile* heap, bool fresh);
+
+  // Insert a key/RID pair (duplicate keys allowed; uniqueness is enforced above
+  // this layer). Splits overflowing nodes and grows a new root as needed.
   void insert(Key key, RID rid);
 
-  // Point lookup. Returns the RID for `key`, or nullopt if absent/tombstoned.
+  // Point lookup: the RID for `key`, or nullopt if absent / tombstoned.
   std::optional<RID> search(Key key) const;
 
-  // Tombstone the entry for `key` (no rebalancing). Returns true if a live
-  // entry was found and marked deleted.
+  // Tombstone the entry for `key` (no rebalancing). True if a live entry was
+  // found and marked deleted.
   bool remove(Key key);
 
-  // Forward iterator over live entries in [low, high]. Use kMin/kMax for an
-  // unbounded end. Walks the leaf linked list, skipping tombstones.
+  // Forward iterator over live entries in [low, high]. It copies one leaf's
+  // entries at a time and follows leaf `next` page ids, so it never holds a
+  // page pinned across calls.
   class Iterator {
    public:
-    bool valid() const { return leaf_ != nullptr; }
-    Key key() const;
-    RID rid() const;
-    void next();  // advance to the next live, in-range entry
+    bool valid() const { return valid_; }
+    Key key() const { return keys_[idx_]; }
+    RID rid() const { return rids_[idx_]; }
+    void next();
 
    private:
     friend class BPlusTree;
-    struct Node* leaf_ = nullptr;
+    const BPlusTree* tree_ = nullptr;
+    std::vector<Key> keys_;
+    std::vector<RID> rids_;
+    int next_leaf_ = -1;
     int idx_ = 0;
     Key high_ = 0;
+    bool valid_ = false;
+    void loadLeaf(int page_id);
     void skipToValid();
   };
 
   static constexpr Key kMin = INT64_MIN;
   static constexpr Key kMax = INT64_MAX;
 
-  // Begin a scan over [low, high].
   Iterator range(Key low = kMin, Key high = kMax) const;
 
  private:
   struct SplitResult {
     bool did_split = false;
-    Key sep_key = 0;       // separator pushed up to the parent
-    Node* new_right = nullptr;
+    Key sep_key = 0;     // separator pushed up to the parent
+    int new_right = -1;  // page id of the new right sibling
   };
 
-  SplitResult insertRec(Node* node, Key key, RID rid);
-  Node* findLeaf(Key key) const;
-  static void freeRec(Node* node);
+  SplitResult insertRec(int page_id, Key key, RID rid);
+  int findLeafPage(Key key) const;
+  void readRootFromMeta();
+  void writeRootToMeta();
 
-  Node* root_ = nullptr;
+  ::BufferPool* pool_ = nullptr;
+  ::HeapFile* heap_ = nullptr;
+  int root_page_id_ = -1;
 };
 
 }  // namespace minidb
