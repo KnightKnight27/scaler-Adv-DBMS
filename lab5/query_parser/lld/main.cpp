@@ -1,4 +1,4 @@
-struct SQLQuery{
+struct SQLQuery {
 	string tableName;
 	vector<string> columns;
 	Expression* filters;
