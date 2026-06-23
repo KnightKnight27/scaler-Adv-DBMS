@@ -263,7 +263,7 @@ Hex-dumped a real SQLite DB and confirmed: the `"SQLite format 3"` magic header,
 
 ---
 
-## 6. Key Takeaways
+## 6. Key Learnings
 
 1. **One choice explains everything.** Embedded vs. client-server is the root cause of the file layout, concurrency, durability, and benchmark differences. If you remember one thing, remember that.
 
