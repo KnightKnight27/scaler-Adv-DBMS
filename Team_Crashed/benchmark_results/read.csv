@@ -1,0 +1,3 @@
+kind,queries,seq_count,idx_count,elapsed_ms,qps
+scan,10000,10000,0,16969.329,589.30
+index,10000,0,10000,48.050,208118.28

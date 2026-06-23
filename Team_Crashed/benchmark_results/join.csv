@@ -1,0 +1,2 @@
+op,scale,rows,elapsed_ms,rows_per_sec
+join,100,76,5.464,13909.22

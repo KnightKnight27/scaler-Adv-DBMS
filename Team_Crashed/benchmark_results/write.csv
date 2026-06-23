@@ -1,0 +1,2 @@
+op,n,elapsed_ms_with_lock,elapsed_ms_without_lock,speedup
+insert,1000,11835.784,11683.268,1.01
