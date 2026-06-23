@@ -1,7 +1,7 @@
 # Lab 6: Transaction Manager — MVCC + Strict 2PL + Deadlock Detection
 
-**Name:** Rachit S  
-**Roll Number:** 24bcs10139  
+**Name:** Arman Barbhuiya  
+**Roll Number:** 24bcs10196  
 **Course:** Advanced Database Management Systems (AdvDBMS)
 
 ---
