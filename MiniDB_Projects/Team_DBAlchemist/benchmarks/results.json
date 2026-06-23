@@ -1,0 +1,91 @@
+{
+  "insert_throughput": {
+    "100": {
+      "rows": 100,
+      "time_s": 0.2284,
+      "rows_per_sec": 438
+    },
+    "500": {
+      "rows": 500,
+      "time_s": 0.9782,
+      "rows_per_sec": 511
+    },
+    "1000": {
+      "rows": 1000,
+      "time_s": 2.0459,
+      "rows_per_sec": 489
+    },
+    "2000": {
+      "rows": 2000,
+      "time_s": 4.5461,
+      "rows_per_sec": 440
+    }
+  },
+  "mvcc_concurrent": {
+    "1": {
+      "readers": 1,
+      "avg_qps_per_reader": 482,
+      "total_read_qps": 482,
+      "wall_time_s": 1.408,
+      "errors": []
+    },
+    "2": {
+      "readers": 2,
+      "avg_qps_per_reader": 262,
+      "total_read_qps": 525,
+      "wall_time_s": 1.498,
+      "errors": []
+    },
+    "4": {
+      "readers": 4,
+      "avg_qps_per_reader": 117,
+      "total_read_qps": 470,
+      "wall_time_s": 1.592,
+      "errors": []
+    }
+  },
+  "snapshot_isolation": {
+    "initial_rows": 500,
+    "t1_sees_after_t2_commit": 500,
+    "fresh_read_sees": 550,
+    "snapshot_isolation_correct": true,
+    "new_rows_visible_after_commit": true
+  },
+  "index_vs_scan": {
+    "200": {
+      "rows": 200,
+      "buffer_pool_pages": 8,
+      "seqscan_ms": 1.05,
+      "indexscan_ms": 0.68,
+      "speedup": 1.54
+    },
+    "500": {
+      "rows": 500,
+      "buffer_pool_pages": 8,
+      "seqscan_ms": 1.72,
+      "indexscan_ms": 1.6,
+      "speedup": 1.08
+    },
+    "1000": {
+      "rows": 1000,
+      "buffer_pool_pages": 8,
+      "seqscan_ms": 4.11,
+      "indexscan_ms": 0.03,
+      "speedup": 131.48
+    },
+    "2000": {
+      "rows": 2000,
+      "buffer_pool_pages": 8,
+      "seqscan_ms": 7.25,
+      "indexscan_ms": 0.03,
+      "speedup": 225.09
+    }
+  },
+  "wal_recovery": {
+    "committed_rows": 200,
+    "recovered_rows": 200,
+    "uncommitted_lost": true,
+    "recovery_time_ms": 5.01,
+    "correct": true
+  }
+}
