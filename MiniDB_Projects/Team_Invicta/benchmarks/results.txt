@@ -1,0 +1,13 @@
+MiniDB benchmark: LSM vs B+ tree heap   (N = 20000 rows)
+
+  metric                       B+Tree heap           LSM
+  ------------------------------------------------------------------
+  write throughput                21291.58     304052.07   rows/sec (higher better)
+  point read (hit)                    0.36          1.81   us/read (lower better)
+  point read (miss)                   0.30          0.03   us/read (lower better)
+  full scan                           0.00          0.02   sec (lower better)
+  disk bytes (full)             1495040.00    1033947.00   bytes
+  disk bytes (after del half)    1495040.00    1176475.00   bytes
+
+Note: heap uses write-through page I/O; LSM buffers writes in the MemTable
+and flushes sequentially. LSM compaction reclaims space from deleted keys.
