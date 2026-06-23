@@ -16,16 +16,15 @@ class Optimizer;
  *
  *   <num_tables>
  *   For each table:
- *     <table_name>
- *     <db_file_path>
+ *     <table_name> <db_file_path>
  *     <num_columns>
  *     For each column:
- *       <col_name> <col_type_int>
- *     <num_rows>
- *     <root_page_id>
- *     For each row (num_rows total):
- *       <num_values> <val1_type> <val1> <val2_type> <val2> ...
- *       (type: 0 = INT, 1 = VARCHAR)
+ *       <col_name> <col_type> <fixed_size>
+ *     <num_rows> <root_page_id> <num_data_pages> <heap_size>
+ *     For each heap slot:
+ *       <record_id> <deleted> <num_values> <type/value pairs...>
+ *
+ * Names and VARCHAR values are written with std::quoted.
  */
 class CatalogManager {
 public:

@@ -50,11 +50,15 @@ std::unique_ptr<ASTNode> Parser::parse() {
     return parseSelect();
   } else if (match(TokenType::INSERT)) {
     return parseInsert();
+  } else if (match(TokenType::CREATE)) {
+    return parseCreate();
+  } else if (match(TokenType::SHOW)) {
+    return parseShowTables();
   } else if (match(TokenType::DELETE)) {
     return parseDelete();
   } else {
     throw std::runtime_error(
-        "Parse error: expected SELECT, INSERT, or DELETE but got '" +
+        "Parse error: expected SELECT, INSERT, CREATE, SHOW, or DELETE but got '" +
         current().value + "'");
   }
 }
@@ -146,14 +150,12 @@ std::unique_ptr<ASTNode> Parser::parseInsert() {
   // ( valueList )
   expect(TokenType::LPAREN, "(");
 
-  // Parse comma-separated integer values
-  node->values.push_back(std::stoi(current().value));
-  expect(TokenType::INT_LITERAL, "integer value");
+  // Parse comma-separated typed literal values
+  node->values.push_back(parseLiteralValue());
 
   while (match(TokenType::COMMA)) {
     advance(); // consume comma
-    node->values.push_back(std::stoi(current().value));
-    expect(TokenType::INT_LITERAL, "integer value");
+    node->values.push_back(parseLiteralValue());
   }
 
   expect(TokenType::RPAREN, ")");
@@ -163,6 +165,59 @@ std::unique_ptr<ASTNode> Parser::parseInsert() {
     advance();
 
   return node;
+}
+
+// ── CREATE parsing ──────────────────────────────────────────────────────
+
+std::unique_ptr<ASTNode> Parser::parseCreate() {
+  auto node = std::make_unique<CreateAST>();
+
+  expect(TokenType::CREATE, "CREATE");
+  expect(TokenType::TABLE, "TABLE");
+
+  node->tableName = current().value;
+  expect(TokenType::IDENTIFIER, "table name");
+
+  expect(TokenType::LPAREN, "(");
+
+  while (!match(TokenType::RPAREN)) {
+    std::string columnName = current().value;
+    expect(TokenType::IDENTIFIER, "column name");
+    DataType type = parseDataType();
+    node->columns.emplace_back(columnName, type);
+
+    if (match(TokenType::COMMA)) {
+      advance();
+      continue;
+    }
+    break;
+  }
+
+  expect(TokenType::RPAREN, ")");
+
+  if (node->columns.empty()) {
+    throw std::runtime_error("Parse error: CREATE TABLE requires at least one column");
+  }
+  if (node->columns[0].type != DataType::TYPE_INT) {
+    throw std::runtime_error("Parse error: first CREATE TABLE column must be INT primary key");
+  }
+
+  if (match(TokenType::SEMICOLON))
+    advance();
+
+  return node;
+}
+
+// ── SHOW parsing ────────────────────────────────────────────────────────
+
+std::unique_ptr<ASTNode> Parser::parseShowTables() {
+  expect(TokenType::SHOW, "SHOW");
+  expect(TokenType::TABLES, "TABLES");
+
+  if (match(TokenType::SEMICOLON))
+    advance();
+
+  return std::make_unique<ShowTablesAST>();
 }
 
 // ── DELETE parsing ──────────────────────────────────────────────────────
@@ -223,4 +278,32 @@ void Parser::parseWhereClause(std::string &col, CompOp &op, int32_t &val) {
 
   val = std::stoi(current().value);
   expect(TokenType::INT_LITERAL, "integer literal");
+}
+
+Value Parser::parseLiteralValue() {
+  if (match(TokenType::INT_LITERAL)) {
+    int value = std::stoi(current().value);
+    advance();
+    return value;
+  }
+  if (match(TokenType::STRING_LITERAL)) {
+    std::string value = current().value;
+    advance();
+    return value;
+  }
+  throw std::runtime_error("Parse error: expected integer or string literal but got '" +
+                           current().value + "'");
+}
+
+DataType Parser::parseDataType() {
+  if (match(TokenType::INT_TYPE)) {
+    advance();
+    return DataType::TYPE_INT;
+  }
+  if (match(TokenType::VARCHAR_TYPE)) {
+    advance();
+    return DataType::TYPE_VARCHAR;
+  }
+  throw std::runtime_error("Parse error: expected INT or VARCHAR but got '" +
+                           current().value + "'");
 }

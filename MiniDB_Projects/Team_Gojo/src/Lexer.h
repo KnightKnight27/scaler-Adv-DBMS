@@ -31,6 +31,10 @@ enum class TokenType {
   SET,
   CREATE,
   TABLE,
+  SHOW,
+  TABLES,
+  INT_TYPE,
+  VARCHAR_TYPE,
   BEGIN_TXN,
   COMMIT_TXN,
   ROLLBACK_TXN,
@@ -49,6 +53,7 @@ enum class TokenType {
   // Literals & Identifiers
   IDENTIFIER,  // table names, column names
   INT_LITERAL, // integer constants
+  STRING_LITERAL, // single-quoted strings
 
   // End of input
   EOF_TOKEN
@@ -100,6 +105,7 @@ private:
   void advance();
   void skipWhitespace();
   Token readNumber();
+  Token readStringLiteral();
   Token readIdentifierOrKeyword();
 
   std::string input_;

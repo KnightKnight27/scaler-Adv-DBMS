@@ -1,16 +1,19 @@
 #ifndef MINIDB_RECORD_H
 #define MINIDB_RECORD_H
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <sstream>
 #include <string>
-#include <vector>
 #include <variant>
+#include <vector>
 #include "Schema.h"
 
-using Value = std::variant<int32_t, std::string>;
+using Value = std::variant<int, std::string>;
 
 struct Record {
+    int _record_id = -1;
     std::vector<Value> values;
     bool deleted_ = false;
 
@@ -47,22 +50,22 @@ struct Record {
                 std::memset(dest + offset, 0, col.size);
             } else {
                 const auto& val = values[i];
-                if (col.type == DataType::INT) {
+                if (col.type == DataType::TYPE_INT) {
                     int32_t intVal = 0;
-                    if (std::holds_alternative<int32_t>(val)) {
-                        intVal = std::get<int32_t>(val);
+                    if (std::holds_alternative<int>(val)) {
+                        intVal = static_cast<int32_t>(std::get<int>(val));
                     } else if (std::holds_alternative<std::string>(val)) {
                         try {
                             intVal = std::stoi(std::get<std::string>(val));
                         } catch (...) {}
                     }
                     std::memcpy(dest + offset, &intVal, sizeof(int32_t));
-                } else if (col.type == DataType::VARCHAR) {
+                } else if (col.type == DataType::TYPE_VARCHAR) {
                     std::string strVal;
                     if (std::holds_alternative<std::string>(val)) {
                         strVal = std::get<std::string>(val);
-                    } else if (std::holds_alternative<int32_t>(val)) {
-                        strVal = std::to_string(std::get<int32_t>(val));
+                    } else if (std::holds_alternative<int>(val)) {
+                        strVal = std::to_string(std::get<int>(val));
                     }
                     int len = std::min(static_cast<int>(strVal.size()), col.size);
                     std::memcpy(dest + offset, strVal.c_str(), len);
@@ -85,11 +88,11 @@ struct Record {
         const auto& columns = schema.getColumns();
         for (size_t i = 0; i < columns.size(); ++i) {
             const auto& col = columns[i];
-            if (col.type == DataType::INT) {
+            if (col.type == DataType::TYPE_INT) {
                 int32_t intVal;
                 std::memcpy(&intVal, src + offset, sizeof(int32_t));
-                r.values.push_back(intVal);
-            } else if (col.type == DataType::VARCHAR) {
+                r.values.push_back(static_cast<int>(intVal));
+            } else if (col.type == DataType::TYPE_VARCHAR) {
                 std::string strVal(reinterpret_cast<const char*>(src + offset), col.size);
                 size_t nullPos = strVal.find('\0');
                 if (nullPos != std::string::npos) {
@@ -103,7 +106,8 @@ struct Record {
     }
 
     bool operator==(const Record& other) const {
-        return deleted_ == other.deleted_ && values == other.values;
+        return _record_id == other._record_id && deleted_ == other.deleted_ &&
+               values == other.values;
     }
 
     bool operator!=(const Record& other) const {
@@ -111,36 +115,21 @@ struct Record {
     }
 
     std::string toString() const {
-        if (values.size() == 2) {
-            std::string s = "Record{id=";
-            if (std::holds_alternative<int32_t>(values[0])) {
-                s += std::to_string(std::get<int32_t>(values[0]));
-            } else {
-                s += "'" + std::get<std::string>(values[0]) + "'";
-            }
-            s += ", val=";
-            if (std::holds_alternative<int32_t>(values[1])) {
-                s += std::to_string(std::get<int32_t>(values[1]));
-            } else {
-                s += "'" + std::get<std::string>(values[1]) + "'";
-            }
-            s += "}";
-            return s;
-        }
-        std::string s = "Record{";
+        std::ostringstream out;
+        out << "Record{rid=" << _record_id;
         for (size_t i = 0; i < values.size(); i++) {
-            if (i > 0) s += ", ";
-            std::visit([&s](const auto& arg) {
+            out << ", c" << i << "=";
+            std::visit([&out](const auto& arg) {
                 using T = std::decay_t<decltype(arg)>;
-                if constexpr (std::is_same_v<T, int32_t>) {
-                    s += std::to_string(arg);
+                if constexpr (std::is_same_v<T, int>) {
+                    out << arg;
                 } else if constexpr (std::is_same_v<T, std::string>) {
-                    s += "'" + arg + "'";
+                    out << "'" << arg << "'";
                 }
             }, values[i]);
         }
-        s += "}";
-        return s;
+        out << "}";
+        return out.str();
     }
 };
 

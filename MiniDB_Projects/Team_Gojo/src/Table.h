@@ -2,6 +2,7 @@
 #define MINIDB_TABLE_H
 
 #include <string>
+#include <vector>
 
 #include "BPlusTree.h"
 #include "BufferPool.h"
@@ -68,6 +69,7 @@ public:
     BufferPool* getBufferPool() { return bufferPool_; }
     DiskManager* getDiskManager() { return diskManager_; }
     BPlusTree* getIndex() { return index_; }
+    const BPlusTree* getIndex() const { return index_; }
 
     /** Total number of data pages allocated for this table. */
     int getNumDataPages() const { return numDataPages_; }
@@ -75,6 +77,15 @@ public:
     const Schema& getSchema() const { return schema_; }
     int getRecordSize() const { return recordSize_; }
     int getMaxRecordsPerPage() const { return maxRecordsPerPage_; }
+    const std::string& getDbFilePath() const { return dbFilePath_; }
+    const std::vector<Record>& getHeapFile() const { return heap_file_; }
+    std::vector<Record>& getHeapFile() { return heap_file_; }
+
+    /** Load a persisted heap record without allocating a new id or reindexing. */
+    void loadPersistedRecord(const Record& r);
+
+    /** Rebuild the in-memory/table B+ tree index from the heap vector. */
+    void rebuildIndex();
 
 private:
     /** Read the numRecords count from a page's header. */
@@ -86,7 +97,11 @@ private:
     /** Compute the byte offset of a record slot within a page. */
     int slotOffset(int slotIndex) const;
 
+    /** Allocate a clean heap data page and remember its page id. */
+    int allocateDataPage();
+
     std::string name_;
+    std::string dbFilePath_;
     DiskManager* diskManager_;
     BufferPool* bufferPool_;
     BPlusTree* index_;
@@ -96,6 +111,8 @@ private:
     Schema schema_;
     int recordSize_;
     int maxRecordsPerPage_;
+    std::vector<Record> heap_file_;
+    std::vector<int> dataPageIds_;
 };
 
 #endif // MINIDB_TABLE_H

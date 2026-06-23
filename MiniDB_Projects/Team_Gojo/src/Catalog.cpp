@@ -18,6 +18,13 @@ void Catalog::addTable(const std::string& name, Table* table) {
     stats_[name] = stats;
 }
 
+Table* Catalog::addOwnedTable(std::unique_ptr<Table> table) {
+    Table* raw = table.get();
+    ownedTables_.push_back(std::move(table));
+    addTable(raw->getName(), raw);
+    return raw;
+}
+
 // ── getTable ────────────────────────────────────────────────────────────
 
 Table* Catalog::getTable(const std::string& name) {
@@ -53,4 +60,10 @@ void Catalog::refreshStats(const std::string& name) {
     Table* t = getTable(name);
     stats_[name].numRows    = t->getNumRows();
     stats_[name].numDistinct = std::max(1, stats_[name].numRows);
+}
+
+void Catalog::clear() {
+    tables_.clear();
+    stats_.clear();
+    ownedTables_.clear();
 }

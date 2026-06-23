@@ -11,6 +11,7 @@ add_executable(minidb
     src/BufferPool.cpp
     src/BPlusTree.cpp
     src/Catalog.cpp
+    src/CatalogManager.cpp
     src/Table.cpp
     src/Lexer.cpp
     src/Parser.cpp

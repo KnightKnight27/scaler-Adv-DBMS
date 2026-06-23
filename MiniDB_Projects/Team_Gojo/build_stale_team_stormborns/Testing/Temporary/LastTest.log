@@ -1,0 +1,18 @@
+Start testing: Jun 23 23:41 IST
+----------------------------------------------------------
+1/1 Testing: dynamic_persistence
+1/1 Test: dynamic_persistence
+Command: "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build/dynamic_persistence_test"
+Directory: /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build
+"dynamic_persistence" start time: Jun 23 23:41 IST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.35 sec
+----------------------------------------------------------
+Test Passed.
+"dynamic_persistence" end time: Jun 23 23:41 IST
+"dynamic_persistence" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Jun 23 23:41 IST

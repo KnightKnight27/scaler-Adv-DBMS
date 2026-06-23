@@ -1,8 +1,10 @@
 #ifndef MINIDB_CATALOG_H
 #define MINIDB_CATALOG_H
 
+#include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 // Forward-declare Table so Catalog.h compiles without pulling in
 // the entire Table/BPlusTree/BufferPool header chain.
@@ -43,6 +45,9 @@ public:
     /** Register a table in the catalog. */
     void addTable(const std::string& name, Table* table);
 
+    /** Register an owned table reconstructed from persistent catalog state. */
+    Table* addOwnedTable(std::unique_ptr<Table> table);
+
     /** Look up a table by name. Throws if not found. */
     Table* getTable(const std::string& name);
 
@@ -55,9 +60,16 @@ public:
     /** Update statistics (called after bulk inserts). */
     void refreshStats(const std::string& name);
 
+    /** Clear all registered tables and owned table objects. */
+    void clear();
+
+    /** Enumerate registered tables by name. */
+    const std::unordered_map<std::string, Table*>& getTables() const { return tables_; }
+
 private:
     std::unordered_map<std::string, Table*>      tables_;   // non-owning
     std::unordered_map<std::string, TableStats>  stats_;
+    std::vector<std::unique_ptr<Table>>          ownedTables_;
 };
 
 #endif // MINIDB_CATALOG_H

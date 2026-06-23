@@ -1,0 +1,3 @@
+/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_stormborns/build/CMakeFiles/minidb.dir
+/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_stormborns/build/CMakeFiles/edit_cache.dir
+/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_stormborns/build/CMakeFiles/rebuild_cache.dir

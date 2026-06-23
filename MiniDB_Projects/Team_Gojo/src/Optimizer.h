@@ -66,6 +66,14 @@ public:
    */
   const std::string &getExplanation() const { return explanation_; }
 
+  Catalog& getCatalog() { return catalog_; }
+  const Catalog& getCatalog() const { return catalog_; }
+
+  /** Execute DDL/DML commands that do not produce Volcano plans. */
+  void executeCreateTable(const CreateAST* create);
+  int executeInsert(const InsertNode* insert);
+  void executeShowTables() const;
+
 private:
   // ── Plan generation for each SQL type ───────────────────────────
   std::unique_ptr<PlanNode> optimizeSelect(SelectNode *select);
@@ -75,7 +83,7 @@ private:
                              const std::string &col, CompOp op);
   double estimateTableScanCost(const std::string &tableName);
   double estimateIndexScanCost();
-  bool isIndexedColumn(const std::string &col);
+  bool isIndexedColumn(const std::string &tableName, const std::string &col);
 
   Catalog &catalog_;
   std::string explanation_;

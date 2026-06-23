@@ -23,6 +23,10 @@ static const std::unordered_map<std::string, TokenType> KEYWORDS = {
     {"SET", TokenType::SET},
     {"CREATE", TokenType::CREATE},
     {"TABLE", TokenType::TABLE},
+    {"SHOW", TokenType::SHOW},
+    {"TABLES", TokenType::TABLES},
+    {"INT", TokenType::INT_TYPE},
+    {"VARCHAR", TokenType::VARCHAR_TYPE},
     {"BEGIN", TokenType::BEGIN_TXN},
     {"COMMIT", TokenType::COMMIT_TXN},
     {"ROLLBACK", TokenType::ROLLBACK_TXN},
@@ -97,6 +101,12 @@ std::vector<Token> Lexer::tokenize() {
       continue;
     }
 
+    // ── String literals ─────────────────────────────────────────
+    if (c == '\'') {
+      tokens.push_back(readStringLiteral());
+      continue;
+    }
+
     // ── Identifiers and keywords ────────────────────────────────
     if (std::isalpha(c) || c == '_') {
       tokens.push_back(readIdentifierOrKeyword());
@@ -151,6 +161,37 @@ Token Lexer::readNumber() {
   }
 
   return Token(TokenType::INT_LITERAL, num, startPos);
+}
+
+Token Lexer::readStringLiteral() {
+  int startPos = pos_;
+  std::string value;
+
+  advance(); // opening quote
+  while (pos_ < static_cast<int>(input_.size())) {
+    char c = currentChar();
+    if (c == '\'') {
+      if (peek() == '\'') {
+        value += '\'';
+        advance();
+        advance();
+        continue;
+      }
+      advance();
+      return Token(TokenType::STRING_LITERAL, value, startPos);
+    }
+    if (c == '\\' && peek() == '\'') {
+      value += '\'';
+      advance();
+      advance();
+      continue;
+    }
+    value += c;
+    advance();
+  }
+
+  throw std::runtime_error("Lexer error: unterminated string literal at position " +
+                           std::to_string(startPos));
 }
 
 Token Lexer::readIdentifierOrKeyword() {

@@ -3,9 +3,13 @@
 
 #include <memory>
 #include <string>
+#include <type_traits>
+#include <variant>
 #include <vector>
 
 #include "Lexer.h"
+#include "Record.h"
+#include "Schema.h"
 
 // ═══════════════════════════════════════════════════════════════════════
 // AST (Abstract Syntax Tree) Node Hierarchy
@@ -85,18 +89,54 @@ struct SelectNode : public ASTNode {
  */
 struct InsertNode : public ASTNode {
   std::string tableName;
-  std::vector<int32_t> values;
+  std::vector<Value> values;
 
   std::string toString() const override {
     std::string s = "INSERT INTO " + tableName + " VALUES (";
     for (size_t i = 0; i < values.size(); i++) {
       if (i > 0)
         s += ", ";
-      s += std::to_string(values[i]);
+      std::visit([&s](const auto& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, int>) {
+          s += std::to_string(arg);
+        } else {
+          s += "'" + arg + "'";
+        }
+      }, values[i]);
     }
     s += ")";
     return s;
   }
+};
+
+using InsertAST = InsertNode;
+
+/**
+ * AST node for CREATE TABLE queries.
+ *
+ * Supports: CREATE TABLE table_name (col1 INT, col2 VARCHAR)
+ */
+struct CreateAST : public ASTNode {
+  std::string tableName;
+  std::vector<ColumnDef> columns;
+
+  std::string toString() const override {
+    std::string s = "CREATE TABLE " + tableName + " (";
+    for (size_t i = 0; i < columns.size(); i++) {
+      if (i > 0) s += ", ";
+      s += columns[i].name + " " + dataTypeToString(columns[i].type);
+    }
+    s += ")";
+    return s;
+  }
+};
+
+using CreateNode = CreateAST;
+
+/** AST node for SHOW TABLES. */
+struct ShowTablesAST : public ASTNode {
+  std::string toString() const override { return "SHOW TABLES"; }
 };
 
 /**
@@ -172,7 +212,11 @@ private:
   // ── Grammar rules ───────────────────────────────────────────────
   std::unique_ptr<ASTNode> parseSelect();
   std::unique_ptr<ASTNode> parseInsert();
+  std::unique_ptr<ASTNode> parseCreate();
+  std::unique_ptr<ASTNode> parseShowTables();
   std::unique_ptr<ASTNode> parseDelete();
+  Value parseLiteralValue();
+  DataType parseDataType();
 
   // ── WHERE clause helper ─────────────────────────────────────────
   void parseWhereClause(std::string &col, CompOp &op, int32_t &val);

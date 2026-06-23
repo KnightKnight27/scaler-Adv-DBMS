@@ -1,0 +1,80 @@
+[
+{
+  "directory": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src -O3 -DNDEBUG -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk -o CMakeFiles/minidb.dir/src/DiskManager.cpp.o -c /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/DiskManager.cpp",
+  "file": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/DiskManager.cpp",
+  "output": "CMakeFiles/minidb.dir/src/DiskManager.cpp.o"
+},
+{
+  "directory": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src -O3 -DNDEBUG -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk -o CMakeFiles/minidb.dir/src/BufferPool.cpp.o -c /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/BufferPool.cpp",
+  "file": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/BufferPool.cpp",
+  "output": "CMakeFiles/minidb.dir/src/BufferPool.cpp.o"
+},
+{
+  "directory": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src -O3 -DNDEBUG -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk -o CMakeFiles/minidb.dir/src/BPlusTree.cpp.o -c /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/BPlusTree.cpp",
+  "file": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/BPlusTree.cpp",
+  "output": "CMakeFiles/minidb.dir/src/BPlusTree.cpp.o"
+},
+{
+  "directory": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src -O3 -DNDEBUG -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk -o CMakeFiles/minidb.dir/src/Catalog.cpp.o -c /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/Catalog.cpp",
+  "file": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/Catalog.cpp",
+  "output": "CMakeFiles/minidb.dir/src/Catalog.cpp.o"
+},
+{
+  "directory": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src -O3 -DNDEBUG -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk -o CMakeFiles/minidb.dir/src/CatalogManager.cpp.o -c /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/CatalogManager.cpp",
+  "file": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/CatalogManager.cpp",
+  "output": "CMakeFiles/minidb.dir/src/CatalogManager.cpp.o"
+},
+{
+  "directory": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src -O3 -DNDEBUG -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk -o CMakeFiles/minidb.dir/src/Table.cpp.o -c /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/Table.cpp",
+  "file": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/Table.cpp",
+  "output": "CMakeFiles/minidb.dir/src/Table.cpp.o"
+},
+{
+  "directory": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src -O3 -DNDEBUG -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk -o CMakeFiles/minidb.dir/src/Lexer.cpp.o -c /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/Lexer.cpp",
+  "file": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/Lexer.cpp",
+  "output": "CMakeFiles/minidb.dir/src/Lexer.cpp.o"
+},
+{
+  "directory": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src -O3 -DNDEBUG -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk -o CMakeFiles/minidb.dir/src/Parser.cpp.o -c /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/Parser.cpp",
+  "file": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/Parser.cpp",
+  "output": "CMakeFiles/minidb.dir/src/Parser.cpp.o"
+},
+{
+  "directory": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src -O3 -DNDEBUG -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk -o CMakeFiles/minidb.dir/src/Optimizer.cpp.o -c /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/Optimizer.cpp",
+  "file": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/Optimizer.cpp",
+  "output": "CMakeFiles/minidb.dir/src/Optimizer.cpp.o"
+},
+{
+  "directory": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src -O3 -DNDEBUG -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk -o CMakeFiles/minidb.dir/src/LockManager.cpp.o -c /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/LockManager.cpp",
+  "file": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/LockManager.cpp",
+  "output": "CMakeFiles/minidb.dir/src/LockManager.cpp.o"
+},
+{
+  "directory": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src -O3 -DNDEBUG -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk -o CMakeFiles/minidb.dir/src/LogManager.cpp.o -c /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/LogManager.cpp",
+  "file": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/LogManager.cpp",
+  "output": "CMakeFiles/minidb.dir/src/LogManager.cpp.o"
+},
+{
+  "directory": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src -O3 -DNDEBUG -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk -o CMakeFiles/minidb.dir/src/RecoveryManager.cpp.o -c /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/RecoveryManager.cpp",
+  "file": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/RecoveryManager.cpp",
+  "output": "CMakeFiles/minidb.dir/src/RecoveryManager.cpp.o"
+},
+{
+  "directory": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src -O3 -DNDEBUG -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk -o CMakeFiles/minidb.dir/src/main.cpp.o -c /Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/main.cpp",
+  "file": "/Users/mehulagarwal/Documents/ADBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_Gojo/src/main.cpp",
+  "output": "CMakeFiles/minidb.dir/src/main.cpp.o"
+}
+]

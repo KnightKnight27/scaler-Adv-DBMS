@@ -15,58 +15,38 @@
 class TableScanNode : public PlanNode {
 public:
   explicit TableScanNode(Table *table)
-      : table_(table), currentPageId_(0), currentSlot_(0), currentCount_(0),
-        finished_(false), page_(nullptr) {}
+      : table_(table), currentRecord_(0), finished_(false) {}
 
   const Schema& getSchema() const override {
     return table_->getSchema();
   }
 
   void open() override {
-    currentPageId_ = 1;  // skip page 0 (B+ tree root)
-    currentSlot_   = 0;
+    currentRecord_ = 0;
     finished_      = false;
-    page_          = nullptr;
-    loadCurrentPage();
   }
 
   bool hasNext() override {
     if (finished_) return false;
 
-    while (!finished_) {
-      if (currentSlot_ < currentCount_) {
-        int offset = Table::HEADER_SIZE + currentSlot_ * table_->getRecordSize();
-        Record r = Record::deserialize(page_->getData() + offset, table_->getSchema());
-
-        if (!r.isDeleted()) {
-          return true;
-        }
-        currentSlot_++;
-      } else {
-        if (page_) {
-          table_->getBufferPool()->unpinPage(currentPageId_, false);
-          page_ = nullptr;
-        }
-        currentPageId_++;
-        currentSlot_ = 0;
-        loadCurrentPage();
+    const auto& heap = table_->getHeapFile();
+    while (currentRecord_ < heap.size()) {
+      if (!heap[currentRecord_].isDeleted()) {
+        return true;
       }
+      currentRecord_++;
     }
+    finished_ = true;
     return false;
   }
 
   Record next() override {
-    int offset = Table::HEADER_SIZE + currentSlot_ * table_->getRecordSize();
-    Record r   = Record::deserialize(page_->getData() + offset, table_->getSchema());
-    currentSlot_++;
+    Record r = table_->getHeapFile()[currentRecord_];
+    currentRecord_++;
     return r;
   }
 
   void close() override {
-    if (page_) {
-      table_->getBufferPool()->unpinPage(currentPageId_, false);
-      page_ = nullptr;
-    }
     finished_ = true;
   }
 
@@ -74,58 +54,16 @@ public:
     std::vector<Record> batch;
     batch.reserve(batchSize);
 
-    while (static_cast<int>(batch.size()) < batchSize && !finished_) {
-      if (currentSlot_ < currentCount_) {
-        int offset = Table::HEADER_SIZE + currentSlot_ * table_->getRecordSize();
-        Record r   = Record::deserialize(page_->getData() + offset, table_->getSchema());
-        currentSlot_++;
-        if (!r.isDeleted()) {
-          batch.push_back(r);
-        }
-      } else {
-        if (page_) {
-          table_->getBufferPool()->unpinPage(currentPageId_, false);
-          page_ = nullptr;
-        }
-        currentPageId_++;
-        currentSlot_ = 0;
-        loadCurrentPage();
-      }
+    while (static_cast<int>(batch.size()) < batchSize && hasNext()) {
+      batch.push_back(next());
     }
     return batch;
   }
 
 private:
-  void loadCurrentPage() {
-    int totalPages = table_->getDiskManager()->getNumPages();
-    if (currentPageId_ >= totalPages) {
-      finished_ = true;
-      return;
-    }
-
-    page_ = table_->getBufferPool()->fetchPage(currentPageId_);
-
-    int32_t count;
-    std::memcpy(&count, page_->getData(), sizeof(int32_t));
-
-    // Sanity-check: if count is unreasonable this is a B+ tree page; skip it.
-    if (count < 0 || count > table_->getMaxRecordsPerPage()) {
-      table_->getBufferPool()->unpinPage(currentPageId_, false);
-      page_         = nullptr;
-      currentCount_ = 0;
-      currentPageId_++;
-      loadCurrentPage();
-      return;
-    }
-    currentCount_ = count;
-  }
-
   Table *table_;
-  int currentPageId_;
-  int currentSlot_;
-  int currentCount_;
+  size_t currentRecord_;
   bool finished_;
-  Page *page_;
 };
 
 #endif // MINIDB_TABLE_SCAN_NODE_H

@@ -35,6 +35,7 @@
 #include "Lexer.h"
 #include "Parser.h"
 #include "Catalog.h"
+#include "CatalogManager.h"
 #include "LockManager.h"
 #include "LogRecord.h"
 #include "LogManager.h"
@@ -671,9 +672,6 @@ static void testBPlusTree() {
 #include <cctype>
 
 static void runInteractiveShell() {
-  std::remove("employees.db");
-  std::remove("departments.db");
-
   Table employees("employees", "employees.db");
   Table departments("departments", "departments.db");
 
@@ -695,6 +693,12 @@ static void runInteractiveShell() {
   catalog.addTable("departments", &departments);
 
   Optimizer optimizer(catalog);
+  CatalogManager catalogManager("catalog.txt");
+  try {
+    catalogManager.loadState(optimizer);
+  } catch (const std::exception& e) {
+    std::cerr << "Warning: could not load catalog.txt: " << e.what() << std::endl;
+  }
 
   std::cout << "\n============================================================"
             << std::endl;
@@ -709,7 +713,10 @@ static void runInteractiveShell() {
   std::cout << "  - SELECT * FROM employees WHERE id = 3\n";
   std::cout << "  - SELECT * FROM employees JOIN departments ON employees.id = "
                "departments.id\n";
+  std::cout << "  - CREATE TABLE users (id INT, name VARCHAR)\n";
+  std::cout << "  - INSERT INTO users VALUES (1, 'Alice')\n";
   std::cout << "  - INSERT INTO employees VALUES (6, 600)\n";
+  std::cout << "  - SHOW TABLES\n";
   std::cout << "  - DELETE FROM employees WHERE id = 3\n";
   std::cout
       << "\nType 'help' to see this prompt again, or 'exit'/'quit' to exit.\n";
@@ -733,11 +740,15 @@ static void runInteractiveShell() {
     if (sql.empty())
       continue;
     if (sql == "exit" || sql == "quit") {
+      try {
+        catalogManager.saveState(optimizer);
+      } catch (const std::exception& e) {
+        std::cerr << "Warning: could not save catalog.txt: " << e.what() << std::endl;
+      }
       break;
     }
     if (sql == "help") {
-      std::cout << "Exposed tables: employees, departments" << std::endl;
-      std::cout << "Supported statements: SELECT, INSERT, DELETE" << std::endl;
+      std::cout << "Supported statements: CREATE TABLE, INSERT, SELECT, DELETE, SHOW TABLES" << std::endl;
       continue;
     }
 
@@ -763,23 +774,27 @@ static void runInteractiveShell() {
           plan->close();
           std::cout << "(" << count << " rows)" << std::endl;
         }
+      } else if (auto *create = dynamic_cast<CreateAST *>(ast.get())) {
+        optimizer.executeCreateTable(create);
+        catalogManager.saveState(optimizer);
+        std::cout << "Success: CREATE TABLE " << create->tableName << std::endl;
+      } else if (auto *show = dynamic_cast<ShowTablesAST *>(ast.get())) {
+        (void)show;
+        optimizer.executeShowTables();
       } else if (auto *insert = dynamic_cast<InsertNode *>(ast.get())) {
+        int rid = optimizer.executeInsert(insert);
         Table *table = catalog.getTable(insert->tableName);
-        if (insert->values.size() < 2) {
-          throw std::runtime_error(
-              "INSERT values must contain at least 2 numbers (id, val)");
-        }
-        Record r(insert->values[0], insert->values[1]);
-        int rid = table->insertRecord(r);
         table->flush();
-        catalog.refreshStats(insert->tableName);
+        catalogManager.saveState(optimizer);
         std::cout << "Success: INSERT 1 record (recordId: " << rid << ")"
                   << std::endl;
       } else if (auto *del = dynamic_cast<DeleteNode *>(ast.get())) {
         Table *table = catalog.getTable(del->tableName);
-        if (!del->hasWhere || del->whereCol != "id" ||
+        const auto& columns = table->getSchema().getColumns();
+        if (columns.empty() || !del->hasWhere ||
+            del->whereCol != columns.front().name ||
             del->whereOp != CompOp::EQUALS) {
-          throw std::runtime_error("DELETE only supports: WHERE id = <key>");
+          throw std::runtime_error("DELETE only supports equality on the primary key column");
         }
         int rid = table->searchByKey(del->whereVal);
         if (rid != -1) {
@@ -790,6 +805,7 @@ static void runInteractiveShell() {
             table->deleteRecord(rid);
             table->flush();
             catalog.refreshStats(del->tableName);
+            catalogManager.saveState(optimizer);
             std::cout << "Success: DELETE 1 record" << std::endl;
           }
         } else {

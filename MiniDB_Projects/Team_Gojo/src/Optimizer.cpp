@@ -1,12 +1,16 @@
 #include "Optimizer.h"
 
 #include <cmath>
+#include <iostream>
+#include <memory>
 #include <sstream>
+#include <stdexcept>
 
 #include "FilterNode.h"
 #include "IndexScanNode.h"
 #include "NestedLoopJoinNode.h"
 #include "TableScanNode.h"
+#include "Table.h"
 
 // ── Constructor ─────────────────────────────────────────────────────────
 
@@ -25,6 +29,54 @@ std::unique_ptr<PlanNode> Optimizer::optimize(ASTNode *ast) {
   // INSERT and DELETE don't produce execution plans in the Volcano model —
   // they're handled directly by the executor. Return nullptr to signal this.
   return nullptr;
+}
+
+void Optimizer::executeCreateTable(const CreateAST* create) {
+  if (!create) {
+    throw std::runtime_error("executeCreateTable called with null AST");
+  }
+  if (catalog_.hasTable(create->tableName)) {
+    throw std::runtime_error("Table already exists: " + create->tableName);
+  }
+
+  Schema schema(create->columns);
+  auto table = std::make_unique<Table>(create->tableName,
+                                       create->tableName + ".db",
+                                       std::move(schema));
+  catalog_.addOwnedTable(std::move(table));
+}
+
+int Optimizer::executeInsert(const InsertNode* insert) {
+  if (!insert) {
+    throw std::runtime_error("executeInsert called with null AST");
+  }
+  Table* table = catalog_.getTable(insert->tableName);
+  Record record(insert->values);
+  int recordId = table->insertRecord(record);
+  catalog_.refreshStats(insert->tableName);
+  return recordId;
+}
+
+void Optimizer::executeShowTables() const {
+  const auto& tables = catalog_.getTables();
+  if (tables.empty()) {
+    std::cout << "(no tables)" << std::endl;
+    return;
+  }
+
+  for (const auto& entry : tables) {
+    const Table* table = entry.second;
+    const auto& schema = table->getSchema();
+    std::cout << table->getName() << " (";
+    const auto& columns = schema.getColumns();
+    for (size_t i = 0; i < columns.size(); i++) {
+      if (i > 0) {
+        std::cout << ", ";
+      }
+      std::cout << columns[i].name << " " << dataTypeToString(columns[i].type);
+    }
+    std::cout << ") rows=" << table->getNumRows() << std::endl;
+  }
 }
 
 // ── SELECT optimization ─────────────────────────────────────────────────
@@ -55,7 +107,7 @@ std::unique_ptr<PlanNode> Optimizer::optimizeSelect(SelectNode *select) {
       double indexScanCost = estimateIndexScanCost();
 
       // Index scan is only applicable for equality on the primary key
-      bool canUseIndex = isIndexedColumn(select->whereCol) &&
+      bool canUseIndex = isIndexedColumn(select->tableName, select->whereCol) &&
                          select->whereOp == CompOp::EQUALS;
 
       explain << "=== CBO Decision ===\n";
@@ -257,7 +309,8 @@ double Optimizer::estimateIndexScanCost() {
   return 4.0;
 }
 
-bool Optimizer::isIndexedColumn(const std::string &col) {
+bool Optimizer::isIndexedColumn(const std::string &tableName,
+                                const std::string &col) {
   /*
    * In MiniDB, only the "id" column has a B+ tree index (primary key).
    * The "val" column is not indexed.
@@ -265,5 +318,8 @@ bool Optimizer::isIndexedColumn(const std::string &col) {
    * A production database would consult the catalog's index metadata
    * to determine which columns have indexes.
    */
-  return col == "id";
+  Table* table = catalog_.getTable(tableName);
+  const auto& columns = table->getSchema().getColumns();
+  return !columns.empty() && columns.front().name == col &&
+         columns.front().type == DataType::TYPE_INT;
 }
