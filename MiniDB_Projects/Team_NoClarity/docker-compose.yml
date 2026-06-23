@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  minidb-tests:
+    build: .
+    container_name: minidb_tests
+    image: minidb:latest
+    command: ["/app/minidb_test"]
+
+  minidb-benchmark:
+    build: .
+    container_name: minidb_benchmark
+    image: minidb:latest
+    command: ["/app/minidb_benchmark"]
