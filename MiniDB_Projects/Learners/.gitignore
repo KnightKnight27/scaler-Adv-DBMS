@@ -1,0 +1,21 @@
+# Interview Preparation Material
+interview_demo.py
+
+# Python
+__pycache__/
+*.pyc
+
+# C++ Build and Executables
+*.exe
+build/
+
+# Database Files and Logs
+*.db
+*.log
+demo_db_*/
+benchmark_db/
+bench_primary/
+bench_replica/
+demo_pri/
+demo_rep/
+interview_db/
