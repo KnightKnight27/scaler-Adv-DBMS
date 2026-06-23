@@ -6,9 +6,9 @@
 
 | Member | Name | Roll Number | Email | Contribution |
 |--------|------|-------------|-------|--------------|
-| 1 | YOUR NAME | 24BCSXXXXX | you@scaler.com | Storage layer |
-| 2 | TEAMMATE 2 | | | Index, Catalog, Parser, Optimizer |
-| 3 | TEAMMATE 3 | | | Execution, Transactions, Recovery, Docs |
+| 1 | MD Kaif Molla | 24BCS10221 | md.24bcs10221@sst.scaler.com | Storage layer |
+| 2 | Daksh Shah | 24BCS10092 | shah.24bcs10092@sst.scaler.com | Index, Catalog, Parser, Optimizer |
+| 3 | Sourabh Srivastav | 24BCS10157 | sourabh.24bcs10157@sst.scaler.com | Execution, Transactions, Recovery, Docs |
 
 > Fill in all names before submitting PR.
 
@@ -19,9 +19,9 @@
 | Module | Owner | Status |
 |--------|-------|--------|
 | Storage (Page, BufferPool, HeapFile) | Member 1 | Done |
-| B+ Tree, Catalog, Parser, Optimizer | Member 2 | Pending |
-| Executor, 2PL, WAL, Integration | Member 3 | Pending |
-| README, Viva doc, Benchmarks | Member 3 | Pending |
+| B+ Tree, Catalog, Parser, Optimizer | Member 2 | Done |
+| Executor, 2PL, WAL, Integration | Member 3 | Done |
+| README, Viva doc, Benchmarks | Member 3 | Done |
 
 ---
 
