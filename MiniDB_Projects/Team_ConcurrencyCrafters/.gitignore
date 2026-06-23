@@ -1,0 +1,36 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local runtime state
+.test_runtime/
+.test_runtime_additional/
+.test_runtime_track_b/
+.test_runtime_submission/
+.test_runtime_strengthening/
+.txn_runtime/
+benchmarks/runtime/
+benchmarks/runtime_baseline/
+runtime/
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.heap
+*.wal
+*.index.json
+
+# Build/test artifacts
+.coverage
+.pytest_cache/
+.mypy_cache/
+dist/
+build/
+*.egg-info/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
