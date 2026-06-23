@@ -1,0 +1,10 @@
+MVCC vs 2PL under read/write contention
+(reader does N passes over R rows while a writer holds X-locks on them)
+
+rows     | passes   | 2PL reads (ms) | MVCC reads(ms) | speedup
+----------------------------------------------------------------------
+50       | 200      | 2.48           | 0.12           | 20.5x
+100      | 200      | 3.19           | 0.18           | 17.7x
+200      | 200      | 28.65          | 0.27           | 106.8x
+
+MVCC readers never block (no S-locks), so reads stay fast under a busy writer.
