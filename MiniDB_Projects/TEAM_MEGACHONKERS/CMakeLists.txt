@@ -66,6 +66,9 @@ target_link_libraries(transaction_test PRIVATE minidb_core gtest_main)
 add_executable(index_test tests/index_test.cpp)
 target_link_libraries(index_test PRIVATE minidb_core gtest_main)
 
+add_executable(optimizer_test tests/optimizer_test.cpp)
+target_link_libraries(optimizer_test PRIVATE minidb_core gtest_main)
+
 include(GoogleTest)
 gtest_discover_tests(lsm_test)
 gtest_discover_tests(wal_test)
@@ -74,6 +77,7 @@ gtest_discover_tests(recovery_test)
 gtest_discover_tests(filter_delete_test)
 gtest_discover_tests(transaction_test)
 gtest_discover_tests(index_test)
+gtest_discover_tests(optimizer_test)
 
 
 
