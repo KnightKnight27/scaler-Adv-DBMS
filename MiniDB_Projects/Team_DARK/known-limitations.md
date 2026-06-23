@@ -326,14 +326,3 @@ These are not engine bugs but **deliverable gaps** relative to `context/projet-g
 
 ---
 
-## Quick reference: defending scope in viva
-
-1. **"Why so few SQL statements?"** — Capstone tests integration of taught subsystems, not SQL completeness. AST pipeline for the required DML is present.
-2. **"Why no join order optimization?"** — We implement cost-based **scan** selection with selectivity estimates; join order is fixed and stated honestly in this doc.
-3. **"Why no full vacuum?"** — We prune dead versions from the catalog at commit using a global xmin horizon; physical page compaction is future work.
-4. **"Does recovery work?"** — Yes, in durable mode with WAL; CLI default is non-durable for convenience—show `recovery_test` or durable restart test instead.
-5. **"Secondary index?"** — Optional in guidelines; PK index demonstrates B+ Tree integration with the optimizer.
-
----
-
-*Last updated: June 2026 — aligned with codebase at `MiniDB_Projects/Team_DARK`.*
