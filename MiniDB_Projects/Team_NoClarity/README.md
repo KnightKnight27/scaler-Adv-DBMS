@@ -421,6 +421,7 @@ Log updates are streamed across socket connections as structured binary frames:
 ## 📊 Performance, Benchmarks, and Verification Logs
 
 To check out compiled logs, performance tables, and speedup analyses:
-- **Test execution logs:** Refer to **[verification_logs.md](file:///c:/Users/vangs/cursor/AdvDBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_NoClarity/reports/verification_logs.md)** under the `reports` directory.
-- **Raw benchmark logs:** Refer to **[benchmark.md](file:///c:/Users/vangs/cursor/AdvDBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_NoClarity/reports/benchmark.md)**.
-- **Performance Analysis & Tables:** Refer to **[benchmark_report.md](file:///c:/Users/vangs/cursor/AdvDBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_NoClarity/reports/benchmark_report.md)**.
+- **Test execution logs:** Refer to **[verification_logs.md](file:///c:/Users/vangs/cursor/AdvDBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_NoClarity/docs/verification_logs.md)** under the `docs` directory.
+- **Raw benchmark logs:** Refer to **[benchmark.md](file:///c:/Users/vangs/cursor/AdvDBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_NoClarity/docs/benchmark.md)**.
+- **Performance Analysis & Tables:** Refer to **[benchmark_report.md](file:///c:/Users/vangs/cursor/AdvDBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_NoClarity/docs/benchmark_report.md)**.
+
