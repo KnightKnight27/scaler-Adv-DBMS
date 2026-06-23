@@ -123,4 +123,15 @@ void DiskManager::SaveLSNs() {
     os.flush();
 }
 
+lsn_t DiskManager::GetMaxLSN() {
+    std::lock_guard<std::mutex> guard(latch_);
+    lsn_t max_lsn = 0;
+    for (const auto& pair : page_lsns_) {
+        if (pair.second > max_lsn) {
+            max_lsn = pair.second;
+        }
+    }
+    return max_lsn;
+}
+
 } // namespace minidb

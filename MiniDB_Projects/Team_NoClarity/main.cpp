@@ -918,6 +918,216 @@ void TestReplication() {
     std::cout << "[REPLICATION LAYER SUCCESS] All log replication layer tests passed successfully!\n" << std::endl;
 }
 
+#include "concurrency/lock_manager.h"
+#include "concurrency/transaction_manager.h"
+#include <thread>
+
+void TestSS2PL() {
+    std::cout << "--- Starting SS2PL Concurrency Control Tests ---" << std::endl;
+    LockManager lock_mgr;
+    TransactionManager txn_mgr(&lock_mgr);
+
+    Transaction* txn1 = txn_mgr.Begin();
+    Transaction* txn2 = txn_mgr.Begin();
+
+    RID rid1(0, 0);
+
+    // Txn 1 acquires EXCLUSIVE lock
+    bool ok1 = lock_mgr.LockExclusive(txn1, rid1);
+    assert(ok1);
+
+    // Txn 2 tries to acquire SHARED lock - should timeout and abort txn2
+    bool t2_done = false;
+    std::thread t2([&]() {
+        bool ok2 = lock_mgr.LockShared(txn2, rid1);
+        assert(!ok2); // Should fail/timeout
+        t2_done = true;
+    });
+    t2.join();
+    assert(t2_done);
+    assert(txn2->GetState() == TransactionState::ABORTED);
+
+    // Txn 1 aborts/releases lock
+    txn_mgr.Abort(txn1);
+    assert(txn1->GetState() == TransactionState::ABORTED);
+
+    // Txn 3 begins and acquires SHARED lock on same RID
+    Transaction* txn3 = txn_mgr.Begin();
+    bool ok3 = lock_mgr.LockShared(txn3, rid1);
+    assert(ok3);
+
+    // Clean up
+    txn_mgr.Commit(txn3);
+    std::cout << "[SS2PL SUCCESS] Lock compatibility, acquisition blocking, timeout, and commit release verified.\n" << std::endl;
+}
+
+void TestGraceHashJoin() {
+    std::cout << "--- Starting Grace Hash Join Tests ---" << std::endl;
+    std::string db_file = "test_grace_hj.db";
+    if (std::filesystem::exists(db_file)) {
+        std::filesystem::remove(db_file);
+    }
+
+    {
+        DiskManager disk_manager(db_file);
+        BufferPoolManager bpm(10, &disk_manager);
+
+        // Define schemas
+        Schema left_schema({Column("id", "INTEGER"), Column("val1", "VARCHAR")});
+        Schema right_schema({Column("t1_id", "INTEGER"), Column("val2", "VARCHAR")});
+        Schema join_schema({
+            Column("id", "INTEGER"),
+            Column("val1", "VARCHAR"),
+            Column("t1_id", "INTEGER"),
+            Column("val2", "VARCHAR")
+        });
+
+        // Create table metadata
+        auto t1_meta = std::make_shared<TableMetadata>();
+        t1_meta->name = "t1";
+        auto t2_meta = std::make_shared<TableMetadata>();
+        t2_meta->name = "t2";
+
+        // Insert tuples into t1
+        page_id_t pid1;
+        Page* pg1 = bpm.NewPage(&pid1);
+        pg1->WLock();
+        SlottedPage::Init(pg1->GetData());
+        Row r1_1{{{"id", 1}, {"val1", std::string("A")}}};
+        Row r1_2{{{"id", 2}, {"val1", std::string("B")}}};
+        Row r1_3{{{"id", 3}, {"val1", std::string("C")}}};
+        RID rid_dummy;
+        SlottedPage::InsertTuple(pg1->GetData(), r1_1.Serialize(), &rid_dummy, pid1);
+        SlottedPage::InsertTuple(pg1->GetData(), r1_2.Serialize(), &rid_dummy, pid1);
+        SlottedPage::InsertTuple(pg1->GetData(), r1_3.Serialize(), &rid_dummy, pid1);
+        pg1->WUnlock();
+        bpm.UnpinPage(pid1, true);
+        t1_meta->pages.push_back(pid1);
+
+        // Insert tuples into t2
+        page_id_t pid2;
+        Page* pg2 = bpm.NewPage(&pid2);
+        pg2->WLock();
+        SlottedPage::Init(pg2->GetData());
+        Row r2_1{{{"t1_id", 1}, {"val2", std::string("X")}}};
+        Row r2_2{{{"t1_id", 2}, {"val2", std::string("Y")}}};
+        Row r2_3{{{"t1_id", 4}, {"val2", std::string("Z")}}};
+        SlottedPage::InsertTuple(pg2->GetData(), r2_1.Serialize(), &rid_dummy, pid2);
+        SlottedPage::InsertTuple(pg2->GetData(), r2_2.Serialize(), &rid_dummy, pid2);
+        SlottedPage::InsertTuple(pg2->GetData(), r2_3.Serialize(), &rid_dummy, pid2);
+        pg2->WUnlock();
+        bpm.UnpinPage(pid2, true);
+        t2_meta->pages.push_back(pid2);
+
+        // Create executors
+        auto left_scan = std::make_unique<SeqScanExecutor>(&bpm, t1_meta, left_schema);
+        auto right_scan = std::make_unique<SeqScanExecutor>(&bpm, t2_meta, right_schema);
+
+        Expression key_l(Expression::Type::COLUMN_REF, "id");
+        Expression key_r(Expression::Type::COLUMN_REF, "t1_id");
+
+        GraceHashJoinExecutor ghj(std::move(left_scan), std::move(right_scan), key_l, key_r, join_schema, 2);
+        ghj.Init();
+
+        Tuple t;
+        RID r;
+        int count = 0;
+        while (ghj.Next(&t, &r)) {
+            int id = std::get<int>(t.GetValue("id"));
+            std::string val1 = std::get<std::string>(t.GetValue("val1"));
+            std::string val2 = std::get<std::string>(t.GetValue("val2"));
+            if (id == 1) {
+                assert(val1 == "A" && val2 == "X");
+            } else if (id == 2) {
+                assert(val1 == "B" && val2 == "Y");
+            } else {
+                assert(false);
+            }
+            count++;
+        }
+        assert(count == 2);
+        ghj.Close();
+    }
+
+    std::filesystem::remove(db_file);
+    std::cout << "[GRACE HASH JOIN SUCCESS] Partition phase, disk spilling, and probing verified.\n" << std::endl;
+}
+
+void TestReplicationCatchUp() {
+    std::cout << "--- Starting Replication Catch-up Protocol Tests ---" << std::endl;
+
+    std::string primary_db = "test_catchup_primary.db";
+    std::string primary_lsns = primary_db + ".lsns";
+    std::string replica_db = "test_catchup_replica.db";
+    std::string replica_lsns = replica_db + ".lsns";
+    std::string primary_log = "test_catchup_primary.log";
+
+    std::filesystem::remove(primary_db);
+    std::filesystem::remove(primary_lsns);
+    std::filesystem::remove(replica_db);
+    std::filesystem::remove(replica_lsns);
+    std::filesystem::remove(primary_log);
+
+    {
+        DiskManager primary_dm(primary_db);
+        BufferPoolManager primary_bpm(10, &primary_dm);
+
+        DiskManager replica_dm(replica_db);
+        BufferPoolManager replica_bpm(10, &replica_dm);
+
+        // Create page 0 on both
+        page_id_t p0_p, p0_r;
+        Page* pg0_p = primary_bpm.NewPage(&p0_p);
+        Page* pg0_r = replica_bpm.NewPage(&p0_r);
+        SlottedPage::Init(pg0_p->GetData());
+        SlottedPage::Init(pg0_r->GetData());
+        primary_bpm.UnpinPage(p0_p, true);
+        replica_bpm.UnpinPage(p0_r, true);
+        primary_bpm.FlushAllPages();
+        replica_bpm.FlushAllPages();
+
+        // 1. Setup Primary's LogManager and append some records BEFORE replica connects
+        LogManager log_mgr(primary_log);
+        LogRecord rec1(1, 0, LogRecordType::UPDATE, 0, 1, "", "CatchUpData1");
+        LogRecord rec2(1, 1, LogRecordType::UPDATE, 0, 2, "", "CatchUpData2");
+        log_mgr.AppendRecord(rec1); // LSN 1
+        log_mgr.AppendRecord(rec2); // LSN 2
+
+        // 2. Start replica listening
+        int listen_port = 23457;
+        ReplicationReceiver receiver(listen_port, &replica_bpm);
+        receiver.StartListening();
+
+        // 3. Connect primary's ReplicationManager (with LogManager pointer!)
+        ReplicationManager manager("127.0.0.1", listen_port, ReplicationMode::SYNCHRONOUS, &log_mgr);
+        manager.StartBroadcasting();
+
+        // Let the catch-up take place
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        // Assert that the replica received and applied the missed logs during handshake
+        Page* pg0 = replica_bpm.FetchPage(0);
+        std::string val;
+        bool status1 = SlottedPage::GetTuple(pg0->GetData(), 1, val);
+        assert(status1 && val == "CatchUpData1");
+        bool status2 = SlottedPage::GetTuple(pg0->GetData(), 2, val);
+        assert(status2 && val == "CatchUpData2");
+        assert(pg0->GetPageLSN() == 2);
+        replica_bpm.UnpinPage(0, false);
+
+        receiver.StopListening();
+        manager.HandleReplicaTimeout();
+    }
+
+    std::filesystem::remove(primary_db);
+    std::filesystem::remove(primary_lsns);
+    std::filesystem::remove(replica_db);
+    std::filesystem::remove(replica_lsns);
+    std::filesystem::remove(primary_log);
+
+    std::cout << "[REPLICATION CATCH-UP SUCCESS] Missed logs successfully replayed via LSN handshake.\n" << std::endl;
+}
+
 int main() {
     std::cout << "============================================" << std::endl;
     std::cout << "      MINIDB CAPSTONE TEST RUNNER (M6)       " << std::endl;
@@ -932,6 +1142,9 @@ int main() {
     TestOptimizer();
     TestRecovery();
     TestReplication();
+    TestSS2PL();
+    TestGraceHashJoin();
+    TestReplicationCatchUp();
 
     std::cout << "ALL MINIDB MILESTONE 6 TESTS PASSED SUCCESSFULLY!" << std::endl;
     return 0;

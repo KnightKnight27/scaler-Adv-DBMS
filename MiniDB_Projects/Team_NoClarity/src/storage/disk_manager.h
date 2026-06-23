@@ -31,6 +31,7 @@ public:
     void SetPageLSN(page_id_t page_id, lsn_t lsn);
     void LoadLSNs();
     void SaveLSNs();
+    lsn_t GetMaxLSN();
 
 private:
     std::string db_file_name_;

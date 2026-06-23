@@ -108,6 +108,10 @@ void ReplicationReceiver::ListenLoop() {
 }
 
 void ReplicationReceiver::ProcessIncomingLogPacket(int client_fd) {
+    // Handshake: Send replica's current max LSN to the primary
+    lsn_t local_max_lsn = bpm_->GetDiskManager()->GetMaxLSN();
+    send(client_fd, reinterpret_cast<const char*>(&local_max_lsn), sizeof(lsn_t), 0);
+
     while (is_running_) {
         char header_buf[4];
         int bytes_received = 0;

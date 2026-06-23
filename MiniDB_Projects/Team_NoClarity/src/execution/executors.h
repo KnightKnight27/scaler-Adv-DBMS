@@ -5,6 +5,7 @@
 #include "storage/buffer_pool_manager.h"
 #include "storage/slotted_page.h"
 #include "index/b_plus_tree.h"
+#include "concurrency/lock_manager.h"
 
 #include <vector>
 #include <string>
@@ -13,6 +14,7 @@
 #include <map>
 #include <algorithm>
 #include <iostream>
+#include <fstream>
 
 namespace minidb {
 
@@ -90,8 +92,9 @@ inline Tuple CombineTuples(const Tuple* left, const Tuple* right) {
 // ─────────────────────────────────────────────────────────────────────────────
 class SeqScanExecutor : public AbstractExecutor {
 public:
-    SeqScanExecutor(BufferPoolManager* bpm, std::shared_ptr<TableMetadata> table, Schema schema)
-        : bpm_(bpm), table_(table), schema_(std::move(schema)) {}
+    SeqScanExecutor(BufferPoolManager* bpm, std::shared_ptr<TableMetadata> table, Schema schema,
+                    Transaction* txn = nullptr, LockManager* lock_mgr = nullptr)
+        : bpm_(bpm), table_(table), schema_(std::move(schema)), txn_(txn), lock_mgr_(lock_mgr) {}
 
     void Init() override {
         page_idx_ = 0;
@@ -115,6 +118,13 @@ public:
                     Row r = Row::Deserialize(data);
                     *tuple = Tuple(r);
                     *rid = RID(pid, slot_idx_);
+                    if (lock_mgr_ && txn_) {
+                        if (!lock_mgr_->LockShared(txn_, *rid)) {
+                            page->RUnlock();
+                            bpm_->UnpinPage(pid, false);
+                            throw std::runtime_error("Transaction Aborted due to lock acquisition failure");
+                        }
+                    }
                     slot_idx_++;
                     page->RUnlock();
                     bpm_->UnpinPage(pid, false);
@@ -140,6 +150,8 @@ private:
     Schema schema_;
     size_t page_idx_{0};
     uint16_t slot_idx_{0};
+    Transaction* txn_;
+    LockManager* lock_mgr_;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -149,8 +161,10 @@ class IndexScanExecutor : public AbstractExecutor {
 public:
     IndexScanExecutor(BufferPoolManager* bpm, std::shared_ptr<TableMetadata> table,
                       std::shared_ptr<BPlusTree<int, RID, IntComparator>> index,
-                      int search_key, Schema schema)
-        : bpm_(bpm), table_(table), index_(index), search_key_(search_key), schema_(std::move(schema)) {}
+                      int search_key, Schema schema,
+                      Transaction* txn = nullptr, LockManager* lock_mgr = nullptr)
+        : bpm_(bpm), table_(table), index_(index), search_key_(search_key), schema_(std::move(schema)),
+          txn_(txn), lock_mgr_(lock_mgr) {}
 
     void Init() override {
         rids_.clear();
@@ -171,6 +185,13 @@ public:
             if (SlottedPage::GetTuple(page->GetData(), curr_rid.GetSlotNum(), data)) {
                 *tuple = Tuple(Row::Deserialize(data));
                 *rid = curr_rid;
+                if (lock_mgr_ && txn_) {
+                    if (!lock_mgr_->LockShared(txn_, *rid)) {
+                        page->RUnlock();
+                        bpm_->UnpinPage(curr_rid.GetPageId(), false);
+                        throw std::runtime_error("Transaction Aborted due to lock acquisition failure");
+                    }
+                }
                 rid_idx_++;
                 page->RUnlock();
                 bpm_->UnpinPage(curr_rid.GetPageId(), false);
@@ -195,6 +216,8 @@ private:
     Schema schema_;
     std::vector<RID> rids_;
     size_t rid_idx_{0};
+    Transaction* txn_;
+    LockManager* lock_mgr_;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -378,6 +401,210 @@ private:
     Schema output_schema_;
 
     std::unordered_map<Value, std::vector<Tuple>, ValueHasher, ValueEqual> hash_table_;
+    Tuple active_outer_tuple_;
+    RID active_outer_rid_;
+    std::vector<Tuple> active_matching_bucket_;
+    size_t probe_bucket_idx_{0};
+    bool has_active_probe_{false};
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5B. Grace Hash Join Executor
+// ─────────────────────────────────────────────────────────────────────────────
+class GraceHashJoinExecutor : public AbstractExecutor {
+public:
+    GraceHashJoinExecutor(std::unique_ptr<AbstractExecutor> left_child,
+                          std::unique_ptr<AbstractExecutor> right_child,
+                          Expression left_join_key,
+                          Expression right_join_key,
+                          Schema output_schema,
+                          size_t num_partitions = 4)
+        : left_child_(std::move(left_child)), right_child_(std::move(right_child)),
+          left_join_key_(std::move(left_join_key)), right_join_key_(std::move(right_join_key)),
+          output_schema_(std::move(output_schema)), num_partitions_(num_partitions) {}
+
+    ~GraceHashJoinExecutor() override {
+        GraceHashJoinExecutor::Close();
+    }
+
+    void Init() override {
+        left_child_->Init();
+        right_child_->Init();
+        ClosePartitionStreams();
+        CleanupFiles();
+
+        // 1. Partition Phase
+        // Open partition output streams
+        std::vector<std::unique_ptr<std::ofstream>> left_outs(num_partitions_);
+        std::vector<std::unique_ptr<std::ofstream>> right_outs(num_partitions_);
+        for (size_t i = 0; i < num_partitions_; ++i) {
+            left_outs[i] = std::make_unique<std::ofstream>(GetPartitionFileName(true, i), std::ios::binary);
+            right_outs[i] = std::make_unique<std::ofstream>(GetPartitionFileName(false, i), std::ios::binary);
+        }
+
+        // Partition Right child (inner)
+        Tuple inner_tuple;
+        RID inner_rid;
+        while (right_child_->Next(&inner_tuple, &inner_rid)) {
+            Value key = right_join_key_.Evaluate(&inner_tuple);
+            size_t p = ValueHasher{}(key) % num_partitions_;
+            SerializeTuple(*right_outs[p], inner_tuple, inner_rid);
+        }
+
+        // Partition Left child (outer)
+        Tuple outer_tuple;
+        RID outer_rid;
+        while (left_child_->Next(&outer_tuple, &outer_rid)) {
+            Value key = left_join_key_.Evaluate(&outer_tuple);
+            size_t p = ValueHasher{}(key) % num_partitions_;
+            SerializeTuple(*left_outs[p], outer_tuple, outer_rid);
+        }
+
+        // Close all partition output streams
+        for (size_t i = 0; i < num_partitions_; ++i) {
+            left_outs[i]->close();
+            right_outs[i]->close();
+        }
+
+        // 2. Setup Probe Phase
+        current_partition_idx_ = 0;
+        hash_table_loaded_ = false;
+        has_active_probe_ = false;
+    }
+
+    bool Next(Tuple* tuple, RID* rid) override {
+        while (true) {
+            if (!hash_table_loaded_) {
+                if (current_partition_idx_ >= num_partitions_) {
+                    return false;
+                }
+
+                // Load inner relation partition into memory hash table
+                partition_hash_table_.clear();
+                std::ifstream right_in(GetPartitionFileName(false, current_partition_idx_), std::ios::binary);
+                if (right_in.is_open()) {
+                    Tuple t;
+                    RID r;
+                    while (DeserializeTuple(right_in, &t, &r)) {
+                        Value key = right_join_key_.Evaluate(&t);
+                        partition_hash_table_[key].push_back(t);
+                    }
+                    right_in.close();
+                }
+
+                // Open left partition for streaming
+                if (current_left_partition_file_.is_open()) {
+                    current_left_partition_file_.close();
+                }
+                current_left_partition_file_.open(GetPartitionFileName(true, current_partition_idx_), std::ios::binary);
+                hash_table_loaded_ = true;
+                has_active_probe_ = false;
+            }
+
+            if (has_active_probe_) {
+                if (probe_bucket_idx_ < active_matching_bucket_.size()) {
+                    *tuple = CombineTuples(&active_outer_tuple_, &active_matching_bucket_[probe_bucket_idx_]);
+                    *rid = active_outer_rid_;
+                    probe_bucket_idx_++;
+                    return true;
+                } else {
+                    has_active_probe_ = false;
+                }
+            }
+
+            // Read next outer tuple from active left partition
+            if (current_left_partition_file_.is_open()) {
+                if (DeserializeTuple(current_left_partition_file_, &active_outer_tuple_, &active_outer_rid_)) {
+                    Value key = left_join_key_.Evaluate(&active_outer_tuple_);
+                    auto it = partition_hash_table_.find(key);
+                    if (it != partition_hash_table_.end()) {
+                        active_matching_bucket_ = it->second;
+                        probe_bucket_idx_ = 0;
+                        has_active_probe_ = true;
+                    }
+                } else {
+                    // Left partition exhausted, advance to next partition index
+                    current_left_partition_file_.close();
+                    partition_hash_table_.clear();
+                    current_partition_idx_++;
+                    hash_table_loaded_ = false;
+                }
+            } else {
+                current_partition_idx_++;
+                hash_table_loaded_ = false;
+            }
+        }
+    }
+
+    void Close() override {
+        left_child_->Close();
+        right_child_->Close();
+        ClosePartitionStreams();
+        CleanupFiles();
+    }
+
+    const Schema* GetOutputSchema() const override { return &output_schema_; }
+
+private:
+    std::string GetPartitionFileName(bool is_left, size_t part_idx) {
+        return "temp_ghj_" + std::string(is_left ? "L_" : "R_") + std::to_string(part_idx) + ".dat";
+    }
+
+    void SerializeTuple(std::ostream& os, const Tuple& tuple, const RID& rid) {
+        std::string s = tuple.GetRow().Serialize();
+        uint32_t len = s.length();
+        os.write(reinterpret_cast<const char*>(&len), sizeof(len));
+        os.write(s.data(), len);
+        page_id_t pid = rid.GetPageId();
+        uint32_t slot = rid.GetSlotNum();
+        os.write(reinterpret_cast<const char*>(&pid), sizeof(pid));
+        os.write(reinterpret_cast<const char*>(&slot), sizeof(slot));
+    }
+
+    bool DeserializeTuple(std::istream& is, Tuple* tuple, RID* rid) {
+        uint32_t len = 0;
+        if (!is.read(reinterpret_cast<char*>(&len), sizeof(len))) {
+            return false;
+        }
+        std::string s(len, '\0');
+        is.read(&s[0], len);
+        page_id_t pid;
+        uint32_t slot;
+        is.read(reinterpret_cast<char*>(&pid), sizeof(pid));
+        is.read(reinterpret_cast<char*>(&slot), sizeof(slot));
+        *tuple = Tuple(Row::Deserialize(s));
+        *rid = RID(pid, slot);
+        return true;
+    }
+
+    void ClosePartitionStreams() {
+        if (current_left_partition_file_.is_open()) {
+            current_left_partition_file_.close();
+        }
+    }
+
+    void CleanupFiles() {
+        for (size_t i = 0; i < num_partitions_; ++i) {
+            std::string lf = GetPartitionFileName(true, i);
+            std::string rf = GetPartitionFileName(false, i);
+            std::remove(lf.c_str());
+            std::remove(rf.c_str());
+        }
+    }
+
+    std::unique_ptr<AbstractExecutor> left_child_;
+    std::unique_ptr<AbstractExecutor> right_child_;
+    Expression left_join_key_;
+    Expression right_join_key_;
+    Schema output_schema_;
+
+    size_t num_partitions_;
+    size_t current_partition_idx_{0};
+    bool hash_table_loaded_{false};
+
+    std::ifstream current_left_partition_file_;
+    std::unordered_map<Value, std::vector<Tuple>, ValueHasher, ValueEqual> partition_hash_table_;
+
     Tuple active_outer_tuple_;
     RID active_outer_rid_;
     std::vector<Tuple> active_matching_bucket_;

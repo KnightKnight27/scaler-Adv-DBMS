@@ -38,6 +38,7 @@ public:
 
     // Helper method to check pool state during tests
     size_t GetPoolSize() const { return pool_size_; }
+    DiskManager* GetDiskManager() { return disk_manager_; }
 
 private:
     bool FindAvailableFrame(frame_id_t* frame_id);

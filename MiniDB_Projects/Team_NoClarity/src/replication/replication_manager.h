@@ -40,7 +40,7 @@ enum class NodeRole { PRIMARY, REPLICA };
  */
 class ReplicationManager {
 public:
-    ReplicationManager(const std::string& target_ip, int target_port, ReplicationMode mode);
+    ReplicationManager(const std::string& target_ip, int target_port, ReplicationMode mode, LogManager* log_mgr = nullptr);
     ~ReplicationManager();
     
     void StartBroadcasting();
@@ -64,6 +64,7 @@ private:
 
     std::string target_ip_;
     int target_port_;
+    LogManager* log_mgr_;
     
     std::mutex ack_mutex_;
     std::condition_variable ack_cv_;

@@ -15,12 +15,14 @@ file(GLOB_RECURSE STORAGE_SRCS "src/storage/*.cpp")
 file(GLOB_RECURSE OPTIMIZER_SRCS "src/optimizer/*.cpp")
 file(GLOB_RECURSE RECOVERY_SRCS "src/recovery/*.cpp")
 file(GLOB_RECURSE REPLICATION_SRCS "src/replication/*.cpp")
+file(GLOB_RECURSE CONCURRENCY_SRCS "src/concurrency/*.cpp")
 
 set(ALL_SRCS
     ${STORAGE_SRCS}
     ${OPTIMIZER_SRCS}
     ${RECOVERY_SRCS}
     ${REPLICATION_SRCS}
+    ${CONCURRENCY_SRCS}
 )
 
 # Test target

@@ -16,10 +16,10 @@ inline void InitSockets() {
 #endif
 }
 
-ReplicationManager::ReplicationManager(const std::string& target_ip, int target_port, ReplicationMode mode)
+ReplicationManager::ReplicationManager(const std::string& target_ip, int target_port, ReplicationMode mode, LogManager* log_mgr)
     : client_socket_fd_(INVALID_SOCKET_VAL), mode_(mode), current_role_(NodeRole::PRIMARY),
       replica_online_(false), last_acknowledged_lsn_(0), target_ip_(target_ip), target_port_(target_port),
-      is_running_(false) {
+      log_mgr_(log_mgr), is_running_(false) {
     InitSockets();
 }
 
@@ -54,9 +54,33 @@ void ReplicationManager::StartBroadcasting() {
         return;
     }
     
+    // 1. Read handshake (max LSN) from the replica
+    lsn_t replica_max_lsn = 0;
+    int bytes_read = recv(client_socket_fd_, reinterpret_cast<char*>(&replica_max_lsn), sizeof(lsn_t), 0);
+    if (bytes_read <= 0) {
+        replica_online_ = false;
+        CLOSE_SOCKET(client_socket_fd_);
+        client_socket_fd_ = INVALID_SOCKET_VAL;
+        return;
+    }
+
     replica_online_ = true;
     is_running_ = true;
     ack_thread_ = std::thread(&ReplicationManager::ReceiveAcksLoop, this);
+
+    // 2. Log Catch-up Phase: Replay missed logs
+    if (log_mgr_ != nullptr) {
+        std::ifstream is(log_mgr_->GetLogFileName(), std::ios::binary);
+        if (is.is_open()) {
+            LogRecord record;
+            while (record.Deserialize(is)) {
+                if (record.lsn > replica_max_lsn) {
+                    ReplicateLog(record);
+                }
+            }
+            is.close();
+        }
+    }
 }
 
 bool ReplicationManager::ReplicateLog(const LogRecord& record) {
