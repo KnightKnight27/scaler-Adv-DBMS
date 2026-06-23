@@ -1,159 +1,231 @@
-# MiniDB Architecture
+# MiniDB System Architecture
 
-## Overview
+## Design Goals
+
+- Preserve the baseline MiniDB storage, parser, optimizer, executor, and strict 2PL flow instead of replacing them
+- Keep physical storage and logical query processing small enough to explain end to end
+- Add durability with a clear WAL-before-data invariant
+- Add Track B MVCC as a second transaction mode that can be benchmarked directly against 2PL
+- Keep demos and tests deterministic enough for capstone evaluation
+
+## Non-Goals
+
+- Full SQL compatibility
+- Production-grade ARIES recovery
+- Distributed execution or replication
+- Background vacuum, compaction, or online index maintenance
+- Highly tuned cost estimation or hardware-specific benchmarking
+
+## End-To-End Data Flow
 
 ```text
-+-----------------------+
-| SQL Parser            |
-+-----------+-----------+
-            |
-            v
-+-----------------------+
-| Optimizer / EXPLAIN   |
-+-----------+-----------+
-            |
-            v
-+-----------------------+
-| Executor              |
-| - table scan          |
-| - index scan          |
-| - nested-loop join    |
-| - insert / delete     |
-+-----------+-----------+
-            |
-            v
-+-----------------------+      +----------------------+
-| Transaction Manager   |<---->| Lock Manager         |
-| - BEGIN/COMMIT/ROLL   |      | - S/X locks          |
-| - strict 2PL hooks    |      | - waits-for graph    |
-| - MVCC/WAL hooks      |      | - deadlock detect    |
-+-----------+-----------+      +----------------------+
-            |
-            v
-+-----------------------+
-| Storage Engine        |
-| - heap files          |
-| - buffer pool         |
-| - B+ Tree indexes     |
-+-----------+-----------+
-            |
-            v
-+-----------------------+
-| Page Manager / Files  |
-+-----------------------+
+SQL text
+  -> parser
+  -> typed statement
+  -> optimizer
+  -> physical plan
+  -> executor
+  -> transaction hooks
+  -> storage/index access
+  -> result rows or status
 ```
 
-## Storage Layer
+The parser and optimizer remain mode-agnostic. The transaction manager decides whether a request follows the strict 2PL path or the MVCC path, while the storage layer remains page-based in both cases. This separation keeps the extension focused on concurrency control and recovery rather than turning Track B into a new engine.
 
-- Each table uses a persisted heap file under `data/`.
-- Heap pages are fixed-size 4096-byte slotted pages.
-- Rows are stored as stable JSON payloads keyed by column name.
-- `RecordID(page_id, slot_id)` addresses rows directly inside heap files.
+## Storage Architecture
 
-## Page Format
+### Page Layout
 
-- Page header:
-  `num_slots` and `free_end`.
-- Slot directory:
-  one fixed 8-byte slot entry per record.
-- Record area:
-  variable-length payloads packed from the end of the page backward.
-- Deletes are tombstones so rollback can restore rows in place.
+`pages.py` defines fixed-size `4096` byte slotted pages. Each page contains:
 
-## Buffer Pool
+- a small header with slot count and free-space boundary
+- a slot directory with fixed-size entries
+- variable-length JSON row payloads packed from the end of the page backward
 
-- `BufferPoolManager` exposes `fetch_page`, `new_page`, `unpin_page`, `flush_page`, and `flush_all_pages`.
-- LRU ordering drives eviction.
-- Pinned pages are never evicted.
-- Debug logs capture hit, miss, eviction, and flush events.
+This layout gives the engine stable physical addresses and simple append-within-page insertion semantics. Physical identity is represented as `RecordID(page_id, slot_id)`.
 
-## B+ Tree Design
+### Heap Files
 
-- Integer-key B+ Tree with leaf splits and internal node splits.
-- Primary key indexes are created automatically for each table.
-- Additional integer indexes can be created with `CREATE INDEX`.
-- Index entries map keys to one or more `RecordID` values.
+Each table is stored as a heap file managed by `PageManager`. Page ids map directly to page offsets in the underlying file, which keeps the persistence model easy to reason about:
 
-## Parser
+1. Allocate a new page when no existing page can fit the row payload.
+2. Read and modify a page in memory through the buffer pool.
+3. Write the page back through `PageManager` once it is safe to flush.
 
-- The parser supports:
-  `CREATE TABLE`, `CREATE INDEX`, `INSERT`, `SELECT`, `DELETE`, `JOIN`, `EXPLAIN`, `BEGIN`, `COMMIT`, `ROLLBACK`, and `SET MODE`.
-- The supported predicate form is equality (`column = value`).
-- `JOIN` is implemented for `SELECT *` and `COUNT(*)` with an equi-join predicate.
+### Core Storage Invariants
 
-## Executor
+- Page size is fixed across the engine.
+- A `RecordID` remains a physical anchor even when the logical key also participates in MVCC versioning.
+- Page flushes must happen only after the required WAL records have been flushed.
+- Logical recovery may rebuild physical heap state, so physical placement is not the only durable truth.
 
-- `INSERT` writes into heap files and updates all relevant B+ Tree indexes.
-- `SELECT` uses either table scan or index scan depending on the optimizer plan.
-- `DELETE` removes rows from heap storage and index entries.
-- `JOIN` uses nested-loop execution with optimizer-selected outer/inner order.
-- `COUNT(*)` returns a scalar count for simple scans and joins.
+## Buffer Pool Lifecycle
 
-## Optimizer
+`BufferPoolManager` adds a small but explicit cache between logical operations and disk pages.
 
-- Statistics tracked per table:
-  row count and page count.
-- Selectivity rules:
-  primary-key equality uses `1 / row_count`.
-- Fallback selectivity:
-  unknown predicates use `0.1`.
-- Plan choices:
-  indexed equality predicates pick `INDEX_SCAN`; otherwise `TABLE_SCAN`.
-- Join order:
-  the smaller estimated input becomes the outer relation.
+1. `fetch_page` checks the in-memory cache first.
+2. A cache miss reads the page from `PageManager`.
+3. The page is pinned while in active use.
+4. `unpin_page` decrements the pin count and marks the page dirty when needed.
+5. LRU chooses an evictable victim among unpinned pages only.
+6. Dirty victims are flushed before eviction.
 
-## Strict 2PL
+The buffer pool is intentionally simple, but it still demonstrates the concepts expected in a systems project: page residency, pinning, dirty tracking, and eviction policy. Debug logs also expose hit, miss, flush, and eviction events for tests and demos.
 
-- Reads request shared (`S`) locks.
-- Writes and deletes request exclusive (`X`) locks.
-- Locks are held until commit or rollback.
-- Undo actions allow baseline statement rollback without full recovery support.
+## Index Lookup Path
 
-## Lock Compatibility Matrix
+`index.py` implements the B+ Tree used for primary-key access. The important architectural point is that the index is a logical-key locator, not a visibility engine.
 
-| Held \ Requested | Shared | Exclusive |
+Lookup path for a primary-key read:
+
+1. The optimizer sees an indexed equality predicate and emits `INDEX_SCAN`.
+2. The executor uses the B+ Tree to find the `RecordID` anchor for that logical key.
+3. The transaction layer applies the active visibility rule:
+   - strict 2PL reads the currently committed logical row while holding a shared lock
+   - MVCC resolves the newest version visible to the transaction snapshot
+
+This ordering is deliberate: Track B extends the visibility model without discarding the baseline access-path story.
+
+## Optimizer Plan Selection
+
+`optimizer.py` uses compact catalog statistics to choose among a few physical operators.
+
+### Single-Table Reads
+
+- If an indexed predicate exists on the requested column, the plan is `INDEX_SCAN`.
+- Otherwise the plan is `TABLE_SCAN`.
+- Equality selectivity for indexed primary-key access is estimated as `1 / row_count`.
+- Unknown predicates fall back to selectivity `0.1`.
+
+### Joins
+
+- The join operator is `NESTED_LOOP_JOIN`.
+- The smaller estimated relation becomes the outer input.
+- Both children are currently modeled as scans, which keeps plan generation simple and predictable.
+
+This is not meant to rival a production optimizer, but the rules are transparent, reproducible, and visible through `EXPLAIN`.
+
+## 2PL Concurrency Path
+
+Strict 2PL is the default mode and the baseline that Track B must preserve.
+
+1. `BEGIN` creates a transaction record.
+2. `before_read` requests a shared lock.
+3. `before_write` requests an exclusive lock.
+4. Locks are held until `COMMIT` or `ROLLBACK`.
+5. End-of-transaction cleanup releases all held locks.
+
+### Locking Invariants
+
+- Shared locks are compatible only with other shared locks.
+- Exclusive locks conflict with both shared and exclusive locks.
+- Strictness means locks are not released early.
+- Reads can block behind conflicting writers.
+
+### Deadlock Detection
+
+The lock manager builds a waits-for graph whenever a transaction must wait. A cycle means a deadlock. The implementation chooses the youngest transaction in the cycle as the victim and aborts it, which is deterministic enough for demo and test coverage.
+
+## WAL And Recovery Path
+
+Durability is handled through `WALManager` and `RecoveryManager`.
+
+### WAL Path
+
+1. A transaction begins and writes a `BEGIN` record.
+2. Each logical insert or delete appends a corresponding WAL record.
+3. Commit appends a `COMMIT` record with commit ordering metadata.
+4. `storage.py` calls `before_page_flush` so the log is flushed before any dirty page reaches disk.
+
+### Recovery Path
+
+1. Startup scans the append-only WAL.
+2. The recovery manager separates committed transactions from incomplete ones.
+3. Committed operations rebuild the version history.
+4. The current logical rows are materialized back into heap storage.
+5. Uncommitted work is ignored or discarded.
+
+### Recovery Scope
+
+This is logical recovery, not ARIES. There are no page LSNs, compensation log records, or physiological redo/undo phases. The benefit is a smaller design that still proves the required durability property for the project.
+
+## MVCC Visibility Algorithm
+
+Track B introduces `VersionStore` and `MVCCManager` while keeping the strict 2PL baseline available.
+
+### Version Model
+
+Each version stores:
+
+- logical key
+- row payload
+- creating transaction id
+- begin or commit timestamp
+- tombstone state for deletes
+- committed flag
+
+### Snapshot Rules
+
+1. A transaction receives `snapshot_ts` at `BEGIN`.
+2. Commits receive a monotonically increasing commit timestamp.
+3. The transaction sees its own staged writes immediately.
+4. It does not see uncommitted versions written by other transactions.
+5. Among committed versions, it sees the newest version whose begin timestamp is not newer than the snapshot.
+6. If that newest visible version is a tombstone, the row is invisible.
+
+### Why Readers Do Not Block Writers
+
+In MVCC mode, readers do not acquire shared locks for visibility. They read from their snapshot and only rely on the version chain. Writers still coordinate through transaction hooks, but readers no longer wait behind the writer's exclusive lock window for the same logical key.
+
+## Transaction Mode Comparison
+
+| Aspect | Strict 2PL | MVCC |
 | --- | --- | --- |
-| Shared | Allowed | Conflict |
-| Exclusive | Conflict | Conflict |
+| Read path | Shared lock plus current logical row | Snapshot visibility plus version chain |
+| Write path | Exclusive lock plus direct logical update | Staged version plus commit publication |
+| Blocking behavior | Readers may wait behind writers | Readers continue on older committed snapshot |
+| Rollback | Undo/discard and release locks | Discard pending versions and release locks |
+| Storage cost | Lower metadata overhead | Higher version-history overhead |
 
-## Deadlock Detection
+The crucial project invariant is that 2PL is still present and correct. MVCC is an additive mode, not a replacement for the baseline.
 
-- A waits-for graph is maintained for blocked lock requests.
-- Cycle detection runs during lock waits.
-- The youngest transaction, modeled as the highest transaction ID in the cycle, becomes the victim.
-- Victim rollback releases locks so the remaining transaction can continue.
+## Failure Scenarios
 
-## Benchmark Baseline
+### Crash After WAL Append, Before Commit
 
-- `benchmarks/run_baseline.py` loads sample data and measures insert, point lookup, table scan, join, and a concurrent 2PL workload.
-- Results are written to:
-  `benchmarks/benchmark_data.csv` and `benchmarks/benchmark_results.md`.
+- WAL contains `BEGIN` and data-change records but no `COMMIT`.
+- Recovery ignores those changes.
+- Result: no uncommitted state becomes visible after restart.
 
-## How To Run
+### Crash After Commit, Before Data Flush
 
-- Build:
-  `python -m compileall src`
-- Tests:
-  `python -m unittest discover -s tests`
-- Benchmarks:
-  `python benchmarks/run_baseline.py`
+- WAL already contains the committed logical change.
+- Recovery replays committed state and rebuilds the current table image.
+- Result: the committed transaction survives restart.
 
-## Demo Commands
+### Deadlock During 2PL Contention
 
-- Core demo:
-  `bash scripts/demo_core.sh`
-- Deadlock demo:
-  `bash scripts/demo_2pl_deadlock.sh`
+- Two transactions wait on each other's locks.
+- The waits-for graph cycle is detected.
+- The youngest victim is aborted so the older transaction can complete.
 
-## Limitations
+### Rollback Of MVCC Delete Or Insert
 
-- Recovery, WAL replay, and MVCC visibility are extension hooks only in this baseline.
-- The SQL grammar is intentionally compact and targets the capstone-required statements.
-- B+ Tree indexes currently support `INT` columns only.
+- The transaction's staged versions are discarded.
+- No foreign transaction ever sees those uncommitted versions.
 
-## Contribution Notes For Person 1
+## Design Trade-Offs
 
-- Extension points are already present for `WALManager`, `RecoveryManager`, `MVCCManager`, and `VersionStore`.
-- The executor routes all read/write operations through transaction hooks.
-- The storage and transaction layers are isolated so MVCC or recovery can replace behavior without rewriting the parser, optimizer, or executor.
+- Slotted heap pages are easy to reason about, but they are not optimized for compaction-heavy workloads.
+- Logical recovery is smaller and easier to demo than ARIES, but less realistic for industrial storage engines.
+- MVCC dramatically improves read concurrency, but it introduces version-history growth and future cleanup obligations.
+- A lightweight optimizer keeps `EXPLAIN` understandable, but plan quality is limited by coarse statistics.
 
+## Extension Points
+
+- ARIES-style recovery with page LSNs and compensation records
+- MVCC vacuum and garbage collection
+- richer secondary-index maintenance for versioned rows
+- histogram-based selectivity estimation
+- additional physical operators such as hash join or index nested-loop join
+- durability controls for flush frequency and sync semantics

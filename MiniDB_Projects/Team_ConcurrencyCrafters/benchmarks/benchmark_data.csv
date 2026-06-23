@@ -1,6 +1,9 @@
-benchmark,duration_seconds,rows_or_events
-insert_100_records,0.870064,100
-point_lookup_btree,0.000127,1
-table_scan,0.000711,100
-nested_loop_join,0.001788,100
-2pl_concurrent_workload,0.031702,"t1:committed,t2:aborted"
+workload,mode,throughput_tps,avg_read_latency_ms,p95_read_latency_ms,avg_write_latency_ms,blocked_read_count,wait_time_ms,committed_txn_count,aborted_txn_count,version_count,version_store_bytes,description
+read_heavy,2PL,225.78286820289395,13.629139996030263,35.24729999480769,40.63160000368953,15,41.19929968146607,50,0,30,11946,"90% reads, 10% writes across three warm keys."
+read_heavy,MVCC,375.7101863169136,4.783480001303057,6.640799983870238,26.542339997831732,0,0.0,50,0,30,11946,"90% reads, 10% writes across three warm keys."
+mixed,2PL,180.76093575746344,12.792130952307378,44.140700018033385,41.21874999448968,24,59.809799829963595,96,0,44,17301,"70% reads, 30% writes with moderate key reuse."
+mixed,MVCC,285.44600048083396,5.069640476167912,8.819200040306896,27.94424166495446,0,0.0,96,0,44,17305,"70% reads, 30% writes with moderate key reuse."
+hot_key_contention,2PL,129.44062234726798,57.028092502150685,71.99030002811924,55.357940011890605,80,752.8108994010836,90,0,40,15768,Hot-key contention where readers and writers collide on the same key.
+hot_key_contention,MVCC,210.90115252043492,6.018512501032092,10.246600024402142,42.582050018245354,0,0.0,90,0,40,15772,Hot-key contention where readers and writers collide on the same key.
+write_heavy,2PL,118.99201860937414,22.115351000684313,45.379199960734695,44.32239499001298,52,252.81920022098348,120,0,60,23437,Optional write-heavy mix with equal read and write transaction counts.
+write_heavy,MVCC,207.19058372787214,5.022100000060163,8.266099961474538,28.886185001465492,0,0.0,120,0,60,23437,Optional write-heavy mix with equal read and write transaction counts.

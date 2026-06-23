@@ -23,7 +23,7 @@ def timed(operation):
 
 
 def main() -> None:
-    runtime_dir = ROOT / "benchmarks" / "runtime"
+    runtime_dir = ROOT / "benchmarks" / "runtime_baseline"
     if runtime_dir.exists():
         shutil.rmtree(runtime_dir)
     runtime_dir.mkdir(parents=True, exist_ok=True)
@@ -45,7 +45,7 @@ def main() -> None:
     )
     concurrent_duration, concurrent_summary = timed(run_concurrent_workload)
 
-    csv_path = ROOT / "benchmarks" / "benchmark_data.csv"
+    csv_path = ROOT / "benchmarks" / "baseline_benchmark_data.csv"
     rows = [
         ["benchmark", "duration_seconds", "rows_or_events"],
         ["insert_100_records", f"{insert_duration:.6f}", record_count],
@@ -58,7 +58,7 @@ def main() -> None:
         writer = csv.writer(handle)
         writer.writerows(rows)
 
-    report_path = ROOT / "benchmarks" / "benchmark_results.md"
+    report_path = ROOT / "benchmarks" / "baseline_benchmark_results.md"
     report_lines = [
         "# Baseline Benchmark Results",
         "",
@@ -88,7 +88,7 @@ def bulk_insert(engine: MiniDBEngine, count: int) -> None:
 
 
 def run_concurrent_workload() -> str:
-    runtime_root = ROOT / "benchmarks" / "runtime"
+    runtime_root = ROOT / "benchmarks" / "runtime_baseline"
     runtime_root.mkdir(parents=True, exist_ok=True)
     temp_path = runtime_root / "concurrent_2pl"
     if temp_path.exists():

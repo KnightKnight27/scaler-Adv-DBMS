@@ -8,13 +8,25 @@ from .buffer import BufferPoolManager
 from .catalog import Catalog, IndexMetadata, TableMetadata
 from .index import PersistentBPlusTree
 from .pages import PageManager
+from .transactions import WALManager
 from .types import RecordID, StorageEngine, TableSchema, TableStats, Value
 
 
 class HeapFile:
-    def __init__(self, page_manager: PageManager, buffer_pool: BufferPoolManager):
+    def __init__(
+        self,
+        page_manager: PageManager,
+        buffer_pool: BufferPoolManager,
+        wal_manager: WALManager | None = None,
+    ):
         self.page_manager = page_manager
         self.buffer_pool = buffer_pool
+        self.wal_manager = wal_manager
+
+    def _flush_page(self, page_id: int) -> None:
+        if self.wal_manager is not None:
+            self.wal_manager.before_page_flush(page_id)
+        self.buffer_pool.flush_page(page_id)
 
     def insert_record(self, payload: bytes) -> RecordID:
         for page_id in range(self.page_manager.page_count):
@@ -23,7 +35,7 @@ class HeapFile:
                 if page.can_fit(len(payload)):
                     slot_id = page.insert(payload)
                     self.buffer_pool.unpin_page(page_id, is_dirty=True)
-                    self.buffer_pool.flush_page(page_id)
+                    self._flush_page(page_id)
                     return RecordID(page_id=page_id, slot_id=slot_id)
                 self.buffer_pool.unpin_page(page_id, is_dirty=False)
             except Exception:
@@ -33,7 +45,7 @@ class HeapFile:
         try:
             slot_id = page.insert(payload)
             self.buffer_pool.unpin_page(page.page_id, is_dirty=True)
-            self.buffer_pool.flush_page(page.page_id)
+            self._flush_page(page.page_id)
             return RecordID(page_id=page.page_id, slot_id=slot_id)
         except Exception:
             self.buffer_pool.unpin_page(page.page_id, is_dirty=False)
@@ -55,7 +67,7 @@ class HeapFile:
                 return None
             page.delete(rid.slot_id)
             self.buffer_pool.unpin_page(rid.page_id, is_dirty=True)
-            self.buffer_pool.flush_page(rid.page_id)
+            self._flush_page(rid.page_id)
             return payload
         except Exception:
             self.buffer_pool.unpin_page(rid.page_id, is_dirty=False)
@@ -66,7 +78,7 @@ class HeapFile:
         try:
             page.restore(rid.slot_id, payload)
             self.buffer_pool.unpin_page(rid.page_id, is_dirty=True)
-            self.buffer_pool.flush_page(rid.page_id)
+            self._flush_page(rid.page_id)
         except Exception:
             self.buffer_pool.unpin_page(rid.page_id, is_dirty=False)
             raise
@@ -114,11 +126,18 @@ class TableRuntime:
 
 
 class HeapStorageEngine(StorageEngine):
-    def __init__(self, base_dir: str | Path, catalog: Catalog, buffer_pool_size: int = 8):
+    def __init__(
+        self,
+        base_dir: str | Path,
+        catalog: Catalog,
+        buffer_pool_size: int = 8,
+        wal_manager: WALManager | None = None,
+    ):
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.catalog = catalog
         self.buffer_pool_size = buffer_pool_size
+        self.wal_manager = wal_manager
         self.tables: dict[str, TableRuntime] = {}
         self._load_tables()
 
@@ -251,7 +270,11 @@ class HeapStorageEngine(StorageEngine):
             metadata=metadata,
             page_manager=page_manager,
             buffer_pool=buffer_pool,
-            heap_file=HeapFile(page_manager=page_manager, buffer_pool=buffer_pool),
+            heap_file=HeapFile(
+                page_manager=page_manager,
+                buffer_pool=buffer_pool,
+                wal_manager=self.wal_manager,
+            ),
             indexes=indexes,
         )
 
@@ -262,6 +285,8 @@ class HeapStorageEngine(StorageEngine):
 
     def _sync_stats(self, table_name: str, row_count: int | None = None) -> None:
         runtime = self._require_table(table_name)
+        if self.wal_manager is not None:
+            self.wal_manager.flush()
         runtime.buffer_pool.flush_all_pages()
         if row_count is None:
             row_count = self.catalog.get_table(table_name).stats.row_count
@@ -269,6 +294,20 @@ class HeapStorageEngine(StorageEngine):
             table_name,
             TableStats(row_count=row_count, page_count=runtime.page_manager.page_count),
         )
+
+    def rebuild_table(self, table_name: str, rows: list[dict[str, Value]]) -> None:
+        metadata = self.catalog.get_table(table_name)
+        heap_path = self.base_dir / metadata.heap_file
+        if heap_path.exists():
+            heap_path.unlink()
+        for index in metadata.indexes.values():
+            index_path = self.base_dir / index.path
+            if index_path.exists():
+                index_path.unlink()
+        self.catalog.update_stats(table_name, TableStats(row_count=0, page_count=0))
+        self.tables[table_name] = self._runtime_for_table(table_name)
+        for row in rows:
+            self.insert(table_name, row)
 
     def _update_row_count(self, table_name: str, delta: int) -> None:
         current = self.catalog.get_table(table_name).stats.row_count

@@ -1,12 +1,16 @@
-@"
 # Python cache
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Test/runtime databases
+# Local runtime state
 .test_runtime/
+.test_runtime_additional/
+.test_runtime_track_b/
+.test_runtime_submission/
+.txn_runtime/
 benchmarks/runtime/
+benchmarks/runtime_baseline/
 runtime/
 data/
 *.db
@@ -29,4 +33,3 @@ build/
 Thumbs.db
 .vscode/
 .idea/
-"@ | Out-File -Encoding utf8 MiniDB_Projects\Team_ConcurrencyCrafters\.gitignore
