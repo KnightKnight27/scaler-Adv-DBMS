@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.10)
+project(db_engine CXX)
+set(CMAKE_CXX_STANDARD 17)
+find_package(Threads REQUIRED)
+add_executable(db_engine main.cpp)
+target_link_libraries(db_engine PRIVATE Threads::Threads)
