@@ -2,10 +2,23 @@
 
 Coursework for the Scaler Advanced DBMS module.
 
-| Lab | Topic | Branch / path |
+Lab numbering follows the official `lab_sessions/lab_N.txt` definitions
+in the assignment repo.
+
+| Lab | Topic | Path on this branch |
 | --- | --- | --- |
-| 1 | SQLite3 vs PostgreSQL comparison report | `main` (README on commit `8e43228`) |
-| 3 | Clock-sweep buffer pool replacement | `Lab-3_Assignment` — see [`lab3/`](lab3/) |
+| 1 | File I/O in C++ — strace kernel journey | _(not in this branch)_ |
+| 2 | SQLite3 internals + PostgreSQL vs SQLite report | `submit/...` branch |
+| 3 | Clock-sweep buffer pool replacement | [`lab3/`](lab3/) |
+| 4 | Red-Black Tree (Part 1) & Full B-Tree (Part 2) | [`Lab-4/`](Lab-4/) |
+| 5 | Shunting-Yard + minimal SQL SELECT parser | [`Lab-5/`](Lab-5/) |
+| 6 | Transaction Manager — MVCC + 2PL + deadlock detection | [`Lab-6/`](Lab-6/) |
+
+> **Note on naming:** the Red-Black Tree and B-Tree (official Lab 4,
+> Parts 1 & 2) were previously in folders named `Lab-5/` and `Lab-6/`.
+> They have been moved into `Lab-4/Part1-RBT/` and `Lab-4/Part2-BTree/`
+> so the folder numbers match the official lab definitions. The folders
+> `Lab-5/` and `Lab-6/` now hold the actual Lab 5 and Lab 6 work.
 
 ---
 

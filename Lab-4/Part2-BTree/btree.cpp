@@ -1,4 +1,4 @@
-// Lab 6 - B-Tree (CLRS chapter 18)
+// Lab 4 (Part 2) - B-Tree (CLRS chapter 18)
 //
 // Single-file templated B-tree over (Key, Value) pairs with a custom
 // comparator. Every B-tree node is sized to hold up to 2t-1 keys and
@@ -227,9 +227,12 @@ private:
 
     // Ensures children[idx] has at least t entries before we descend.
     // Either borrows from a sibling (case 3a) or merges (case 3b).
-    void ensureChildHasEnough(Node* parent, int idx) {
+    // Returns the index the target child lives at afterwards: a borrow
+    // leaves it at `idx`, but a merge with the LEFT sibling moves it into
+    // children[idx-1], so the caller must descend into the returned index.
+    int ensureChildHasEnough(Node* parent, int idx) {
         Node* child = parent->children[idx].get();
-        if (static_cast<int>(child->entries.size()) >= t_) return;
+        if (static_cast<int>(child->entries.size()) >= t_) return idx;
 
         Node* left  = (idx > 0) ? parent->children[idx - 1].get() : nullptr;
         Node* right = (idx + 1 < static_cast<int>(parent->children.size()))
@@ -245,7 +248,7 @@ private:
             }
             parent->entries[idx - 1] = std::move(left->entries.back());
             left->entries.pop_back();
-            return;
+            return idx;
         }
         if (right && static_cast<int>(right->entries.size()) >= t_) {
             child->entries.push_back(std::move(parent->entries[idx]));
@@ -255,10 +258,14 @@ private:
             }
             parent->entries[idx] = std::move(right->entries.front());
             right->entries.erase(right->entries.begin());
-            return;
+            return idx;
         }
-        if (left) mergeChildren(parent, idx - 1);
-        else      mergeChildren(parent, idx);
+        if (left) {
+            mergeChildren(parent, idx - 1);   // target merged into idx-1
+            return idx - 1;
+        }
+        mergeChildren(parent, idx);           // target stays at idx
+        return idx;
     }
 
     void mergeChildren(Node* parent, int idx) {
@@ -310,12 +317,10 @@ private:
 
         if (n->is_leaf) return false;                    // key not in tree
 
-        // case 3: descend.
-        bool last = (i == static_cast<int>(n->entries.size()));
-        ensureChildHasEnough(n, i);
-        // If we descended into the rightmost child and a merge with the
-        // left sibling happened, the target lives at i-1 now.
-        if (last && i > static_cast<int>(n->entries.size())) --i;
+        // case 3: make sure children[i] has >= t keys, then descend.
+        // A merge with the left sibling moves the target to i-1, so we
+        // descend into whatever index ensureChildHasEnough reports back.
+        i = ensureChildHasEnough(n, i);
         return eraseFrom(n->children[i].get(), k);
     }
 

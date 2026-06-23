@@ -1,23 +1,16 @@
 CXX      ?= g++
 CXXFLAGS ?= -std=c++17 -Wall -Wextra -O2
-TARGET    = rbtree
-OBJS      = main.o RedBlackTree.o
 
-.PHONY: all run clean
+SRC = main.cc shunting_yard.cc sql.cc
+BIN = sqlmini
 
-all: $(TARGET)
+$(BIN): $(SRC) shunting_yard.h sql.h
+	$(CXX) $(CXXFLAGS) $(SRC) -o $(BIN)
 
-$(TARGET): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $(OBJS)
-
-main.o: main.cc RedBlackTree.h
-	$(CXX) $(CXXFLAGS) -c main.cc
-
-RedBlackTree.o: RedBlackTree.cc RedBlackTree.h
-	$(CXX) $(CXXFLAGS) -c RedBlackTree.cc
-
-run: $(TARGET)
-	./$(TARGET)
+run: $(BIN)
+	./$(BIN)
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(BIN) *.o
+
+.PHONY: run clean

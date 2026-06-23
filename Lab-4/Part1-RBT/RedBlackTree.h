@@ -1,4 +1,4 @@
-// Lab 5 - Red-Black Tree (header)
+// Lab 4 (Part 1) - Red-Black Tree (header)
 //
 // CLRS-style red-black tree over int keys. A single shared `nil_` sentinel
 // stands in for every leaf so insert/delete fixups never special-case

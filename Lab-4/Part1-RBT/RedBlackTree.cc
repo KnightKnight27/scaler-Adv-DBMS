@@ -1,4 +1,4 @@
-// Lab 5 - Red-Black Tree (implementation)
+// Lab 4 (Part 1) - Red-Black Tree (implementation)
 //
 // Reference: Cormen, Leiserson, Rivest, Stein - "Introduction to
 // Algorithms" 3e, ch. 13. Insertion and deletion both use a single

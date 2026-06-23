@@ -1,137 +1,137 @@
-# Lab 5 — Red-Black Tree
+# Lab 5 — Shunting-Yard + Minimal SQL SELECT Parser
 
-A CLRS-style red-black tree over `int` keys, split into a header,
-implementation, and a small demo driver. Insertion and deletion both use
-a single shared **NIL sentinel** so the fix-up routines can read
-`x->parent`, `x->left`, and `x->color` without any nullptr guards.
+Two parts that fit together:
+
+1. **Part 1 — Shunting-Yard**: convert an infix expression to postfix
+   (RPN) and evaluate it. This is the mechanism a database uses to make
+   sense of a `WHERE` clause like `age > 25 && salary * 1.1 < 90000`.
+2. **Part 2 — Minimal SQL SELECT**: parse a small subset of `SELECT` and
+   run it over an in-memory `vector<Row>`, using Part 1 to evaluate the
+   `WHERE` condition for each row.
 
 ## Layout
 
 ```
 Lab-5/
-├── RedBlackTree.h    # class declaration + Node struct + Color enum
-├── RedBlackTree.cc   # insert / find / remove / print / fixups
-├── main.cc           # demo driver and invariant checks
-├── Makefile          # g++ -std=c++17 -Wall -Wextra -O2
+├── shunting_yard.h    # tokenize / to_rpn / eval_rpn declarations
+├── shunting_yard.cc   # the shunting-yard algorithm + RPN evaluator
+├── sql.h              # Row, SelectQuery, parse_select, execute
+├── sql.cc             # parser + filter/project/sort/limit executor
+├── main.cc            # demo: expression cases + SELECT queries
+├── Makefile           # g++ -std=c++17 -Wall -Wextra -O2
 └── README.md
 ```
-
-## The five invariants
-
-A red-black tree maintains a balanced search tree by colouring each node
-RED or BLACK and enforcing:
-
-1. **Every node is RED or BLACK.**
-2. **The root is BLACK.**
-3. **Every NIL leaf is BLACK.** (We use a single shared sentinel for this.)
-4. **A RED node never has a RED child.** (No two reds in a row.)
-5. **Every path from a node to any descendant NIL contains the same
-   number of BLACK nodes.** This count is the node's *black-height*.
-
-Together these guarantee that the longest path from root to leaf is at
-most twice the shortest, so all operations run in **O(log n)**.
-
-`RedBlackTree::checkInvariants()` walks the tree recursively, asserts
-invariants 4 and 5 at every node, and returns the black-height. `main.cc`
-calls it after every mutation as a self-check.
-
-## Public API
-
-```cpp
-class RedBlackTree {
-public:
-    void insert(int key);
-    bool find(int key) const;
-    bool remove(int key);
-    void print() const;          // level-order BFS, with colour tags
-    int  checkInvariants() const;
-};
-```
-
-- `insert` — standard BST insert that paints the new node RED, then calls
-  `insertFixup` to restore invariant 4.
-- `find` — plain BST search; returns whether the key is present.
-- `remove` — CLRS deletion with `transplant` + `deleteFixup`.
-- `print` — level-order (BFS) dump with `R`/`B` colour tags per node.
-- `checkInvariants` — walks the tree and asserts the colour rules.
-
-## Insert fixup — three cases
-
-A freshly inserted RED node `z` violates invariant 4 only if its parent
-is also RED. Let `u` be `z`'s uncle (the sibling of `z->parent`):
-
-| Case | Trigger                              | Fix |
-| ---- | ------------------------------------ | --- |
-| 1    | `u` is RED                           | recolour parent + uncle BLACK, grandparent RED; restart at grandparent |
-| 2    | `u` is BLACK and `z` is the *zigzag* child | rotate around `z->parent` to convert to case 3 |
-| 3    | `u` is BLACK and `z` is the *straight-line* child | recolour and rotate around grandparent — done |
-
-Each case has a mirror (left vs right child of grandparent). After the
-loop the root is forced BLACK in case the final iteration coloured it
-RED.
-
-## Delete fixup — four cases
-
-After splicing out a node, we propagate an "extra black" up from a node
-`x`. Let `w` be `x`'s sibling:
-
-| Case | Trigger                                       | Fix |
-| ---- | --------------------------------------------- | --- |
-| 1    | `w` is RED                                    | rotate `x->parent` so `w` becomes BLACK — falls into 2/3/4 |
-| 2    | `w` is BLACK with two BLACK children          | recolour `w` RED, move `x` up; the extra black bubbles to the parent |
-| 3    | `w` is BLACK, `w`'s *far* nephew is BLACK     | rotate `w` so the far nephew becomes RED — falls into case 4 |
-| 4    | `w` is BLACK, `w`'s *far* nephew is RED       | recolour + rotate around `x->parent`; loop exits |
-
-As with insert, each case has a left/right mirror.
-
-## Complexity
-
-| Operation | Worst case | Notes |
-| --------- | ---------- | ----- |
-| `find`    | O(log n)   | plain BST descent |
-| `insert`  | O(log n)   | BST insert + at most O(log n) recolours, ≤ 2 rotations total |
-| `remove`  | O(log n)   | transplant + at most O(log n) recolours, ≤ 3 rotations total |
-| `print`   | O(n)       | BFS visits every node once |
-
-Space is O(n) for the nodes plus a single shared NIL sentinel.
 
 ## Build & run
 
 ```bash
 cd Lab-5
-make           # compiles into ./rbtree
-make run       # builds and runs the demo
+make          # builds ./sqlmini
+make run      # builds and runs the demo
 make clean
 ```
 
-If you don't have `make` (or `g++`), the equivalent direct invocation is:
+Without `make`:
 
 ```bash
-g++ -std=c++17 -Wall -Wextra -O2 main.cc RedBlackTree.cc -o rbtree
-./rbtree
+g++ -std=c++17 -Wall -Wextra -O2 main.cc shunting_yard.cc sql.cc -o sqlmini
+./sqlmini
 ```
 
-## Expected demo output (shape)
+## Part 1 — How shunting-yard works
+
+The algorithm reads infix tokens left to right and uses one operator
+stack to reorder them into postfix:
+
+- **number / identifier** → send straight to the output.
+- **operator** → while the operator on top of the stack binds at least
+  as tightly (higher precedence, or equal precedence and left
+  associative), pop it to the output; then push the current operator.
+- **`(`** → push. **`)`** → pop until the matching `(`.
+
+At the end, pop whatever operators remain. The result is RPN, which a
+stack evaluates in one pass: push operands, and on each operator pop two,
+apply, push the result.
+
+### Precedence table (highest binds tightest)
+
+| Level | Operators | Notes |
+| ----- | --------- | ----- |
+| 6 | `*` `/` | arithmetic |
+| 5 | `+` `-` | arithmetic |
+| 4 | `<` `>` `<=` `>=` | comparison |
+| 3 | `=` `!=` | equality |
+| 2 | `&&` | logical AND |
+| 1 | `\|\|` | logical OR |
+
+Putting comparison/logical *below* arithmetic is what makes
+`age * 2 + 10 > 60` parse as `(age * 2 + 10) > 60` — exactly how a SQL
+`WHERE` would read it. Comparisons and logical operators produce `1`
+(true) or `0` (false), so they chain naturally.
+
+Example from the demo:
 
 ```
-== inserting 15 keys ==
-
-== tree after inserts ==
-L0:  25(B)
-L1:  17(R)  47(R)
-L2:  8(B)  22(B)  41(B)  53(B)
-...
-black-height = 3
-
-== find ==
-find(38) = true
-find(100) = false
-...
-
-== tree after deletes ==
-...
-black-height = 3
+expr : age * 2 + 10 > 60
+rpn  : age 2 * 10 + 60 >
+value: 1                     (with age = 30)
 ```
 
-The exact shape depends on the insertion order — what matters is that
-every assertion in `checkInvariants` passes after every mutation.
+## Part 2 — The minimal SELECT engine
+
+`parse_select` understands:
+
+```
+SELECT <col, col, ... | *>
+FROM   <table>
+[WHERE  <expression>]
+[ORDER BY <col> [ASC|DESC]]
+[LIMIT  <n>]
+```
+
+`execute` then runs the classic four steps in order:
+
+```
+filter (WHERE)  →  project (SELECT cols)  →  sort (ORDER BY)  →  truncate (LIMIT)
+```
+
+- **Filter**: the WHERE text is tokenized and converted to RPN **once**,
+  then evaluated per row with that row's columns supplied as variables.
+- **Project**: keep only the requested columns (or every column for `*`).
+- **Sort**: stable sort on the `ORDER BY` column, ascending or descending.
+- **Truncate**: cut the result down to `LIMIT` rows.
+
+A `Row` is just `unordered_map<string, Value>` where `Value` is a
+`variant<double, string>`, so both numeric and text columns are supported
+(WHERE conditions are numeric in this toy).
+
+## How this maps to a real database
+
+```
+SQL text
+   │  tokenize()
+Tokens
+   │  parse_select()        → SelectQuery (a tiny AST)
+Query plan (implicit here: filter → project → sort → limit)
+   │  execute()
+Result rows
+```
+
+In a real engine the WHERE expression is compiled into an expression
+tree by the planner (shunting-yard is one way to build that tree), the
+planner decides whether to use an index or a full scan, and the executor
+streams rows instead of materialising a `vector`. The `vector<Row>` here
+stands in for the output of a storage layer that already fetched the
+pages — the same layer Lab 3 (buffer pool) and Lab 4 (B-tree index)
+implement.
+
+## Key takeaways
+
+- Shunting-yard converts infix to RPN in one O(n) pass with a single
+  stack — no recursion, no parse tree needed to evaluate.
+- Precedence + associativity are the only two rules that decide the
+  output order.
+- A minimal SQL executor really is just filter → project → sort → limit.
+- Compiling the WHERE clause once and reusing it per row is the small but
+  important optimisation that separates "re-parse every row" from how a
+  real planner works.
