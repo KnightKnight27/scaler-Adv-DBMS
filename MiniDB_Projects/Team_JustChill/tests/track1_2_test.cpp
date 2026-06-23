@@ -332,6 +332,106 @@ static void test_replication_failure_scenarios() {
     std::cout << "[ok] Replication: timeout failure handling\n";
 }
 
+#include "../src/execution.h"
+
+using namespace minidb;
+
+static void test_checkpoint_flush() {
+    std::cout << "[RUN] test_checkpoint_flush\n";
+    std::string filename = "test_checkpoint.dat";
+    if (fs::exists(filename)) {
+        fs::remove(filename);
+    }
+
+    {
+        HeapFile hf(filename);
+        BufferPool bp(3, &hf);
+
+        int p0 = hf.allocatePage();
+        Page* pg0 = bp.getPage(p0);
+        std::strcpy(pg0->data, "Checkpoint data");
+        bp.unpinPage(p0, true); // Pin count = 0, is_dirty = true
+
+        // Call checkpointFlush
+        bp.checkpointFlush();
+
+        // The page is no longer dirty
+        CHECK(pg0->is_dirty == false);
+
+        // Verify that it is written to the file
+        Page disk_page;
+        hf.readPage(p0, &disk_page);
+        CHECK(std::strcmp(disk_page.data, "Checkpoint data") == 0);
+    }
+
+    fs::remove(filename);
+    std::cout << "[ok] BufferPool: checkpointFlush\n";
+}
+
+static void test_wal_crash_recovery() {
+    std::cout << "[RUN] test_wal_crash_recovery\n";
+    Catalog cat;
+    Table* students = cat.createTable("students", {{"id", ValueType::Int}, {"name", ValueType::Text}}, 0);
+
+    // Create a mock wal.log
+    std::string wal_file = "test_recovery_wal.log";
+    if (fs::exists(wal_file)) {
+        fs::remove(wal_file);
+    }
+
+    {
+        LogManager lm(wal_file);
+        lm.writeLog("INSERT INTO students VALUES (10, 'John');");
+        lm.writeLog("INSERT INTO students VALUES (20, 'Jane');");
+    }
+
+    // Now replay the WAL as in recovery
+    std::ifstream wal_check(wal_file);
+    CHECK(wal_check.is_open());
+    std::string line;
+    while (std::getline(wal_check, line)) {
+        // Trim line
+        size_t first = line.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) continue;
+        size_t last = line.find_last_not_of(" \t\r\n");
+        line = line.substr(first, (last - first + 1));
+
+        if (line.empty()) continue;
+
+        // Parse and execute simple INSERT statement manually for testing
+        if (line.find("INSERT") == 0) {
+            size_t open_paren = line.find('(');
+            size_t close_paren = line.find(')');
+            CHECK(open_paren != std::string::npos && close_paren != std::string::npos);
+            std::string vals_str = line.substr(open_paren + 1, close_paren - open_paren - 1);
+            
+            // split by comma
+            size_t comma = vals_str.find(',');
+            CHECK(comma != std::string::npos);
+            int64_t id = std::stoll(vals_str.substr(0, comma));
+            std::string name = vals_str.substr(comma + 1);
+            // trim name
+            size_t nf = name.find_first_not_of(" \t'");
+            size_t nl = name.find_last_not_of(" \t'");
+            name = name.substr(nf, nl - nf + 1);
+
+            Tuple row = { Value::Int(id), Value::Text(name) };
+            ExecContext ctx;
+            Insert insert_op(students, row, ctx);
+            execute(insert_op);
+        }
+    }
+    wal_check.close();
+
+    // Verify recovery state
+    CHECK(students->size() == 2);
+    CHECK(students->index().search(10).has_value());
+    CHECK(students->index().search(20).has_value());
+
+    fs::remove(wal_file);
+    std::cout << "[ok] WAL: crash recovery replay\n";
+}
+
 int main() {
     test_heap_file_basics();
     test_buffer_pool_basics();
@@ -339,6 +439,8 @@ int main() {
     test_wal_basics();
     test_replication_basics();
     test_replication_failure_scenarios();
+    test_checkpoint_flush();
+    test_wal_crash_recovery();
     
     std::cout << "\nAll Track 1 & 2 tests passed (" << g_checks << " assertions).\n";
     return 0;
