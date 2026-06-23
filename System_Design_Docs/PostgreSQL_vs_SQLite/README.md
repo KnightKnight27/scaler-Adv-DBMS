@@ -1,6 +1,9 @@
 # Architectural Analysis: PostgreSQL vs. SQLite
 ## A System Design Comparative Study on Client-Server relational engines vs. In-Process database engines
 
+**Author:** Utkarsh Raj  
+**Roll Number:** 24BCS10318  
+
 ---
 
 ## 1. Problem Background & Philosophy
