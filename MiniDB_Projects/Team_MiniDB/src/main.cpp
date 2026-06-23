@@ -1,8 +1,12 @@
+#include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 
 #include "catalog/catalog.h"
 #include "common/config.h"
@@ -15,8 +19,12 @@
 #include "storage/buffer_pool.h"
 #include "storage/disk_manager.h"
 #include "storage/heap_file.h"
+#include "txn/lock_manager.h"
+#include "txn/transaction.h"
+#include "txn/txn_manager.h"
 
 using namespace minidb;
+using namespace std::chrono_literals;
 
 // Bundles the full engine stack for a database file: disk -> buffer pool ->
 // catalog -> row-store engine -> executor. Member order is the init order.
@@ -64,6 +72,70 @@ static int parse_demo(const std::string& sql) {
         case StmtKind::Insert:      std::cout << "parsed: INSERT\n"; break;
         case StmtKind::Delete:      std::cout << "parsed: DELETE\n"; break;
         case StmtKind::Select:      std::cout << "parsed: SELECT\n"; break;
+    }
+    return 0;
+}
+
+// M4 demo: narrated 2PL scenarios over the lock manager with two threads.
+static std::mutex g_log_mu;
+static void say(const std::string& s) {
+    std::lock_guard<std::mutex> lk(g_log_mu);
+    std::cout << s << "\n";
+}
+
+static int concurrency_demo() {
+    // Scenario 1: shared locks coexist.
+    {
+        LockManager lm;
+        say("[scenario 1] two transactions read the same row (SHARED locks)");
+        lm.acquire(1, "users:7", LockMode::SHARED); say("  T1 acquired SHARED users:7");
+        lm.acquire(2, "users:7", LockMode::SHARED); say("  T2 acquired SHARED users:7 (compatible)");
+        lm.release_all(1); lm.release_all(2);
+    }
+    // Scenario 2: a writer blocks a reader until commit.
+    {
+        LockManager lm;
+        say("[scenario 2] a writer blocks a reader until it commits");
+        lm.acquire(1, "users:7", LockMode::EXCLUSIVE); say("  T1 acquired EXCLUSIVE users:7");
+        std::thread t2([&] {
+            say("  T2 requests SHARED users:7 ... (blocks)");
+            lm.acquire(2, "users:7", LockMode::SHARED);
+            say("  T2 acquired SHARED users:7 (after T1 committed)");
+            lm.release_all(2);
+        });
+        std::this_thread::sleep_for(150ms);
+        say("  T1 commits, releasing its lock");
+        lm.release_all(1);
+        t2.join();
+    }
+    // Scenario 3: an induced deadlock; the detector aborts a victim.
+    {
+        LockManager lm;
+        TransactionManager tm(&lm);
+        Transaction t1 = tm.begin(), t2 = tm.begin();
+        say("[scenario 3] induced deadlock (T" + std::to_string(t1.id) + " holds A wants B; T" +
+            std::to_string(t2.id) + " holds B wants A)");
+        std::mutex bm; std::condition_variable bcv; int arrived = 0;
+        auto barrier = [&] {
+            std::unique_lock<std::mutex> lk(bm);
+            if (++arrived == 2) bcv.notify_all(); else bcv.wait(lk, [&] { return arrived == 2; });
+        };
+        auto work = [&](Transaction& self, const char* a, const char* b) {
+            try {
+                lm.acquire(self.id, a, LockMode::EXCLUSIVE);
+                say("  T" + std::to_string(self.id) + " acquired EXCLUSIVE " + a);
+                barrier();
+                lm.acquire(self.id, b, LockMode::EXCLUSIVE);
+                say("  T" + std::to_string(self.id) + " acquired EXCLUSIVE " + b + " -> COMMIT");
+                tm.commit(self);
+            } catch (const DeadlockException& e) {
+                say(std::string("  ") + e.what() + " -> ABORT (releases locks)");
+                tm.abort(self);
+            }
+        };
+        std::thread a(work, std::ref(t1), "A", "B");
+        std::thread b(work, std::ref(t2), "B", "A");
+        a.join(); b.join();
     }
     return 0;
 }
@@ -122,12 +194,14 @@ int main(int argc, char** argv) {
             if (argc < 3) { std::cerr << "usage: minidb repl <db>\n"; return 2; }
             return repl(argv[2]);
         }
+        if (cmd == "concurrency") return concurrency_demo();
         std::cout << "MiniDB\n"
                   << "usage:\n"
                   << "  minidb run <db> <file.sql>   execute a SQL script\n"
                   << "  minidb exec <db> \"<sql>\"      execute SQL passed on the command line\n"
                   << "  minidb repl <db>             interactive SQL shell\n"
                   << "  minidb parse \"<sql>\"          parse one statement (AST summary)\n"
+                  << "  minidb concurrency           2PL concurrency + deadlock demo\n"
                   << "  minidb selftest [dbfile]     storage-layer self test\n";
         return 0;
     } catch (const std::exception& e) {
