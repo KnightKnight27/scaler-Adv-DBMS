@@ -181,6 +181,8 @@ Lab 8 - in-memory transaction manager (Shaurya Verma, 24BCS10151)
 Done.
 ```
 
+A screenshot of this run is saved as [`screenshot.png`](screenshot.png).
+
 ## What I took away
 
 - **Snapshots make reads decision-free.** Once a transaction fixes the
