@@ -69,8 +69,14 @@ if(MINGW)
 endif()
 add_test(NAME track1_2_test COMMAND track1_2_test)
 
+# --- Track 4 (The Scribe): query-engine performance benchmark ---
+# Loops INSERT and SELECT (point lookup) and reports throughput/latency.
+add_executable(query_benchmark benchmarks/query_benchmark.cpp)
+target_link_libraries(query_benchmark PRIVATE query_engine)
+if(MINGW)
+    target_link_options(query_benchmark PRIVATE -static -static-libgcc -static-libstdc++)
+endif()
 
 # Main executable
 add_executable(minidb src/main.cpp)
 target_link_libraries(minidb PRIVATE storage query_engine Threads::Threads)
-
