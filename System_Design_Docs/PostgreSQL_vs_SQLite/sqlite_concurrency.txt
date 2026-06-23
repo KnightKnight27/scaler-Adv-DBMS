@@ -1,0 +1,19 @@
+############ SQLite concurrency / locking demo ############
+
+===== A. Default rollback journal: hold a write txn in one connection,
+        try to write from a second connection simultaneously =====
+conn1 holds RESERVED/EXCLUSIVE lock
+
+(Note: sqlite3 CLI commits on exit; using a Python harness for a held transaction below.)
+
+===== B. Two concurrent writers (rollback journal mode) =====
+conn A: acquired write lock, transaction open (not yet committed)
+conn B: write BLOCKED -> database is locked
+conn C (reader): (10.0,) (read during open write txn)
+conn A: committed, lock released
+
+===== C. Same test in WAL mode =====
+journal_mode set to: wal
+conn A: write transaction open (WAL)
+conn C (reader) during open write txn: (10.0,) -> reader NOT blocked in WAL
+conn B (second writer): still BLOCKED -> database is locked (WAL still allows only ONE writer)

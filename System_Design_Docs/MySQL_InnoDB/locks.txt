@@ -1,0 +1,27 @@
+############ InnoDB row + gap locking (REPEATABLE READ) ############
+
+===== A. Row lock conflict: two txns update the SAME row =====
+-- While A holds the lock on id=100, B attempts to update id=100:
+ERROR 1205 (HY000) at line 1: Lock wait timeout exceeded; try restarting transaction
+
+-- Snapshot of locks held during the conflict (data_locks):
++--------+-------------+------------+-----------+---------------+-------------+-----------+
+| ENGINE | OBJECT_NAME | INDEX_NAME | LOCK_TYPE | LOCK_MODE     | LOCK_STATUS | LOCK_DATA |
++--------+-------------+------------+-----------+---------------+-------------+-----------+
+| INNODB | orders      | NULL       | TABLE     | IX            | GRANTED     | NULL      |
+| INNODB | orders      | PRIMARY    | RECORD    | X             | GRANTED     | 501       |
+| INNODB | orders      | PRIMARY    | RECORD    | X             | GRANTED     | 502       |
+| INNODB | orders      | PRIMARY    | RECORD    | X             | GRANTED     | 503       |
+| INNODB | orders      | PRIMARY    | RECORD    | X             | GRANTED     | 504       |
+| INNODB | orders      | PRIMARY    | RECORD    | X             | GRANTED     | 505       |
+| INNODB | orders      | PRIMARY    | RECORD    | X             | GRANTED     | 506       |
+| INNODB | orders      | PRIMARY    | RECORD    | X             | GRANTED     | 507       |
+| INNODB | orders      | PRIMARY    | RECORD    | X             | GRANTED     | 508       |
+| INNODB | orders      | PRIMARY    | RECORD    | X             | GRANTED     | 509       |
+| INNODB | orders      | PRIMARY    | RECORD    | X             | GRANTED     | 510       |
+| INNODB | orders      | PRIMARY    | RECORD    | X,REC_NOT_GAP | GRANTED     | 500       |
++--------+-------------+------------+-----------+---------------+-------------+-----------+
+
+===== B. Gap lock: A locks range [500,510] FOR UPDATE, B inserts id=505 into the gap =====
+-- B attempts INSERT id=505 while A holds the range lock:
+ERROR 1205 (HY000) at line 1: Lock wait timeout exceeded; try restarting transaction
