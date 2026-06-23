@@ -1,0 +1,7 @@
+*.db
+*.wal
+*.log
+target/
+.idea/
+.vscode/
+.DS_Store
