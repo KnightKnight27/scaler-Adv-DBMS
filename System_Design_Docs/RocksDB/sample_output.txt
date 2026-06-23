@@ -1,0 +1,6 @@
+L0 files=4 records=4000 rewrite_factor=1
+L1 files=6 records=24000 rewrite_factor=2
+L2 files=8 records=96000 rewrite_factor=3
+Logical records: 124000
+Physical records touched during compaction estimate: 340000
+Estimated write amplification: 2.74194x
