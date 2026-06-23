@@ -1,0 +1,237 @@
+############################################################
+# MySQL / InnoDB internals experiment
+/opt/homebrew/opt/mysql/bin/mysqld  Ver 9.5.0 for macos15.7 on arm64 (Homebrew)
+############################################################
+Table	Op	Msg_type	Msg_text
+lab.books	analyze	status	OK
+
+================================================================
+EXPERIMENT 1: clustered (PK) lookup — touches ONLY the clustered index
+================================================================
+EXPLAIN
+-> Rows fetched before execution  (cost=0..0 rows=1)
+
+
+================================================================
+EXPERIMENT 2: secondary index lookup — index range + back-to-clustered lookup
+================================================================
+EXPLAIN
+-> Limit: 5 row(s)  (cost=857 rows=5)
+    -> Index lookup on books using idx_author (author_id = 7)  (cost=857 rows=4000)
+
+-- A COVERING secondary-index query needs no clustered-index access (Extra: Using index):
+EXPLAIN
+-> Covering index lookup on books using idx_author (author_id = 7)  (cost=401 rows=4000)\n
+
+================================================================
+EXPERIMENT 3: storage geometry (page size, row format, clustered layout)
+================================================================
+page_bytes	row_format
+16384	dynamic
+TABLE_NAME	ROW_FORMAT	TABLE_ROWS	DATA_LENGTH	INDEX_LENGTH
+authors	Dynamic	50	16384	0
+books	Dynamic	199641	9977856	9469952
+NAME	SPACE	N_COLS	ROW_FORMAT
+lab/authors	2	5	Dynamic
+lab/books	3	7	Dynamic
+-- Index types: type 3 = clustered PK, type 0/1 = secondary:
+tbl	idx	TYPE	N_FIELDS
+lab/books	PRIMARY	3	6
+lab/books	idx_author	0	2
+lab/books	idx_year	0	2
+
+================================================================
+EXPERIMENT 4: redo log + undo / buffer pool configuration
+================================================================
+VARIABLE_NAME	VARIABLE_VALUE
+innodb_buffer_pool_instances	1
+innodb_buffer_pool_size	67108864
+innodb_doublewrite	ON
+innodb_flush_log_at_trx_commit	1
+innodb_redo_log_capacity	104857600
+innodb_undo_directory	./
+VARIABLE_NAME	VARIABLE_VALUE
+Innodb_buffer_pool_pages_data	2351
+Innodb_buffer_pool_pages_dirty	1554
+Innodb_buffer_pool_pages_total	4096
+Innodb_buffer_pool_read_requests	1446876
+Innodb_buffer_pool_reads	910
+Innodb_os_log_written	23930368
+Innodb_redo_log_enabled	ON
+-- Buffer pool hit ratio = 1 - reads/read_requests (computed from the two counters above).
+
+================================================================
+EXPERIMENT 5: default isolation level (InnoDB) + MVCC read view
+================================================================
+global_iso	session_iso
+REPEATABLE-READ	REPEATABLE-READ
+
+================================================================
+EXPERIMENT 6: ROW LOCKS + GAP LOCKS under REPEATABLE READ
+================================================================
+id
+100
+101
+102
+103
+104
+105
+ENGINE	OBJECT_NAME	INDEX_NAME	LOCK_TYPE	LOCK_MODE	LOCK_STATUS	LOCK_DATA
+INNODB	books	NULL	TABLE	IX	GRANTED	NULL
+INNODB	books	PRIMARY	RECORD	X	GRANTED	101
+INNODB	books	PRIMARY	RECORD	X	GRANTED	102
+INNODB	books	PRIMARY	RECORD	X	GRANTED	103
+INNODB	books	PRIMARY	RECORD	X	GRANTED	104
+INNODB	books	PRIMARY	RECORD	X	GRANTED	105
+INNODB	books	PRIMARY	RECORD	X,REC_NOT_GAP	GRANTED	100
+
+================================================================
+EXPERIMENT 7: SHOW ENGINE INNODB STATUS (LOG + BUFFER POOL + TRANSACTIONS)
+================================================================
+*************************** 1. row ***************************
+  Type: InnoDB
+  Name: 
+Status: 
+=====================================
+2026-06-22 23:39:19 0x1715e7000 INNODB MONITOR OUTPUT
+=====================================
+Per second averages calculated from the last 1 seconds
+-----------------
+BACKGROUND THREAD
+-----------------
+srv_master_thread loops: 1 srv_active, 0 srv_shutdown, 0 srv_idle
+srv_master_thread log flush and writes: 0
+----------
+SEMAPHORES
+----------
+OS WAIT ARRAY INFO: reservation count 15
+OS WAIT ARRAY INFO: signal count 13
+RW-shared spins 0, rounds 0, OS waits 0
+RW-excl spins 0, rounds 0, OS waits 0
+RW-sx spins 0, rounds 0, OS waits 0
+Spin rounds per wait: 0.00 RW-shared, 0.00 RW-excl, 0.00 RW-sx
+------------
+TRANSACTIONS
+------------
+Trx id counter 1579
+Purge done for trx's n:o < 1574 undo n:o < 0 state: running but idle
+History list length 39
+LIST OF TRANSACTIONS FOR EACH SESSION:
+---TRANSACTION 281495159704704, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 281495159703912, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 281495159703120, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+--------
+FILE I/O
+--------
+I/O thread 0 state: waiting for i/o request (insert buffer thread)
+I/O thread 1 state: waiting for i/o request (read thread)
+I/O thread 2 state: waiting for i/o request (read thread)
+I/O thread 3 state: waiting for i/o request (read thread)
+I/O thread 4 state: waiting for i/o request (read thread)
+I/O thread 5 state: waiting for i/o request (read thread)
+I/O thread 6 state: waiting for i/o request (write thread)
+I/O thread 7 state: waiting for i/o request (write thread)
+I/O thread 8 state: waiting for i/o request (write thread)
+I/O thread 9 state: waiting for i/o request (write thread)
+Pending normal aio reads: [0, 0, 0, 0, 0] , aio writes: [0, 0, 0, 0] ,
+ ibuf aio reads:
+Pending flushes (fsync) log: 0; buffer pool: 0
+941 OS file reads, 3242 OS file writes, 193 OS fsyncs
+865.54 reads/s, 34239 avg bytes/read, 2982.03 writes/s, 177.52 fsyncs/s
+-------------------------------------
+INSERT BUFFER AND ADAPTIVE HASH INDEX
+-------------------------------------
+Ibuf: size 1, free list len 0, seg size 2, 0 merges
+merged operations:
+ insert 0, delete mark 0, delete 0
+discarded operations:
+ insert 0, delete mark 0, delete 0
+Hash table size 17393, node heap has 0 buffer(s)
+Hash table size 17393, node heap has 0 buffer(s)
+Hash table size 17393, node heap has 0 buffer(s)
+Hash table size 17393, node heap has 0 buffer(s)
+Hash table size 17393, node heap has 0 buffer(s)
+Hash table size 17393, node heap has 0 buffer(s)
+Hash table size 17393, node heap has 0 buffer(s)
+Hash table size 17393, node heap has 0 buffer(s)
+0.00 hash searches/s, 611978.02 non-hash searches/s
+---
+LOG
+---
+Log sequence number          43045487
+Log buffer assigned up to    43045487
+Log buffer completed up to   43045487
+Log written up to            42927236
+Log flushed up to            42927236
+Added dirty pages up to      43045487
+Pages flushed up to          19012317
+Last checkpoint at           19012317
+Log minimum file id is       5
+Log maximum file id is       13
+2966 log i/o's done, 2966.00 log i/o's/second
+----------------------
+BUFFER POOL AND MEMORY
+----------------------
+Total large memory allocated 0
+Dictionary memory allocated 969317
+Buffer pool size   4095
+Free buffers       1741
+Database pages     2354
+Old database pages 848
+Modified db pages  1561
+Pending reads      0
+Pending writes: LRU 0, flush list 0, single page 0
+Pages made young 88, not young 8647
+82.49 youngs/s, 8105.87 non-youngs/s
+Pages read 912, created 1443, written 0
+854.93 reads/s, 1352.70 creates/s, 0.00 writes/s
+Buffer pool hit rate 1000 / 1000, young-making rate 0 / 1000 not 5 / 1000
+Pages read ahead 0.00/s, evicted without access 0.00/s, Random read ahead 0.00/s
+LRU len: 2354, unzip_LRU len: 0
+I/O sum[299]:cur[11], unzip sum[0]:cur[0]
+--------------
+ROW OPERATIONS
+--------------
+0 queries inside InnoDB, 0 queries in queue
+0 read views open inside InnoDB
+Process ID=32498, Main thread ID=0x170ab3000 , state=sleeping
+Number of rows inserted 200050, updated 0, deleted 0, read 7
+199850.15 inserts/s, 0.00 updates/s, 0.00 deletes/s, 6.99 reads/s
+Number of system rows inserted 486, updated 368, deleted 168, read 6169
+485.51 inserts/s, 367.63 updates/s, 167.83 deletes/s, 6162.84 reads/s
+----------------------------
+END OF INNODB MONITOR OUTPUT
+============================
+
+
+================================================================
+EXPERIMENT 8: on-disk InnoDB files (.ibd per-table tablespace, redo, undo, doublewrite)
+================================================================
+-rw-r-----@   1 daksh  staff   4194304 Jun 22 23:39 #ib_16384_0.dblwr
+-rw-r-----@   1 daksh  staff  12582912 Jun 22 23:39 #ib_16384_1.dblwr
+drwxr-x---@  34 daksh  staff      1088 Jun 22 23:39 #innodb_redo
+drwxr-x---@  12 daksh  staff       384 Jun 22 23:39 #innodb_temp
+-rw-r-----@   1 daksh  staff      6364 Jun 22 23:39 ib_buffer_pool
+-rw-r-----@   1 daksh  staff  12582912 Jun 22 23:39 ibdata1
+-rw-r-----@   1 daksh  staff  16777216 Jun 22 23:39 undo_001
+-rw-r-----@   1 daksh  staff  16777216 Jun 22 23:39 undo_002
+-- per-table tablespace for books:
+total 53472
+drwxr-x---@  4 daksh  staff       128 Jun 22 23:39 .
+drwxr-xr-x@ 29 daksh  staff       928 Jun 22 23:39 ..
+-rw-r-----@  1 daksh  staff    114688 Jun 22 23:39 authors.ibd
+-rw-r-----@  1 daksh  staff  27262976 Jun 22 23:39 books.ibd
+-- redo log files:
+total 204800
+-rw-r-----@  1 daksh  staff  3276800 Jun 22 23:39 #ib_redo10
+-rw-r-----@  1 daksh  staff  3276800 Jun 22 23:39 #ib_redo11
+-rw-r-----@  1 daksh  staff  3276800 Jun 22 23:39 #ib_redo12
+-rw-r-----@  1 daksh  staff  3276800 Jun 22 23:39 #ib_redo13
+-rw-r-----@  1 daksh  staff  3276800 Jun 22 23:39 #ib_redo14_tmp
+-rw-r-----@  1 daksh  staff  3276800 Jun 22 23:39 #ib_redo15_tmp
+-rw-r-----@  1 daksh  staff  3276800 Jun 22 23:39 #ib_redo16_tmp
+-rw-r-----@  1 daksh  staff  3276800 Jun 22 23:39 #ib_redo17_tmp
+-rw-r-----@  1 daksh  staff  3276800 Jun 22 23:39 #ib_redo18_tmp

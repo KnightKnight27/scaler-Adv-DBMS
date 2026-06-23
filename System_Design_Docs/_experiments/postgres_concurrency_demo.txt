@@ -1,0 +1,64 @@
+PostgreSQL concurrency lab — captured output
+============================================
+Environment: PostgreSQL 17.10 (Homebrew), data_directory
+/opt/homebrew/var/postgresql@17, block_size 8192, run on 2026-06-15.
+
+--------------------------------------------------------------------
+1. Setup + file-level layout (Experiment C)
+--------------------------------------------------------------------
+accounts loaded with (1, alice, 1000) and (2, bob, 1000).
+
+SELECT pg_relation_filepath('accounts');
+    => base/5/16384
+SELECT relname, relpages, reltuples FROM pg_class WHERE relname = 'accounts';
+    => accounts | 1 | 2
+data_directory = /opt/homebrew/var/postgresql@17   block_size = 8192
+
+Interpretation:
+- The table is a relation file managed inside the server's data directory
+  (base/5/16384), not a free-standing application file.
+- It occupies 1 page (8 KB) holding 2 tuples.
+
+--------------------------------------------------------------------
+2. MVCC reads and row-level write locking (Experiment A)
+--------------------------------------------------------------------
+Session 1 (held open ~6s):
+    BEGIN;
+    UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+    SELECT pg_backend_pid();   => 9295
+    -- transaction left open
+
+Session 2 — plain SELECT during the open write transaction:
+    SELECT balance FROM accounts WHERE id = 1;
+    => 1000         (MVCC: reads the last committed snapshot, never blocks)
+
+Session 3 — pg_locks while the conflict is live:
+     pid  |   locktype    |   rel    |       mode       | granted
+    ------+---------------+----------+------------------+---------
+     9295 | relation      | accounts | RowExclusiveLock | t
+     9295 | transactionid |          | ExclusiveLock    | t
+
+Session 2 — conflicting UPDATE with lock_timeout = 2s:
+    SET lock_timeout = '2s';
+    UPDATE accounts SET balance = balance + 100 WHERE id = 1;
+    => ERROR: canceling statement due to lock timeout
+       CONTEXT: while updating tuple (0,1) in relation "accounts"
+    => blocked ~2.05s (the full lock_timeout) before erroring
+
+Session 1 then COMMIT;  (balance is now 900)
+
+Session 2 — retry the UPDATE after commit:
+    UPDATE accounts SET balance = balance + 100 WHERE id = 1;
+    => UPDATE 1; final balances: id 1 = 1000, id 2 = 1000
+
+Interpretation:
+- The plain SELECT read the committed value (1000) without blocking, even
+  though an uncommitted UPDATE was open. This is MVCC snapshot visibility.
+- pg_locks shows backend 9295 holding RowExclusiveLock on the table plus an
+  ExclusiveLock on its own transaction id.
+- A *conflicting writer* IS blocked by the row lock: session 2's UPDATE waited
+  the full 2s lock_timeout and was cancelled while trying to update tuple (0,1).
+- After session 1 committed, the second writer proceeded normally.
+- Compared with SQLite: PostgreSQL lets a conflicting writer queue on a
+  row-level lock (and many writers can work on different rows concurrently),
+  whereas SQLite serializes at the level of the whole database file.

@@ -1,0 +1,47 @@
+################################################################
+# ON-DISK LSM STRUCTURE (rocksdb_ldb / rocksdb_sst_dump)
+################################################################
+
+===== LEVELED DB: live SST files per level (list_live_files_metadata) =====
+Live SST and Blob Files:
+rocks_leveled/000164.sst : level 6, column family 'default'
+rocks_leveled/000169.sst : level 6, column family 'default'
+rocks_leveled/000172.sst : level 5, column family 'default'
+rocks_leveled/000174.sst : level 0, column family 'default'
+------------------------------
+
+===== count of .sst files on disk (leveled) =====
+       4
+
+===== UNIVERSAL DB: live SST files per level =====
+Live SST and Blob Files:
+rocks_universal/000157.sst : level 6, column family 'default'
+rocks_universal/000164.sst : level 6, column family 'default'
+rocks_universal/000169.sst : level 5, column family 'default'
+rocks_universal/000179.sst : level 4, column family 'default'
+rocks_universal/000187.sst : level 3, column family 'default'
+------------------------------
+
+===== count of .sst files on disk (universal) =====
+       5
+
+===== sst_dump --show_properties on rocks_leveled/000164.sst =====
+  # data blocks: 16820
+  # entries: 588666
+  raw key size: 14127984
+  raw value size: 58866600
+  filter block size: 735877
+  # entries for filter: 588666
+  filter policy name: bloomfilter
+  column family ID: 0
+  column family name: default
+  comparator name: leveldb.BytewiseComparator
+  SST file compression algo: ;;
+  SST file compression options: window_bits=-14; level=32767; strategy=0; max_dict_bytes=0; zstd_max_train_bytes=0; enabled=0; max_dict_buffer_bytes=0; use_zstd_dict_trainer=1; max_compressed_bytes_per_kb=896; checksum=0; 
+  creation time: 1781518329
+  file creation time: 1781518334
+  slow compression estimated data size: 0
+  fast compression estimated data size: 0
+  # rocksdb.block.based.table.decoupled.partitioned.filters: 0x31
+  # rocksdb.block.based.table.prefix.filtering: 0x30
+  # rocksdb.block.based.table.whole.key.filtering: 0x31

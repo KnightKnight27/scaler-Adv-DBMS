@@ -1,0 +1,330 @@
+############################################################
+# RocksDB LSM-tree experiment (linked against librocksdb)
+############################################################
+
+################################################################
+# COMPACTION STRATEGY: LEVELED compaction
+#   workload: 2000000 Put() of 100-byte values into a 1000000-key space
+################################################################
+
+** Compaction Stats [default] **
+Level    Files   Size     Score Read(GB)  Rn(GB) Rnp1(GB) Write(GB) WPreComp(GB) Wnew(GB) Moved(GB) W-Amp Rd(MB/s) Wr(MB/s) Comp(sec) CompMergeCPU(sec) Comp(cnt) Avg(sec) KeyIn KeyDrop Rblob(GB) Wblob(GB)
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  L0      0/0      0.00 KB   0.0      0.0     0.0      0.0       0.2       0.2      0.2       0.0   1.0      0.0    227.2      0.97              0.31        69    0.014   2000K      0       0.0       0.0
+  L5      1/0     12.98 MB   0.8      0.3     0.2      0.1       0.3       0.3      0.2       0.0   1.3    441.9    412.0      0.63              0.56        15    0.042   2514K   160K       0.0       0.0
+  L6      2/0     93.75 MB   0.0      0.6     0.2      0.4       0.5       0.5      0.1       0.0   2.9    494.7    421.5      1.29              1.08         9    0.143   5753K   846K       0.0       0.0
+ Sum      3/0    106.73 MB   0.0      0.9     0.4      0.5       1.0       1.0      0.5       0.0   4.7    317.5    354.4      2.89              1.95        93    0.031     10M  1007K       0.0       0.0
+ Int      0/0      0.00 KB   0.0      0.9     0.4      0.5       1.0       1.0      0.5       0.0   4.7    317.5    354.4      2.89              1.95        93    0.031     10M  1007K       0.0       0.0
+
+** Compaction Stats [default] **
+Priority    Files   Size     Score Read(GB)  Rn(GB) Rnp1(GB) Write(GB) WPreComp(GB) Wnew(GB) Moved(GB) W-Amp Rd(MB/s) Wr(MB/s) Comp(sec) CompMergeCPU(sec) Comp(cnt) Avg(sec) KeyIn KeyDrop Rblob(GB) Wblob(GB)
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Low      0/0      0.00 KB   0.0      0.9     0.4      0.5       0.8       0.8      0.3       0.0   0.0    477.3    418.4      1.92              1.64        24    0.080   8268K  1007K       0.0       0.0
+High      0/0      0.00 KB   0.0      0.0     0.0      0.0       0.2       0.2      0.2       0.0   0.0      0.0    227.2      0.97              0.31        69    0.014   2000K      0       0.0       0.0
+
+Blob file count: 0, total size: 0.0 GB, garbage size: 0.0 GB, space amp: 0.0
+
+Uptime(secs): 4.9 total, 4.9 interval
+Flush(GB): cumulative 0.215, interval 0.215
+AddFile(GB): cumulative 0.000, interval 0.000
+AddFile(Total Files): cumulative 0, interval 0
+AddFile(L0 Files): cumulative 0, interval 0
+AddFile(Keys): cumulative 0, interval 0
+Cumulative compaction: 1.00 GB write, 209.16 MB/s write, 0.90 GB read, 187.38 MB/s read, 2.9 seconds
+Interval compaction: 1.00 GB write, 210.31 MB/s write, 0.90 GB read, 188.41 MB/s read, 2.9 seconds
+Estimated pending compaction bytes: 0
+Write Stall (count): cf-l0-file-count-limit-delays-with-ongoing-compaction: 0, cf-l0-file-count-limit-stops-with-ongoing-compaction: 0, l0-file-count-limit-delays: 0, l0-file-count-limit-stops: 0, memtable-limit-delays: 0, memtable-limit-stops: 0, pending-compaction-bytes-delays: 0, pending-compaction-bytes-stops: 0, total-delays: 0, total-stops: 0
+Block cache AutoHyperClockCache@0xc6b0300f8#34048 capacity: 32.00 MB seed: 2075682954 usage: 4.00 KB table_size: 64 occupancy: 1 collections: 1 last_copies: 0 last_secs: 7e-06 secs_since: 4
+Block cache entry stats(count,size,portion): Misc(1,0.00 KB,0%)
+
+** File Read Latency Histogram By Level [default] **
+** Level 0 read latency histogram (micros):
+Count: 56698 Average: 0.6990  StdDev: 2.24
+Min: 0  Median: 0.5073  Max: 480
+Percentiles: P50: 0.51 P75: 0.76 P99: 1.54 P99.9: 5.46 P99.99: 44.52
+------------------------------------------------------
+[       0,       1 ]    55880  98.557%  98.557% ####################
+(       1,       2 ]      462   0.815%  99.372% 
+(       2,       3 ]      150   0.265%  99.637% 
+(       3,       4 ]      123   0.217%  99.854% 
+(       4,       6 ]       36   0.063%  99.917% 
+(       6,      10 ]       18   0.032%  99.949% 
+(      10,      15 ]        8   0.014%  99.963% 
+(      15,      22 ]        3   0.005%  99.968% 
+(      22,      34 ]        8   0.014%  99.982% 
+(      34,      51 ]        7   0.012%  99.995% 
+(      76,     110 ]        2   0.004%  99.998% 
+(     380,     580 ]        1   0.002% 100.000% 
+
+** Level 5 read latency histogram (micros):
+Count: 68432 Average: 0.7021  StdDev: 1.16
+Min: 0  Median: 0.5069  Max: 146
+Percentiles: P50: 0.51 P75: 0.76 P99: 1.42 P99.9: 12.61 P99.99: 42.94
+------------------------------------------------------
+[       0,       1 ]    67507  98.648%  98.648% ####################
+(       1,       2 ]      572   0.836%  99.484% 
+(       2,       3 ]       96   0.140%  99.624% 
+(       3,       4 ]      111   0.162%  99.787% 
+(       4,       6 ]       38   0.056%  99.842% 
+(       6,      10 ]       26   0.038%  99.880% 
+(      10,      15 ]       26   0.038%  99.918% 
+(      15,      22 ]       31   0.045%  99.963% 
+(      22,      34 ]       15   0.022%  99.985% 
+(      34,      51 ]        6   0.009%  99.994% 
+(      51,      76 ]        2   0.003%  99.997% 
+(      76,     110 ]        1   0.001%  99.999% 
+(     110,     170 ]        1   0.001% 100.000% 
+
+** Level 6 read latency histogram (micros):
+Count: 143861 Average: 0.7181  StdDev: 1.84
+Min: 0  Median: 0.5067  Max: 472
+Percentiles: P50: 0.51 P75: 0.76 P99: 1.34 P99.9: 11.72 P99.99: 57.53
+------------------------------------------------------
+[       0,       1 ]   141965  98.682%  98.682% ####################
+(       1,       2 ]     1354   0.941%  99.623% 
+(       2,       3 ]      131   0.091%  99.714% 
+(       3,       4 ]      138   0.096%  99.810% 
+(       4,       6 ]       45   0.031%  99.842% 
+(       6,      10 ]       70   0.049%  99.890% 
+(      10,      15 ]       41   0.028%  99.919% 
+(      15,      22 ]       58   0.040%  99.959% 
+(      22,      34 ]       27   0.019%  99.978% 
+(      34,      51 ]       15   0.010%  99.988% 
+(      51,      76 ]       10   0.007%  99.995% 
+(      76,     110 ]        2   0.001%  99.997% 
+(     110,     170 ]        3   0.002%  99.999% 
+(     170,     250 ]        1   0.001%  99.999% 
+(     380,     580 ]        1   0.001% 100.000% 
+
+
+** DB Stats **
+Uptime(secs): 4.9 total, 4.9 interval
+Cumulative writes: 2000K writes, 2000K keys, 2000K commit groups, 1.0 writes per commit group, ingest: 0.24 GB, 50.99 MB/s
+Cumulative WAL: 2000K writes, 0 syncs, 2000000.00 writes per sync, written: 0.24 GB, 50.99 MB/s
+Cumulative stall: 00:00:0.000 H:M:S, 0.0 percent
+Interval writes: 2000K writes, 2000K keys, 2000K commit groups, 1.0 writes per commit group, ingest: 249.86 MB, 51.28 MB/s
+Interval WAL: 2000K writes, 0 syncs, 2000000.00 writes per sync, written: 0.24 GB, 51.28 MB/s
+Interval stall: 00:00:0.000 H:M:S, 0.0 percent
+Write Stall (count): write-buffer-manager-limit-stops: 0
+
+----- rocksdb.levelstats (files / size per level) -----
+Level Files Size(MB)
+--------------------
+  0        0        0
+  1        0        0
+  2        0        0
+  3        0        0
+  4        0        0
+  5        1       13
+  6        2       94
+
+----- DERIVED AMPLIFICATION (LEVELED compaction) -----
+user bytes Put (keys+values)     : 232.0 MB
+flush bytes written (memtable->L0): 230.8 MB
+compaction bytes written          : 843.9 MB
+compaction bytes read             : 960.7 MB
+WRITE AMPLIFICATION (flush+compact)/user = 4.63x
+total SST size on disk            : 111.9 MB
+estimated live data size          : 98.3 MB
+SPACE AMPLIFICATION  sst/live      = 1.14x
+----- READ PATH / BLOOM FILTER (LEVELED compaction) -----
+point Get() probes: 43056 found, 56944 missing
+BLOOM_FILTER_USEFUL (SST reads skipped)   : 50334
+BLOOM_FILTER_FULL_POSITIVE (passed filter): 43560
+BLOOM_FILTER_FULL_TRUE_POSITIVE (real hit): 43056
+bloom false-positive rate ~ (FP-TP)/FP = 0.0116
+
+################################################################
+# COMPACTION STRATEGY: UNIVERSAL compaction
+#   workload: 2000000 Put() of 100-byte values into a 1000000-key space
+################################################################
+
+** Compaction Stats [default] **
+Level    Files   Size     Score Read(GB)  Rn(GB) Rnp1(GB) Write(GB) WPreComp(GB) Wnew(GB) Moved(GB) W-Amp Rd(MB/s) Wr(MB/s) Comp(sec) CompMergeCPU(sec) Comp(cnt) Avg(sec) KeyIn KeyDrop Rblob(GB) Wblob(GB)
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  L0      0/0      0.00 KB   1.0      0.0     0.0      0.0       0.2       0.2      0.2       0.0   1.0      0.0    243.1      0.91              0.32        69    0.013   2000K      0       0.0       0.0
+  L3      1/0      7.07 MB   0.0      0.2     0.1      0.1       0.2       0.2      0.1       0.0   2.8    422.3    413.0      0.49              0.39        18    0.027   1857K    38K       0.0       0.0
+  L4      1/0     12.30 MB   0.0      0.1     0.1      0.0       0.1       0.1      0.1       0.0   1.4    389.1    375.9      0.31              0.23        12    0.026   1084K    34K       0.0       0.0
+  L5      1/0     15.16 MB   0.0      0.1     0.1      0.0       0.1       0.1      0.1       0.0   1.3    445.6    410.0      0.30              0.26         7    0.043   1208K    93K       0.0       0.0
+  L6      2/0     89.92 MB   0.0      0.3     0.2      0.1       0.2       0.2      0.1       0.0   1.2    457.1    327.2      0.59              0.48         4    0.147   2414K   682K       0.0       0.0
+ Sum      5/0    124.45 MB   0.0      0.7     0.4      0.3       0.8       0.8      0.5       0.0   3.9    281.5    329.5      2.59              1.68       110    0.024   8564K   848K       0.0       0.0
+ Int      0/0      0.00 KB   0.0      0.3     0.1      0.1       0.3       0.3      0.1       0.0   5.3    333.1    325.3      0.86              0.57        28    0.031   3043K   528K       0.0       0.0
+
+** Compaction Stats [default] **
+Priority    Files   Size     Score Read(GB)  Rn(GB) Rnp1(GB) Write(GB) WPreComp(GB) Wnew(GB) Moved(GB) W-Amp Rd(MB/s) Wr(MB/s) Comp(sec) CompMergeCPU(sec) Comp(cnt) Avg(sec) KeyIn KeyDrop Rblob(GB) Wblob(GB)
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Low      0/0      0.00 KB   0.0      0.7     0.4      0.3       0.6       0.6      0.3       0.0   0.0    432.4    375.8      1.69              1.35        41    0.041   6564K   848K       0.0       0.0
+High      0/0      0.00 KB   0.0      0.0     0.0      0.0       0.2       0.2      0.2       0.0   0.0      0.0    243.1      0.91              0.32        69    0.013   2000K      0       0.0       0.0
+
+Blob file count: 0, total size: 0.0 GB, garbage size: 0.0 GB, space amp: 0.0
+
+Uptime(secs): 5.4 total, 1.3 interval
+Flush(GB): cumulative 0.215, interval 0.051
+AddFile(GB): cumulative 0.000, interval 0.000
+AddFile(Total Files): cumulative 0, interval 0
+AddFile(L0 Files): cumulative 0, interval 0
+AddFile(Keys): cumulative 0, interval 0
+Cumulative compaction: 0.83 GB write, 159.10 MB/s write, 0.71 GB read, 135.94 MB/s read, 2.6 seconds
+Interval compaction: 0.27 GB write, 207.04 MB/s write, 0.28 GB read, 211.95 MB/s read, 0.9 seconds
+Estimated pending compaction bytes: 0
+Write Stall (count): cf-l0-file-count-limit-delays-with-ongoing-compaction: 0, cf-l0-file-count-limit-stops-with-ongoing-compaction: 0, l0-file-count-limit-delays: 0, l0-file-count-limit-stops: 0, memtable-limit-delays: 0, memtable-limit-stops: 0, pending-compaction-bytes-delays: 0, pending-compaction-bytes-stops: 0, total-delays: 0, total-stops: 0
+Block cache AutoHyperClockCache@0xc6b0300f8#34048 capacity: 32.00 MB seed: 2075682954 usage: 4.00 KB table_size: 64 occupancy: 1 collections: 1 last_copies: 0 last_secs: 1.1e-05 secs_since: 1
+Block cache entry stats(count,size,portion): Misc(1,0.00 KB,0%)
+
+** File Read Latency Histogram By Level [default] **
+** Level 0 read latency histogram (micros):
+Count: 56693 Average: 0.8392  StdDev: 5.29
+Min: 0  Median: 0.5117  Max: 801
+Percentiles: P50: 0.51 P75: 0.77 P99: 2.30 P99.9: 32.20 P99.99: 260.75
+------------------------------------------------------
+[       0,       1 ]    55399  97.718%  97.718% ####################
+(       1,       2 ]      663   1.169%  98.887% 
+(       2,       3 ]      212   0.374%  99.261% 
+(       3,       4 ]      101   0.178%  99.439% 
+(       4,       6 ]       50   0.088%  99.527% 
+(       6,      10 ]       65   0.115%  99.642% 
+(      10,      15 ]       61   0.108%  99.750% 
+(      15,      22 ]       53   0.093%  99.843% 
+(      22,      34 ]       38   0.067%  99.910% 
+(      34,      51 ]       13   0.023%  99.933% 
+(      51,      76 ]       13   0.023%  99.956% 
+(      76,     110 ]       11   0.019%  99.975% 
+(     110,     170 ]        7   0.012%  99.988% 
+(     170,     250 ]        1   0.002%  99.989% 
+(     250,     380 ]        4   0.007%  99.996% 
+(     380,     580 ]        1   0.002%  99.998% 
+(     580,     870 ]        1   0.002% 100.000% 
+
+** Level 3 read latency histogram (micros):
+Count: 52773 Average: 0.8623  StdDev: 5.63
+Min: 0  Median: 0.5096  Max: 609
+Percentiles: P50: 0.51 P75: 0.76 P99: 1.91 P99.9: 41.95 P99.99: 296.98
+------------------------------------------------------
+[       0,       1 ]    51777  98.113%  98.113% ####################
+(       1,       2 ]      515   0.976%  99.089% 
+(       2,       3 ]       95   0.180%  99.269% 
+(       3,       4 ]      120   0.227%  99.496% 
+(       4,       6 ]       35   0.066%  99.562% 
+(       6,      10 ]       41   0.078%  99.640% 
+(      10,      15 ]       48   0.091%  99.731% 
+(      15,      22 ]       44   0.083%  99.814% 
+(      22,      34 ]       34   0.064%  99.879% 
+(      34,      51 ]       24   0.045%  99.924% 
+(      51,      76 ]       12   0.023%  99.947% 
+(      76,     110 ]        8   0.015%  99.962% 
+(     110,     170 ]       10   0.019%  99.981% 
+(     170,     250 ]        4   0.008%  99.989% 
+(     250,     380 ]        2   0.004%  99.992% 
+(     380,     580 ]        3   0.006%  99.998% 
+(     580,     870 ]        1   0.002% 100.000% 
+
+** Level 4 read latency histogram (micros):
+Count: 30958 Average: 1.0438  StdDev: 10.97
+Min: 0  Median: 0.5137  Max: 1134
+Percentiles: P50: 0.51 P75: 0.77 P99: 3.53 P99.9: 71.07 P99.99: 367.55
+------------------------------------------------------
+[       0,       1 ]    30132  97.332%  97.332% ###################
+(       1,       2 ]      380   1.227%  98.559% 
+(       2,       3 ]       91   0.294%  98.853% 
+(       3,       4 ]       86   0.278%  99.131% 
+(       4,       6 ]       38   0.123%  99.254% 
+(       6,      10 ]       32   0.103%  99.357% 
+(      10,      15 ]       40   0.129%  99.486% 
+(      15,      22 ]       68   0.220%  99.706% 
+(      22,      34 ]       37   0.120%  99.826% 
+(      34,      51 ]       11   0.036%  99.861% 
+(      51,      76 ]       15   0.048%  99.910% 
+(      76,     110 ]       10   0.032%  99.942% 
+(     110,     170 ]       11   0.036%  99.977% 
+(     170,     250 ]        3   0.010%  99.987% 
+(     250,     380 ]        1   0.003%  99.990% 
+(     580,     870 ]        1   0.003%  99.994% 
+(     870,    1300 ]        2   0.006% 100.000% 
+
+** Level 5 read latency histogram (micros):
+Count: 32521 Average: 1.1041  StdDev: 21.75
+Min: 0  Median: 0.5136  Max: 3807
+Percentiles: P50: 0.51 P75: 0.77 P99: 4.67 P99.9: 50.19 P99.99: 298.61
+------------------------------------------------------
+[       0,       1 ]    31661  97.356%  97.356% ###################
+(       1,       2 ]      443   1.362%  98.718% 
+(       2,       3 ]       40   0.123%  98.841% 
+(       3,       4 ]       40   0.123%  98.964% 
+(       4,       6 ]       35   0.108%  99.071% 
+(       6,      10 ]       38   0.117%  99.188% 
+(      10,      15 ]       54   0.166%  99.354% 
+(      15,      22 ]       91   0.280%  99.634% 
+(      22,      34 ]       56   0.172%  99.806% 
+(      34,      51 ]       32   0.098%  99.905% 
+(      51,      76 ]       13   0.040%  99.945% 
+(      76,     110 ]        7   0.022%  99.966% 
+(     110,     170 ]        2   0.006%  99.972% 
+(     170,     250 ]        5   0.015%  99.988% 
+(     250,     380 ]        2   0.006%  99.994% 
+(     380,     580 ]        1   0.003%  99.997% 
+(    2900,    4400 ]        1   0.003% 100.000% 
+
+** Level 6 read latency histogram (micros):
+Count: 49345 Average: 1.2284  StdDev: 28.24
+Min: 0  Median: 0.5125  Max: 5212
+Percentiles: P50: 0.51 P75: 0.77 P99: 3.14 P99.9: 60.41 P99.99: 589.50
+------------------------------------------------------
+[       0,       1 ]    48143  97.564%  97.564% ####################
+(       1,       2 ]      620   1.256%  98.821% 
+(       2,       3 ]       80   0.162%  98.983% 
+(       3,       4 ]       61   0.124%  99.106% 
+(       4,       6 ]       33   0.067%  99.173% 
+(       6,      10 ]       53   0.107%  99.281% 
+(      10,      15 ]       57   0.116%  99.396% 
+(      15,      22 ]      109   0.221%  99.617% 
+(      22,      34 ]       93   0.188%  99.805% 
+(      34,      51 ]       38   0.077%  99.882% 
+(      51,      76 ]       23   0.047%  99.929% 
+(      76,     110 ]        8   0.016%  99.945% 
+(     110,     170 ]       12   0.024%  99.970% 
+(     170,     250 ]        5   0.010%  99.980% 
+(     250,     380 ]        5   0.010%  99.990% 
+(     580,     870 ]        2   0.004%  99.994% 
+(    1300,    1900 ]        1   0.002%  99.996% 
+(    1900,    2900 ]        1   0.002%  99.998% 
+(    4400,    6600 ]        1   0.002% 100.000% 
+
+
+** DB Stats **
+Uptime(secs): 5.4 total, 1.3 interval
+Cumulative writes: 2000K writes, 2000K keys, 2000K commit groups, 1.0 writes per commit group, ingest: 0.24 GB, 46.50 MB/s
+Cumulative WAL: 2000K writes, 0 syncs, 2000000.00 writes per sync, written: 0.24 GB, 46.50 MB/s
+Cumulative stall: 00:00:0.000 H:M:S, 0.0 percent
+Interval writes: 460K writes, 460K keys, 460K commit groups, 1.0 writes per commit group, ingest: 57.55 MB, 42.76 MB/s
+Interval WAL: 460K writes, 0 syncs, 460637.00 writes per sync, written: 0.06 GB, 42.76 MB/s
+Interval stall: 00:00:0.000 H:M:S, 0.0 percent
+Write Stall (count): write-buffer-manager-limit-stops: 0
+
+----- rocksdb.levelstats (files / size per level) -----
+Level Files Size(MB)
+--------------------
+  0        0        0
+  1        0        0
+  2        0        0
+  3        1        7
+  4        1       12
+  5        1       15
+  6        2       90
+
+----- DERIVED AMPLIFICATION (UNIVERSAL compaction) -----
+user bytes Put (keys+values)     : 232.0 MB
+flush bytes written (memtable->L0): 230.8 MB
+compaction bytes written          : 665.6 MB
+compaction bytes read             : 764.1 MB
+WRITE AMPLIFICATION (flush+compact)/user = 3.86x
+total SST size on disk            : 130.5 MB
+estimated live data size          : 94.3 MB
+SPACE AMPLIFICATION  sst/live      = 1.38x
+----- READ PATH / BLOOM FILTER (UNIVERSAL compaction) -----
+point Get() probes: 43056 found, 56944 missing
+BLOOM_FILTER_USEFUL (SST reads skipped)   : 129745
+BLOOM_FILTER_FULL_POSITIVE (passed filter): 44321
+BLOOM_FILTER_FULL_TRUE_POSITIVE (real hit): 43056
+bloom false-positive rate ~ (FP-TP)/FP = 0.0285
+
+DONE
