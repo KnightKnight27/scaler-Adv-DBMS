@@ -100,13 +100,24 @@ docker-compose up minidb-benchmark
 ```mermaid
 graph TD
     subgraph Client_App ["Client Application (main.cpp)"]
-        App["SQL Query / LogicalQuerySpecification"]
+        App["SQL Query String / Transactions"]
+    end
+
+    subgraph Parser_Module ["SQL Parser & Lexer (src/parser)"]
+        Lex["Lexer (Tokenizes SQL string)"]
+        Parse["SQLParser (Parses to SQLSelectStatement)"]
+    end
+
+    subgraph Concurrency_Engine ["Concurrency Control (SS2PL) (src/concurrency)"]
+        TM["TransactionManager"]
+        LMgr["LockManager (Lock Table)"]
+        Txn["Transaction"]
     end
 
     subgraph Optimizer_Planner ["Query Optimizer & Catalog"]
-        Opt["CostBasedOptimizer (Selinger DP)"]
+        Opt["CostBasedOptimizer (Selinger DP) / Optimizer"]
         Memo["Memoization Cache (JoinGroupBitmask -> Plan)"]
-        Cat["SystemCatalog (TableStats)"]
+        Cat["Catalog / SystemCatalog"]
     end
 
     subgraph Volcano_Engine ["Volcano Execution Engine (RAM)"]
@@ -114,6 +125,7 @@ graph TD
         Filter["FilterExecutor"]
         NLJ["NestedLoopJoinExecutor"]
         HJ["HashJoinExecutor"]
+        GHJ["GraceHashJoinExecutor (Disk Spilling)"]
         SeqScan["SeqScanExecutor"]
         IndexScan["IndexScanExecutor"]
     end
@@ -133,6 +145,7 @@ graph TD
     subgraph Distributed_Replication_Engine ["Distributed Replication Engine (Network)"]
         RepM["ReplicationManager (Primary)"]
         RepR["ReplicationReceiver (Replica)"]
+        CatchUp["Catch-up Sync Loop"]
     end
 
     subgraph Buffer_Cache_Layer ["Buffer Cache Layer (RAM)"]
@@ -147,20 +160,29 @@ graph TD
         MetaFile["minidb.db.lsns Meta File"]
     end
 
-    App -->|"Logical Query Plan"| Opt
+    App -->|"Sends SQL Text"| Lex
+    Lex -->|"Tokens stream"| Parse
+    Parse -->|"SQLSelectStatement"| Opt
+    App -->|"Controls transaction boundary"| TM
+    TM -->|"Manages lock table"| LMgr
+    LMgr -->|"Wait Queue / Timeout aborts"| Txn
+
     Opt -->|"Queries table statistics"| Cat
     Opt -->|"Caches subplan costs"| Memo
-    Opt -->|"Emits optimal Left-Deep tree"| Volcano_Engine
+    Opt -->|"Emits optimized plan"| Volcano_Engine
     
     Agg --> Filter
     Filter --> NLJ
     NLJ --> SeqScan
     HJ --> SeqScan
+    GHJ --> SeqScan
     
     IndexScan -->|"Searches Keys (Find/Insert)"| BPT
     BPT -->|"Routes Page Branches"| Internal
     BPT -->|"Locates Record RID"| Leaf
     
+    SeqScan -->|"Acquires Shared Lock"| LMgr
+    IndexScan -->|"Acquires Shared Lock"| LMgr
     SeqScan -->|"Fetches Slotted Rows"| BPM
     IndexScan -->|"Fetches Specific Slotted Page"| BPM
     
@@ -179,6 +201,8 @@ graph TD
     RepM -->|"Streams Binary Log Packet via TCP"| RepR
     RepR -->|"Mutates replica pages directly"| BPM
     RepR -->|"Sends LSN ACK"| RepM
+    RepR -->|"Handshake: Reports last applied LSN"| CatchUp
+    CatchUp -->|"Sync missed logs"| RepR
 ```
 
 ---
@@ -418,10 +442,39 @@ Log updates are streamed across socket connections as structured binary frames:
 
 ---
 
+### 7. Advanced Database Features
+
+#### A. Concurrency Control: Strong Strict Two-Phase Locking (SS2PL)
+MiniDB implements transaction isolation via a dedicated Concurrency Control Engine holding locks until transaction termination:
+- **Lock Manager (`LockManager`):** Manages a lock table mapping `RID`s to request queues. Supports Shared (S) and Exclusive (X) locks.
+- **Deadlock / Timeout Resolution:** Employs a 200ms lock acquisition wait timeout. If a lock request blocks longer than 200ms, the lock manager flags a deadlock hazard, transitions the transaction to `ABORTED`, and rolls back.
+- **Transaction Manager (`TransactionManager`):** Coordinates lifecycle boundaries (`Begin`, `Commit`, `Abort`) and releases all held locks on execution end.
+- **Executor Integration:** Scans (`SeqScanExecutor` / `IndexScanExecutor`) automatically request Shared locks on read records when executing under transaction context.
+
+#### B. Memory Management: Grace (Disk-Aware) Hash Join
+To handle large datasets under memory pressure, MiniDB includes a partition-to-disk join execution strategy:
+- **Partitioning Phase:** Iterates left and right relations, hashing join columns, and writing rows to temporary partition files on disk.
+- **Probing Phase:** Iterates partition-by-partition. It loads one partition of the inner relation into an in-memory hash table, then streams the outer partition to probe and yield matched tuples.
+- **Cleanup:** Temporary partition database files are deleted from the disk on closure.
+
+#### C. High Availability: Replication Catch-up Protocol
+Enables cluster replicas to recover missed transactions after recovering from connection outages:
+- **LSN Handshake:** Upon replica reconnection, the socket listener reports its local `max_lsn` to the primary.
+- **WAL Log Replay:** If the replica lags behind, the primary scans `minidb.log` and replays all missed log records sequentially to sync states before resuming real-time log replication.
+
+#### D. Front-End: SQL Query Parser & Execution Driver
+Integrates query string parsing with execution:
+- **Lexical Analyzer (`Lexer`):** Tokenizes incoming SQL query strings into keywords (`SELECT`, `FROM`, `WHERE`, `AND`, `OR`), identifiers, and comparison operators.
+- **Recursive-Descent Parser (`SQLParser`):** Synthesizes tokens into structured `SQLSelectStatement` AST nodes.
+- **SQL Execution Driver (`ExecuteSQL`):** Parses query strings, resolves targeted tables in the `Catalog`, routes filters to the `Optimizer` (selecting IndexScan vs. TableScan), and projects the resulting column subsets.
+
+---
+
 ## 📊 Performance, Benchmarks, and Verification Logs
 
 To check out compiled logs, performance tables, and speedup analyses:
 - **Test execution logs:** Refer to **[verification_logs.md](file:///c:/Users/vangs/cursor/AdvDBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_NoClarity/docs/verification_logs.md)** under the `docs` directory.
 - **Raw benchmark logs:** Refer to **[benchmark.md](file:///c:/Users/vangs/cursor/AdvDBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_NoClarity/docs/benchmark.md)**.
 - **Performance Analysis & Tables:** Refer to **[benchmark_report.md](file:///c:/Users/vangs/cursor/AdvDBMS/scaler-Adv-DBMS/MiniDB_Projects/Team_NoClarity/docs/benchmark_report.md)**.
+
 

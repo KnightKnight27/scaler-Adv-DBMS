@@ -16,6 +16,8 @@
 #include "recovery/recovery_manager.h"
 #include "replication/replication_manager.h"
 #include "replication/replication_receiver.h"
+#include "parser/lexer.h"
+#include "parser/parser.h"
 #include <algorithm>
 
 using namespace minidb;
@@ -1128,6 +1130,99 @@ void TestReplicationCatchUp() {
     std::cout << "[REPLICATION CATCH-UP SUCCESS] Missed logs successfully replayed via LSN handshake.\n" << std::endl;
 }
 
+std::vector<Row> ExecuteSQL(const std::string& sql, Catalog* catalog, BufferPoolManager* bpm) {
+    Lexer lexer(sql);
+    auto tokens = lexer.Tokenize();
+    SQLParser parser(tokens);
+    SQLSelectStatement stmt = parser.ParseSelect();
+
+    auto table = catalog->GetTable(stmt.table_name);
+    if (!table) {
+        throw std::runtime_error("Table not found: " + stmt.table_name);
+    }
+
+    auto plan = Optimizer::Optimize(stmt.filter_col, stmt.filter_val, table);
+    std::vector<Row> results = plan->Execute(bpm, table);
+
+    if (stmt.projection_cols.size() == 1 && stmt.projection_cols[0] == "*") {
+        return results;
+    }
+
+    std::vector<Row> projected_results;
+    for (const auto& r : results) {
+        Row proj_r;
+        for (const auto& col_name : stmt.projection_cols) {
+            auto it = r.cols.find(col_name);
+            if (it != r.cols.end()) {
+                proj_r.cols[col_name] = it->second;
+            }
+        }
+        projected_results.push_back(proj_r);
+    }
+    return projected_results;
+}
+
+void TestSQLParser() {
+    std::cout << "--- Starting SQL Query Parser & Execution Tests ---" << std::endl;
+    std::string db_file = "test_sql_parser.db";
+    if (std::filesystem::exists(db_file)) {
+        std::filesystem::remove(db_file);
+    }
+
+    {
+        DiskManager disk_manager(db_file);
+        BufferPoolManager bpm(10, &disk_manager);
+        Catalog catalog;
+
+        catalog.AddTable("students");
+        auto table = catalog.GetTable("students");
+
+        // Insert mock students
+        page_id_t pid;
+        Page* page = bpm.NewPage(&pid);
+        page->WLock();
+        SlottedPage::Init(page->GetData());
+        
+        Row r1{{{ "id", 1 }, { "name", std::string("Alice") }, { "age", 20 }}};
+        Row r2{{{ "id", 2 }, { "name", std::string("Bob")   }, { "age", 22 }}};
+        Row r3{{{ "id", 3 }, { "name", std::string("Carol") }, { "age", 19 }}};
+
+        RID rid1, rid2, rid3;
+        SlottedPage::InsertTuple(page->GetData(), r1.Serialize(), &rid1, pid);
+        SlottedPage::InsertTuple(page->GetData(), r2.Serialize(), &rid2, pid);
+        SlottedPage::InsertTuple(page->GetData(), r3.Serialize(), &rid3, pid);
+
+        page->WUnlock();
+        bpm.UnpinPage(pid, true);
+        table->pages.push_back(pid);
+
+        // Test 1: SQL SeqScan execution
+        std::cout << "Executing SQL 1 (SEQ SCAN): SELECT name, age FROM students WHERE age = 22" << std::endl;
+        std::vector<Row> results1 = ExecuteSQL("SELECT name, age FROM students WHERE age = 22", &catalog, &bpm);
+        assert(results1.size() == 1);
+        assert(std::get<std::string>(results1[0].cols["name"]) == "Bob");
+        assert(std::get<int>(results1[0].cols["age"]) == 22);
+        assert(results1[0].cols.find("id") == results1[0].cols.end()); // id should not be projected
+        std::cout << "[SUCCESS] SQL SeqScan projected result: " << std::get<std::string>(results1[0].cols["name"]) << std::endl;
+
+        // Test 2: SQL IndexScan execution
+        catalog.CreateIndex("students", "id", &bpm);
+        auto index = table->indexes["id"];
+        index->Insert(1, rid1);
+        index->Insert(2, rid2);
+        index->Insert(3, rid3);
+
+        std::cout << "Executing SQL 2 (INDEX SCAN): SELECT name FROM students WHERE id = 1" << std::endl;
+        std::vector<Row> results2 = ExecuteSQL("SELECT name FROM students WHERE id = 1", &catalog, &bpm);
+        assert(results2.size() == 1);
+        assert(std::get<std::string>(results2[0].cols["name"]) == "Alice");
+        std::cout << "[SUCCESS] SQL IndexScan projected result: " << std::get<std::string>(results2[0].cols["name"]) << std::endl;
+    }
+
+    std::filesystem::remove(db_file);
+    std::cout << "[SQL PARSER SUCCESS] Tokenizing, parsing, optimizing, and executing SQL strings verified.\n" << std::endl;
+}
+
 int main() {
     std::cout << "============================================" << std::endl;
     std::cout << "      MINIDB CAPSTONE TEST RUNNER (M6)       " << std::endl;
@@ -1145,6 +1240,7 @@ int main() {
     TestSS2PL();
     TestGraceHashJoin();
     TestReplicationCatchUp();
+    TestSQLParser();
 
     std::cout << "ALL MINIDB MILESTONE 6 TESTS PASSED SUCCESSFULLY!" << std::endl;
     return 0;
