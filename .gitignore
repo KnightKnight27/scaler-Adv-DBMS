@@ -17,3 +17,4 @@ Btree
 .idea/
 .vscode/
 .DS_Store
+.local/
