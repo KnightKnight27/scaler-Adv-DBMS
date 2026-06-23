@@ -27,16 +27,16 @@ InnoDB divides its operations into specialized memory structures and persistent 
 ```mermaid
 graph TD
     subgraph Memory [In-Memory Structures]
-        BP[Buffer Pool: Caches 16KB Pages]
-        CB[Change Buffer]
-        AHI[Adaptive Hash Index]
-        LB[Log Buffer]
+        BP["Buffer Pool: Caches 16KB Pages"]
+        CB["Change Buffer"]
+        AHI["Adaptive Hash Index"]
+        LB["Log Buffer"]
     end
     
     subgraph Disk [On-Disk Structures]
-        TS[(System & File-Per-Table Tablespaces)]
-        Redo[(Redo Log Files: ib_logfile*)]
-        Undo[(Undo Tablespaces)]
+        TS[("System & File-Per-Table Tablespaces")]
+        Redo[("Redo Log Files: ib_logfile*")]
+        Undo[("Undo Tablespaces")]
     end
 
     BP <-->|Read / Flush Pages| TS

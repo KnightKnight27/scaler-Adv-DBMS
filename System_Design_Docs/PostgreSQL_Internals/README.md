@@ -28,12 +28,12 @@ PostgreSQL operates using a multi-process architecture coordinated by background
 
 ```mermaid
 graph TD
-    Client([Client Application]) -->|SQL Query| Backend[Dedicated Backend Process]
+    Client(["Client Application"]) -->|SQL Query| Backend["Dedicated Backend Process"]
     
     subgraph Memory [PostgreSQL Shared Memory]
-        SharedBuffers[(Shared Buffers: Page Cache 8KB)]
-        WALBuffers[(WAL Buffers)]
-        LockManager[(Lock Manager Table)]
+        SharedBuffers[("Shared Buffers: Page Cache 8KB")]
+        WALBuffers[("WAL Buffers")]
+        LockManager[("Lock Manager Table")]
     end
     
     Backend <-->|Read/Write Page Pinning| SharedBuffers
@@ -41,19 +41,19 @@ graph TD
     Backend <-->|Lock Requests| LockManager
     
     subgraph Daemons [Background Daemons]
-        WALWriter[WAL Writer]
-        BGWriter[Background Writer]
-        Checkpointer[Checkpointer Daemon]
-        AutoVac[Autovacuum Daemon]
+        WALWriter["WAL Writer"]
+        BGWriter["Background Writer"]
+        Checkpointer["Checkpointer Daemon"]
+        AutoVac["Autovacuum Daemon"]
     end
     
     WALBuffers -->|Flush| WALWriter
-    WALWriter -->|Write| WALFile[(WAL Segment Files)]
+    WALWriter -->|Write| WALFile[("WAL Segment Files")]
     
     SharedBuffers -->|Flush Dirty| BGWriter
     SharedBuffers -->|Flush Checkpoint| Checkpointer
     
-    BGWriter -->|Write Pages| TableDisk[(Table Heap & Index Files)]
+    BGWriter -->|Write Pages| TableDisk[("Table Heap & Index Files")]
     Checkpointer -->|Write Pages| TableDisk
     
     AutoVac -->|Reclaim Dead Tuples| TableDisk

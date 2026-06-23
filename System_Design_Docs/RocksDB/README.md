@@ -28,20 +28,20 @@ RocksDB is an embedded, server-class key-value store library. It does not run as
 
 ```mermaid
 graph TD
-    User([Application API]) -->|1. Write: Put/Delete/Merge| WAL[Write-Ahead Log (WAL)]
-    User -->|2. Write: Put/Delete/Merge| Mem[Active MemTable]
+    User(["Application API"]) -->|1. Write: Put/Delete/Merge| WAL["Write-Ahead Log (WAL)"]
+    User -->|2. Write: Put/Delete/Merge| Mem["Active MemTable"]
     
     subgraph Memory [In-Memory Structures]
-        Mem -->|When Full| ImMem[Immutable MemTable]
-        BlockCache[Block Cache: LRU]
+        Mem -->|When Full| ImMem["Immutable MemTable"]
+        BlockCache["Block Cache: LRU"]
     end
     
-    ImMem -->|Flush Process| L0[Level 0 SSTs (Overlapping Keys)]
+    ImMem -->|Flush Process| L0["Level 0 SSTs (Overlapping Keys)"]
     
     subgraph Disk [LSM Disk Storage Levels]
-        L0 -->|Compaction| L1[Level 1 SSTs]
-        L1 -->|Compaction| L2[Level 2 SSTs]
-        L2 -->|Compaction| L3[Level 3 - Lmax SSTs]
+        L0 -->|Compaction| L1["Level 1 SSTs"]
+        L1 -->|Compaction| L2["Level 2 SSTs"]
+        L2 -->|Compaction| L3["Level 3 - Lmax SSTs"]
     end
     
     User -->|Read: Get/Iterator| Mem

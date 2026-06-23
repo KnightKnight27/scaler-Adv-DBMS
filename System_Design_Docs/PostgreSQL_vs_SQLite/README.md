@@ -21,20 +21,20 @@
 ```mermaid
 graph TD
     subgraph PostgreSQL [PostgreSQL Client-Server Architecture]
-        Client1([App Client 1]) -.->|Socket/Network IPC| Postmaster[Listener: Postmaster]
-        Client2([App Client 2]) -.->|Socket/Network IPC| Postmaster
-        Postmaster -->|Fork Backend| P1[Backend Process P1]
-        Postmaster -->|Fork Backend| P2[Backend Process P2]
-        P1 <--> SharedMem[(Shared Buffers & Lock Manager)]
+        Client1(["App Client 1"]) -.->|Socket/Network IPC| Postmaster["Listener: Postmaster"]
+        Client2(["App Client 2"]) -.->|Socket/Network IPC| Postmaster
+        Postmaster -->|Fork Backend| P1["Backend Process P1"]
+        Postmaster -->|Fork Backend| P2["Backend Process P2"]
+        P1 <--> SharedMem[("Shared Buffers & Lock Manager")]
         P2 <--> SharedMem
-        SharedMem <--> PGDisk[(Database Directories & WAL)]
+        SharedMem <--> PGDisk[("Database Directories & WAL")]
     end
 
     subgraph SQLite [SQLite Embedded Architecture]
-        AppProcess[Application Process Space]
+        AppProcess["Application Process Space"]
         subgraph AppThread [App Thread / Logic]
-            AppCode[Application Code] -->|Library Call| SQLiteLib[SQLite Engine Library]
-            SQLiteLib <--> SQLiteDisk[(Single DB File on Disk)]
+            AppCode["Application Code"] -->|Library Call| SQLiteLib["SQLite Engine Library"]
+            SQLiteLib <--> SQLiteDisk[("Single DB File on Disk")]
         end
     end
 
