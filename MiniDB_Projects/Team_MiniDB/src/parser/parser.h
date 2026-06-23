@@ -17,6 +17,9 @@ public:
 
     StmtPtr parse();  // parse a single statement (optionally ending in ';')
 
+    // True when no statements remain (used to parse a multi-statement script).
+    bool at_end() const { return toks_[pos_].type == TokenType::END; }
+
 private:
     StmtPtr parse_create();
     StmtPtr parse_insert();
