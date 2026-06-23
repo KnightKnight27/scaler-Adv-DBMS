@@ -38,7 +38,7 @@ Shared Buffer Array (circular, simplified):
 
 ```mermaid
 graph TD
-    subgraph Array [Shared Buffer Array (circular)]
+    subgraph Array ["Shared Buffer Array (circular)"]
         B0["Buf 0<br>uc=2, pin=0"]
         B1["Buf 1<br>uc=0, pin=0"]
         B2["Buf 2 (Pinned)<br>uc=1, pin=1"]

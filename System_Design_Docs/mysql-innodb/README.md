@@ -14,11 +14,11 @@ InnoDB sits between the MySQL SQL layer and the operating system's filesystem. T
 
 ```mermaid
 graph TD
-    subgraph SQL [MySQL SQL Layer]
+    subgraph SQL ["MySQL SQL Layer"]
         Parser["Parser & Optimizer"]
     end
 
-    subgraph InnoDB [InnoDB Engine]
+    subgraph InnoDB ["InnoDB Engine"]
         BP["Buffer Pool<br>(LRU-managed page cache)"]
         UT["Undo Tablespace<br>(rollback + MVCC snapshots)"]
         RL["Redo Log<br>(circular, on disk for crash recovery)"]
@@ -26,7 +26,7 @@ graph TD
         CB["Change Buffer<br>(deferred secondary index writes)"]
     end
 
-    subgraph Storage [Tablespace Files]
+    subgraph Storage ["Tablespace Files"]
         TF["ibdata1, *.ibd"]
     end
 
@@ -91,10 +91,10 @@ LRU List Structure:
 
 ```mermaid
 graph LR
-    subgraph Young [Young Sublist (Hot)]
+    subgraph Young ["Young Sublist (Hot)"]
         A[A] --- B[B] --- C[C] --- D[D] --- E[E]
     end
-    subgraph Old [Old Sublist (Cold)]
+    subgraph Old ["Old Sublist (Cold)"]
         F[F] --- G[G] --- H[H] --- I[I] --- J[J]
     end
     E --- F

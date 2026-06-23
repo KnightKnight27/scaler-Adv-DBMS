@@ -38,7 +38,7 @@ SQLite has no server process. The entire database engine compiles into the host 
 
 ```mermaid
 graph TD
-    subgraph Application [Application Process Space]
+    subgraph Application ["Application Process Space"]
         SQL["SQLite Library<br>(linked directly)"]
     end
     SQL -->|Direct file I/O| DB[("database.db<br>(single file)")]
