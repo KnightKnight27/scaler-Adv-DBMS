@@ -48,10 +48,6 @@ graph TD
     end
 
     Sweep["Sweep Hand"] -.-> B2
-
-    style B2 fill:#d4edda,stroke:#28a745,stroke-width:2px
-    style B3 fill:#f8d7da,stroke:#dc3545,stroke-width:2px
-    style Sweep fill:#fff3cd,stroke:#ffc107,stroke-width:2px
 ```
 
 **Sweep Execution Example:**
@@ -80,12 +76,6 @@ graph TD
     SS["Special Space<br>(high key on leaf pages)"]
 
     PHD --- IID --- FS --- IT --- SS
-
-    style PHD fill:#f9f,stroke:#333,stroke-width:1px
-    style IID fill:#bbf,stroke:#333,stroke-width:1px
-    style FS fill:#dfd,stroke:#333,stroke-width:1px
-    style IT fill:#fdd,stroke:#333,stroke-width:1px
-    style SS fill:#eee,stroke:#333,stroke-width:1px
 ```
 
 **Searching**: Starting from the root page, the system performs a binary search within each page to locate the child pointer (internal pages) or matching tuple (leaf pages). The comparison function is provided by the operator class defined for the index. For integer columns, this is trivial; for collation-aware text columns, it can be expensive.
@@ -140,9 +130,6 @@ graph TD
     end
 
     Header --- Data
-
-    style Header fill:#fff3cd,stroke:#ffc107,stroke-width:1px
-    style Data fill:#cce5ff,stroke:#004085,stroke-width:1px
 ```
 
 **Crash Recovery**: On startup after an unclean shutdown, PostgreSQL enters recovery mode. It locates the last checkpoint record, then replays (REDOs) every WAL record from that checkpoint forward. Each resource manager's REDO function applies the logged change to the data page. Because WAL records were written before the corresponding buffer modifications, redo is idempotent — replaying the same record multiple times produces the same result.

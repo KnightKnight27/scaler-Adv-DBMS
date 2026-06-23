@@ -32,17 +32,6 @@ graph TD
 
     SQL --> InnoDB
     InnoDB --> Storage
-
-    style SQL fill:#f9f,stroke:#333,stroke-width:1px
-    style Parser fill:#fff,stroke:#333,stroke-width:1px
-    style InnoDB fill:#fff3cd,stroke:#ffc107,stroke-width:1px
-    style BP fill:#bbf,stroke:#333,stroke-width:1px
-    style UT fill:#bbf,stroke:#333,stroke-width:1px
-    style RL fill:#bbf,stroke:#333,stroke-width:1px
-    style DW fill:#bbf,stroke:#333,stroke-width:1px
-    style CB fill:#bbf,stroke:#333,stroke-width:1px
-    style Storage fill:#fdd,stroke:#333,stroke-width:1px
-    style TF fill:#fff,stroke:#333,stroke-width:1px
 ```
 
 All data flows through the buffer pool. Data files on disk are collections of 16KB pages. InnoDB reads pages into memory, modifies them there, and flushes them lazily. The logging infrastructure — undo and redo logs — exists to make this deferred writing safe.
@@ -66,11 +55,6 @@ graph TD
     Root --> R1
     L1 --> Leaf
     R1 --> Leaf
-
-    style Root fill:#f9f,stroke:#333,stroke-width:1px
-    style L1 fill:#bbf,stroke:#333,stroke-width:1px
-    style R1 fill:#bbf,stroke:#333,stroke-width:1px
-    style Leaf fill:#dfd,stroke:#333,stroke-width:1px
 ```
 
 Consequences of this design:
@@ -91,9 +75,6 @@ graph TD
     Leaf["Leaf Page<br>• 'alice@x.com' ➔ pk = 10<br>• 'bob@x.com' ➔ pk = 30"]
 
     Root --> Leaf
-
-    style Root fill:#f9f,stroke:#333,stroke-width:1px
-    style Leaf fill:#dfd,stroke:#333,stroke-width:1px
 ```
 
 Lookup flow for `SELECT * FROM users WHERE email = 'alice@x.com'`:
@@ -118,10 +99,6 @@ graph LR
     end
     E --- F
     Mid["Midpoint (New pages inserted here)"] -.-> F
-
-    style Young fill:#d4edda,stroke:#28a745,stroke-width:1px
-    style Old fill:#f8d7da,stroke:#dc3545,stroke-width:1px
-    style Mid fill:#fff3cd,stroke:#ffc107,stroke-width:2px
 ```
 
 This prevents full table scans from evicting the working set. A sequential scan touches many pages once; those pages enter the old sublist and are evicted quickly without displacing pages that are accessed repeatedly.
@@ -161,9 +138,6 @@ graph TD
     Files["Redo Log Files (circular, on disk)<br>[oldest] ➔ ➔ ➔ ➔ [newest]<br>checkpoint LSN ➔ write LSN"]
 
     Buffer -->|fsync at commit or every 1 second| Files
-
-    style Buffer fill:#bbf,stroke:#333,stroke-width:1px
-    style Files fill:#fdd,stroke:#333,stroke-width:1px
 ```
 
 On commit, InnoDB fsyncs the redo log. Group commit batches multiple transactions into a single fsync — while one fsync is in progress, other committing transactions append their records and share the same disk write.

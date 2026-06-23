@@ -28,14 +28,6 @@ graph TD
     SB1 <-->|IPC / Locks| SB2
     SB1 --> DF["Database Files<br>(PGDATA/)"]
     SB2 --> DF
-
-    style Client fill:#bbf,stroke:#333,stroke-width:1px
-    style Postmaster fill:#f9f,stroke:#333,stroke-width:1px
-    style BP1 fill:#fff3cd,stroke:#ffc107,stroke-width:1px
-    style BP2 fill:#fff3cd,stroke:#ffc107,stroke-width:1px
-    style SB1 fill:#d4edda,stroke:#28a745,stroke-width:1px
-    style SB2 fill:#d4edda,stroke:#28a745,stroke-width:1px
-    style DF fill:#fdd,stroke:#333,stroke-width:1px
 ```
 
 Backend processes coordinate through shared memory segments that house the buffer pool, lock tables, and transaction state. The OS isolates each process; a crash in one backend does not affect others. The cost is memory — each backend accumulates private sort buffers and query plans, making connection pooling (PgBouncer, Pgpool-II) essential for deployments with large numbers of simultaneous clients.
@@ -50,10 +42,6 @@ graph TD
         SQL["SQLite Library<br>(linked directly)"]
     end
     SQL -->|Direct file I/O| DB[("database.db<br>(single file)")]
-
-    style Application fill:#f9f,stroke:#333,stroke-width:1px
-    style SQL fill:#bbf,stroke:#333,stroke-width:1px
-    style DB fill:#d4edda,stroke:#28a745,stroke-width:1px
 ```
 
 This eliminates network latency entirely — a query is a function call. The overhead of opening a SQLite connection is essentially the cost of the `open()` system call (measured in microseconds). For embedded systems, mobile applications, and single-user desktop software, this simplicity is a decisive advantage.
@@ -79,13 +67,6 @@ PostgreSQL uses 8KB pages. A heap page contains a 24-byte header with checksum a
 ```mermaid
 graph LR
     H["Page Header"] --- I1["ItemId Array"] --- F["Free Space"] --- I2["ItemId Array"] --- T["Tuple Data<br>(grows up)"] --- S["Special Space"]
-
-    style H fill:#f9f,stroke:#333,stroke-width:1px
-    style I1 fill:#bbf,stroke:#333,stroke-width:1px
-    style F fill:#dfd,stroke:#333,stroke-width:1px
-    style I2 fill:#bbf,stroke:#333,stroke-width:1px
-    style T fill:#fdd,stroke:#333,stroke-width:1px
-    style S fill:#eee,stroke:#333,stroke-width:1px
 ```
 
 SQLite uses 4KB pages. A B-tree page contains a page header, a cell pointer array sorted by key, and cell content growing upward from the bottom. The space between the pointer array and cell content is unallocated.
@@ -93,11 +74,6 @@ SQLite uses 4KB pages. A B-tree page contains a page header, a cell pointer arra
 ```mermaid
 graph LR
     H["Page Header"] --- C["Cell Ptr Array"] --- F["Free Space"] --- CC["Cell Content"]
-
-    style H fill:#f9f,stroke:#333,stroke-width:1px
-    style C fill:#bbf,stroke:#333,stroke-width:1px
-    style F fill:#dfd,stroke:#333,stroke-width:1px
-    style CC fill:#fdd,stroke:#333,stroke-width:1px
 ```
 
 A critical architectural difference follows from this: in PostgreSQL, the heap is unordered and separate from all indexes. In SQLite, the table B-tree *is* the storage — the rowid determines physical row placement. A primary key lookup in SQLite requires one B-tree traversal. In PostgreSQL, it requires two: traverse the index B-tree to find the TID, then read the corresponding heap page.

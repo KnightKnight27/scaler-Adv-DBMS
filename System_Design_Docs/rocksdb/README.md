@@ -28,13 +28,6 @@ graph TD
     L0 -->|Compaction| L1
     L1 -->|Compaction| L2
     L2 -->|...| Ln
-
-    style MT fill:#d4edda,stroke:#28a745,stroke-width:1px
-    style IMT fill:#fff3cd,stroke:#ffc107,stroke-width:1px
-    style L0 fill:#f8d7da,stroke:#dc3545,stroke-width:1px
-    style L1 fill:#e2e3e5,stroke:#383d41,stroke-width:1px
-    style L2 fill:#e2e3e5,stroke:#383d41,stroke-width:1px
-    style Ln fill:#cce5ff,stroke:#004085,stroke-width:1px
 ```
 
 The write path is append-only and sequential. The read path searches through each layer from hottest to coldest. Compaction runs asynchronously to prevent the hierarchy from accumulating excessive overlap and stale versions.
@@ -64,10 +57,6 @@ SSTable Internal Layout:
 ```mermaid
 graph LR
     IB["Index Block<br>(offsets into data blocks)"] --- FB["Filter Block<br>(bloom filters per block)"] --- DB["Data Blocks<br>(sorted key-value pairs)"]
-
-    style IB fill:#d4edda,stroke:#28a745,stroke-width:1px
-    style FB fill:#fff3cd,stroke:#ffc107,stroke-width:1px
-    style DB fill:#cce5ff,stroke:#004085,stroke-width:1px
 ```
 
 When a key lookup reaches an SSTable file, RocksDB consults the index block to identify candidate data blocks, then checks the bloom filter for each candidate. Only when both indicate a possible match does the system decompress and scan the data block.
