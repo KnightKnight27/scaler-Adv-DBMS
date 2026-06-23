@@ -1,0 +1,10 @@
+# Build output
+build/
+
+# Database artifacts produced at runtime
+*.db
+*.db.wal
+*.wal
+
+# Editor / OS
+.DS_Store
