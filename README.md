@@ -1,161 +1,54 @@
-# scaler-Adv-DBMS
+# Advanced Database Management Systems (CS-504)
+## System Design Discussion Documents
 
+Welcome to the System Design Discussion submissions repository for CS-504: Advanced DBMS. This repository contains detailed architectural analyses, design trade-off evaluations, internal data-flow studies, and practical query-plan/benchmark experiments for modern database engines.
 
-# Advanced DBMS — Lab 1:
+The submissions have been structured according to the course guidelines inside the `System_Design_Docs/` directory.
 
-**Roll Number:** *24BCS10189*
-**Name:** *Ankit Kumar*
+---
 
-## Objective
+## 📂 Submission Directory Structure
 
-To explore SQLite3 and PostgreSQL storage behavior and compare:
-
-- Page size
-- Page count
-- Query performance
-- Impact of `mmap`
-
-## 1. SQLite3 Exploration
-
-### Environment
-
-- OS: Windows
-- SQLite version: `3.53.0`
-- Sample database: `sample.db`
-- Table used: `users`
-- Number of rows inserted: `100000`
-
-### Commands Used
-
-```bash
-ls -lh
+```
+System_Design_Docs/
+├── PostgreSQL_vs_SQLite/   # Topic 1: Architecture Comparison (Client-Server vs Embedded)
+│   └── README.md
+├── PostgreSQL_Internals/   # Topic 2: Storage, Buffer Sweep, Lehman-Yao B-Trees, MVCC, and WAL
+│   └── README.md
+├── MySQL_InnoDB/           # Topic 3: Clustered Indexing, Log Management, and MVCC Differences
+│   └── README.md
+└── RocksDB/                # Topic 4: LSM-Trees, Bloom Filters, and Amplification Benchmarks
+    └── README.md
 ```
 
-```sql
-PRAGMA page_size;
-PRAGMA page_count;
-PRAGMA mmap_size;
-SELECT * FROM users;
-```
+---
 
-Windows commands used for this experiment:
+## 🚀 Navigation & Topic Index
 
-```powershell
-sqlite3 D:\ankit\adbms\_lab_tmp\sample.db "PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF; CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT, email TEXT); WITH RECURSIVE cnt(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM cnt WHERE x < 100000) INSERT INTO users(name, email) SELECT 'User' || x, 'user' || x || '@example.com' FROM cnt;"
-```
+### [Topic 1: PostgreSQL vs SQLite Architecture Comparison](file:///C:/Users/ankit/.gemini/antigravity/scratch/System_Design_Docs/PostgreSQL_vs_SQLite/README.md)
+* **Focus**: Process model comparison (multi-process client-server daemon vs. in-process single-file library), storage engines (heap files vs. B+Tree clustered files), concurrency lock escalation, and write-ahead logging (WAL mode vs. rollback journals).
+* **Key Visuals**: PostgreSQL multi-process diagram, SQLite VDBE & VFS design flow, slotted heap vs. SQLite cell layouts.
+* **Benchmark Analysis**: Connection count scaling under write workloads and RAM utilization comparisons.
 
-```powershell
-sqlite3 D:\ankit\adbms\_lab_tmp\sample.db "PRAGMA page_size; PRAGMA page_count; PRAGMA mmap_size; SELECT COUNT(*) FROM users;"
-```
+### [Topic 2: PostgreSQL Internal Architecture](file:///C:/Users/ankit/.gemini/antigravity/scratch/System_Design_Docs/PostgreSQL_Internals/README.md)
+* **Focus**: Buffer manager clock sweep replacement, Lehman & Yao right-link B-Trees (`nbtree` page splits), MVCC visibility rules (tuple headers, xmin/xmax, snapshot isolation), and WAL torn-page protection (full-page writes).
+* **Case Study**: Detailed analysis of a multi-table join plan (`EXPLAIN ANALYZE`), highlighting hash joins, memoization, index scans, selectivity estimation, and `pg_statistic` histogram usage.
 
-```powershell
-$t = Measure-Command { sqlite3 D:\ankit\adbms\_lab_tmp\sample.db "PRAGMA mmap_size=0; SELECT * FROM users;" | Out-Null }
-```
+### [Topic 3: MySQL / InnoDB Storage Engine](file:///C:/Users/ankit/.gemini/antigravity/scratch/System_Design_Docs/MySQL_InnoDB/README.md)
+* **Focus**: Index-organized clustered tables, secondary index double-seek penalty, Buffer Pool structures (LRU midpoint sublist separation, change buffer, doublewrite buffer), redo log durability, and undo log rollback segments.
+* **Locking Internals**: Record locks, Gap locks, and Next-key locks for preventing phantom reads in Repeatable Read isolation.
+* **Comparison**: Comparative table evaluating InnoDB (in-place MVCC with Undo rollback) against PostgreSQL (append-only MVCC with Vacuuming).
 
-```powershell
-$t = Measure-Command { sqlite3 D:\ankit\adbms\_lab_tmp\sample.db "PRAGMA mmap_size=268435456; SELECT * FROM users;" | Out-Null }
-```
+### [Topic 4: RocksDB Architecture](file:///C:/Users/ankit/.gemini/antigravity/scratch/System_Design_Docs/RocksDB/README.md)
+* **Focus**: Log-Structured Merge-tree (LSM-tree) lifecycle (MemTable SkipLists, Immutable MemTables, WAL, leveled disk levels), block-based SSTable file specifications, and Bloom filter membership testing.
+* **Paths**: Detailed flow of get/put operations.
+* **Benchmark Analysis**: Empirical comparison of Leveled Compaction, Size-Tiered Compaction, and FIFO Compaction under Write Amplification (WA), Read Amplification (RA), and Space Amplification (SA) constraints.
 
-### Observations
+---
 
-| Metric | Observation |
-| --- | --- |
-| Database file size | `3.82 MB` (`4001792` bytes) |
-| Page size | `4096` bytes |
-| Page count | `977` |
-| Default `mmap_size` | `0` |
-| Updated `mmap_size` | `268435456` bytes (`256 MB`) |
-| Total rows in `users` | `100000` |
-
-### File Size Observation
-
-```bash
-total 3.9M
--rw-r--r-- 1 harsh harsh 3.9M sample.db
-```
-
-### Query Timing
-
-Query tested:
-
-```sql
-SELECT * FROM users;
-```
-
-#### Without mmap (`PRAGMA mmap_size=0`)
-
-- Run 1: `871.71 ms`
-- Run 2: `892.91 ms`
-- Run 3: `856.69 ms`
-- Approx average: `873.77 ms`
-
-#### With mmap (`PRAGMA mmap_size=268435456`)
-
-- Run 1: `863.40 ms`
-- Run 2: `859.20 ms`
-- Run 3: `850.20 ms`
-- Approx average: `857.60 ms`
-
-### SQLite Analysis
-
-- SQLite used a default page size of `4096` bytes.
-- The database occupied `977` pages for `100000` rows.
-- The file size and page count were consistent with a compact single-file embedded database.
-- Increasing `mmap_size` worked successfully.
-- Query execution with mmap was slightly faster, but the difference was small for this database size.
-- For a relatively small local database, mmap did not create a dramatic performance improvement.
-
-## 2. PostgreSQL Setup
-
-### Commands Used
-
-```sql
-SHOW block_size;
-```
-
-```sql
-SELECT relpages, reltuples
-FROM pg_class
-WHERE relname = 'users';
-```
-
-```sql
-SELECT * FROM users;
-```
-
-For query timing:
-
-```powershell
-$t = Measure-Command { psql -d <database_name> -c "SELECT * FROM users;" | Out-Null }
-```
-
-### Observation Table
-
-| Metric | Observation |
-| --- | --- |
-| Page size / block size | `Not recorded` |
-| Page count | `Not recorded` |
-| Query execution time | `Not recorded` |
-
-## 3. SQLite3 vs PostgreSQL Comparison
-
-| Feature | SQLite3 | PostgreSQL |
-| --- | --- | --- |
-| Storage model | Single database file | Client-server database system |
-| Page size | `4096` bytes | `Not recorded` |
-| Page count | `977` | `Not recorded` |
-| Query performance | ~`857-874 ms` for full table scan | `Not recorded` |
-| mmap impact | Slight improvement observed | `Not tested` |
-| Setup complexity | Very simple | Higher than SQLite |
-
-## 4. Analysis
-
-- In SQLite, the database stayed compact and easy to inspect because everything was stored in a single file.
-- The page size was `4096` bytes and the page count was `977`, which matched the final database size.
-- Changing `mmap_size` did not produce a major difference in execution time for this dataset, although the mmap runs were slightly faster on average.
-- This suggests that for a small to medium local database, mmap may help a little, but the improvement is not very large in a simple full table scan.
-- The PostgreSQL commands required for the same comparison are listed above, but the corresponding observations were not recorded in this report.
-
-## Conclusion
-
-From the SQLite experiment, I was able to check file size, page size, page count, and the effect of changing `mmap_size` on query timing. The main difference I observed was that mmap gave only a small improvement for this particular database and query. The PostgreSQL section has been included in the same format for comparison, with fields left unrecorded where observations were not available.
+## 🎯 Verification and Conceptual Alignment
+All documents are structured around answering:
+1. *Why* the system was designed this way (design motivations).
+2. *What* physical storage layouts, memory structures, and transaction locks implement the design.
+3. *What* trade-offs were accepted during implementation (performance, durability, complexity).
+4. *How* these design decisions directly impact observable query planner performance and benchmark metrics.
