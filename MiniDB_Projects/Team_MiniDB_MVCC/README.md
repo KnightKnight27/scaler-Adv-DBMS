@@ -6,9 +6,8 @@
 
 | Field | Details |
 |-------|---------|
-| **Team Name** | _TODO: Add your team name_ |
-| **Member 1** | _Name, Email, Roll Number_ |
-| **Member 2** | _Name, Email, Roll Number_ |
+| **Team Name** | MiniDB_MVCC |
+| **Member 1** | Shreeya Reddy L, shreeya.24bcs10416@sst.scaler.com, 24BCS10416 |
 
 ---
 
