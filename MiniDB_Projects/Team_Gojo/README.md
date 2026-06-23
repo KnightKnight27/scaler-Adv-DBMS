@@ -1,6 +1,6 @@
 # **MiniDB — Relational Database System Engine**
 
-### **Team: stormborns**
+### **Team: Gojo**
 ### **Team Members**
 1. **Mehul Agarwal**  
    * **Roll Number**: 24bcs10128  
