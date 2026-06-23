@@ -364,5 +364,4 @@ tests/      run_tests.cpp (automated suite)
 docs/       architecture.md (design deep-dive)
 ```
 
-See `docs/architecture.md` for a component-by-component deep dive and the
-viva-prep notes.
+See `docs/architecture.md` for a component-by-component deep dive

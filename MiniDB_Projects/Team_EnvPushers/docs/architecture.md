@@ -1,7 +1,6 @@
 # MiniDB — Architecture & Design Notes
 
-A component-by-component deep dive, plus the trade-offs and viva-prep Q&A. Read
-this alongside the source; every header has a block comment explaining its role.
+A component-by-component deep dive, plus the trade-offs
 
 ---
 
@@ -146,40 +145,6 @@ converges to exactly "committed data present, in-flight data absent."
 then SSTables newest→oldest, first hit wins. Benchmarked vs. the B+ Tree store in
 `benchmarks/bench_lsm.cpp`.
 
----
 
-## 11. Viva-prep Q&A
 
-**Q. Where exactly is the write-ahead rule enforced?**
-`BufferPool::flush_frame` calls `before_flush(page_id)` (set in the `Database`
-constructor to `wal_->flush()`) before `disk_->write_page`. `COMMIT` additionally
-forces the log in `WAL::log_commit`.
 
-**Q. Why is recovery idempotent — what makes redo safe to re-run?**
-Operations are keyed by primary key and applied as upsert/delete, not by physical
-RID. Re-applying an upsert for a key already present is a no-op-equivalent
-overwrite, so replaying the log over an already-partly-updated file is safe.
-
-**Q. How do you guarantee serializability and not just avoid dirty reads?**
-Strict 2PL: shared locks for reads, exclusive for writes, all held to commit. No
-lock is released in the growing phase, so every schedule is conflict-serializable.
-
-**Q. How is a deadlock detected and resolved?**
-On a blocking request, `LockManager::has_deadlock` builds the wait-for graph and
-DFS-searches for a cycle through the requester. A cycle ⇒ the requester throws
-`DeadlockError` ⇒ `Database` aborts it (undo + release), unblocking the others.
-
-**Q. When does the optimizer choose an index scan?**
-When `WHERE` has a predicate on the primary key (`=`, `<`, `<=`, `>`, `>=`); it
-builds the key range and emits `IndexScan`, otherwise `SeqScan`. Visible via
-`.explain on`.
-
-**Q. What's the LSM's win and its cost?**
-Win: batched **sequential** writes ⇒ ~3× durable write throughput vs. the B+ Tree
-store (benchmark Exp. 2). Cost: reads probe multiple runs (read amplification)
-and overlapping runs use extra space (space amplification); **compaction** bounds
-both.
-
-**Q. Biggest simplifications you'd remove first?**
-Page the B+ Tree to disk (remove the in-memory rebuild) and move to row-level
-locking — see README §11.
