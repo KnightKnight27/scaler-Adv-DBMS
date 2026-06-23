@@ -25,3 +25,34 @@ target_include_directories(storage PUBLIC src)
 # Build the benchmark/test executable
 add_executable(benchmark benchmarks/benchmark.cpp)
 target_link_libraries(benchmark PRIVATE storage)
+
+# --- Track 3 (The Executor: Query & Concurrency) ---
+find_package(Threads REQUIRED)
+
+# Source files for Track 3
+set(QUERY_SOURCES
+    src/btree.cpp
+    src/execution.cpp
+    src/lock_manager.cpp
+)
+set(QUERY_HEADERS
+    src/btree.h
+    src/execution.h
+    src/lock_manager.h
+)
+
+# Build a static library for the query engine
+add_library(query_engine STATIC ${QUERY_SOURCES} ${QUERY_HEADERS})
+target_include_directories(query_engine PUBLIC src)
+target_link_libraries(query_engine PUBLIC Threads::Threads)
+
+# Track 3 unit tests
+enable_testing()
+add_executable(track3_test tests/track3_test.cpp)
+target_link_libraries(track3_test PRIVATE query_engine)
+# On MinGW, link the runtime statically so the test exe runs without needing
+# libstdc++/libwinpthread DLLs on PATH (keeps `ctest` self-contained).
+if(MINGW)
+    target_link_options(track3_test PRIVATE -static -static-libgcc -static-libstdc++)
+endif()
+add_test(NAME track3_test COMMAND track3_test)
