@@ -1,6 +1,6 @@
 # MiniDB — Advanced DBMS Capstone Project
 
-**Team Blast** · Advanced Database Management Systems · Scaler School of Technology
+**Team CodeKnights** · Advanced Database Management Systems · Scaler School of Technology
 
 ---
 
