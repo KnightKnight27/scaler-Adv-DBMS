@@ -193,6 +193,10 @@ int main(int argc, char* argv[]) {
             }
             std::cout << "[RECOVERY] Recovery complete. Applied " << applied_count << " log entries from WAL.\n\n";
             wal_check.close();
+
+            // Clear WAL since the database state is now recovered and consistent
+            std::ofstream clear_wal("wal.log", std::ios::trunc);
+            clear_wal.close();
         }
 
         // 2. Initialize storage components for checkpointing
