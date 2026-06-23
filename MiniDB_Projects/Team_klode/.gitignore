@@ -1,0 +1,7 @@
+build/
+demo_data/
+bench_data/
+test_data_smoke/
+benchmarks/benchmark_output.txt
+*.heap
+*.wal

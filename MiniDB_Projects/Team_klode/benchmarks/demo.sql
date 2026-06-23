@@ -1,0 +1,17 @@
+CREATE TABLE users (id, name, age);
+CREATE TABLE orders (id, user_id, amount);
+INSERT INTO users VALUES (1, Ada, 31);
+INSERT INTO users VALUES (2, Grace, 28);
+INSERT INTO users VALUES (3, Linus, 42);
+INSERT INTO orders VALUES (10, 1, 200);
+INSERT INTO orders VALUES (11, 3, 450);
+INSERT INTO orders VALUES (12, 2, 50);
+SELECT * FROM users;
+SELECT name FROM users WHERE id = 1;
+INDEX_DEMO users;
+SELECT name,amount FROM users JOIN orders ON users.id = orders.user_id WHERE amount > 100;
+STORAGE_DEMO;
+LOCK_DEMO;
+PERF_DEMO;
+DELETE FROM users WHERE id = 2;
+SELECT * FROM users;
