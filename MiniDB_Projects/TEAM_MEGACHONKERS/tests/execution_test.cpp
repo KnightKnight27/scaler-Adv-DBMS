@@ -21,10 +21,14 @@ protected:
     TransactionManager txn_manager{&lock_manager};
 
     void TearDown() override {
-        // Clean up any stray SSTables or WAL files created during executor tests
-        for (const auto& entry : std::filesystem::directory_iterator(".")) {
+        // Clean up any stray SSTables or WAL files created during executor tests.
+        // Best-effort: on Windows an open WAL handle (owned by the fixture's
+        // Catalog, which is destroyed *after* TearDown) keeps the file locked,
+        // so use the non-throwing overload and ignore "in use" errors.
+        std::error_code ec;
+        for (const auto& entry : std::filesystem::directory_iterator(".", ec)) {
             if (entry.path().extension() == ".sst" || entry.path().extension() == ".log") {
-                std::filesystem::remove(entry.path());
+                std::filesystem::remove(entry.path(), ec);
             }
         }
     }

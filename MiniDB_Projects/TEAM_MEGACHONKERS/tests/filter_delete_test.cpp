@@ -22,8 +22,11 @@ protected:
     TransactionManager txn_manager{&lock_manager};
 
     void TearDown() override {
-        for (const auto& entry : std::filesystem::directory_iterator(".")) {
-            if (entry.path().extension() == ".log") std::filesystem::remove(entry.path());
+        // Best-effort cleanup; ignore files still locked by an open WAL handle
+        // (see note in execution_test.cpp). Uses the non-throwing overload.
+        std::error_code ec;
+        for (const auto& entry : std::filesystem::directory_iterator(".", ec)) {
+            if (entry.path().extension() == ".log") std::filesystem::remove(entry.path(), ec);
         }
     }
 };

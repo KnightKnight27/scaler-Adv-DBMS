@@ -32,6 +32,16 @@ bool DeleteExecutor::Next(Row* row) {
         table->wal->Append(LogRecordType::DELETE_TOMBSTONE, lsm_key.Encode(), "");
         table->memtable->Delete(lsm_key);
 
+        // Index maintenance: drop the row from each secondary index. This only
+        // works when the child yields full rows (the planner's DELETE path uses
+        // a SeqScan, so it does); a PK-only child simply has no indexed columns
+        // to remove beyond column 0.
+        for (const auto& index : table->indexes) {
+            if (index->column_index < child_row.columns.size()) {
+                index->tree->Delete(child_row.columns[index->column_index]);
+            }
+        }
+
         delete_count++;
     }
 

@@ -34,6 +34,10 @@ add_library(minidb_core STATIC
     src/execution/insert_executor.cpp
     src/execution/seq_scan_executor.cpp
     src/execution/join_executor.cpp
+
+    src/parser/lexer.cpp
+    src/parser/parser.cpp
+    src/planner/planner.cpp
 )
 
 target_include_directories(minidb_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -72,6 +76,12 @@ target_link_libraries(optimizer_test PRIVATE minidb_core gtest_main)
 add_executable(compactor_test tests/compactor_test.cpp)
 target_link_libraries(compactor_test PRIVATE minidb_core gtest_main)
 
+add_executable(parser_test tests/parser_test.cpp)
+target_link_libraries(parser_test PRIVATE minidb_core gtest_main)
+
+add_executable(planner_test tests/planner_test.cpp)
+target_link_libraries(planner_test PRIVATE minidb_core gtest_main)
+
 include(GoogleTest)
 gtest_discover_tests(lsm_test)
 gtest_discover_tests(wal_test)
@@ -82,6 +92,8 @@ gtest_discover_tests(transaction_test)
 gtest_discover_tests(index_test)
 gtest_discover_tests(optimizer_test)
 gtest_discover_tests(compactor_test)
+gtest_discover_tests(parser_test)
+gtest_discover_tests(planner_test)
 
 
 

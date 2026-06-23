@@ -10,9 +10,26 @@ The system is strictly layered to ensure separation of concerns:
 
 2. **Recovery Layer:** Implements a Write-Ahead Log (WAL) with Group Commit to guarantee durability and crash recovery while maximizing sequential I/O throughput.
 
-3. **Execution Layer:** Implements the Volcano Iterator (Pipeline) Model. SQL operations are executed via chained operators (SeqScan, Insert, NestedLoopJoin).
+3. **Query Frontend (Lexer → Parser → Planner):** A hand-written lexer tokenizes SQL once; a recursive-descent parser builds a typed Abstract Syntax Tree (including rich, nested boolean expression trees for `WHERE`/`ON`); and the Planner lowers the AST into a physical executor pipeline. The cost-based Optimizer makes the plan **index-aware** — an equality predicate on an indexed column is routed to an `IndexScan` (O(log N)) instead of a `SeqScan + Filter` (O(N)).
 
-4. **Concurrency Layer:** Implements Strict Two-Phase Locking (2PL) via a thread-safe Lock Manager to guarantee serializable transaction isolation.
+4. **Execution Layer:** Implements the Volcano Iterator (Pipeline) Model. SQL operations are executed via chained operators (SeqScan, IndexScan, Filter, Projection, Insert, Delete, NestedLoopJoin).
+
+5. **Concurrency Layer:** Implements Strict Two-Phase Locking (2PL) via a thread-safe Lock Manager to guarantee serializable transaction isolation. `BEGIN` / `COMMIT` / `ROLLBACK` expose explicit transaction control in the REPL.
+
+## Query Processing Pipeline
+
+Every line entered at the REPL flows through a clean, layered frontend before it touches storage:
+
+```
+raw SQL ─▶ Lexer ─▶ Parser ─▶ AST ─▶ Planner ─▶ Optimizer ─▶ Executor tree ─▶ Volcano execution
+          (tokens)  (recursive (typed   (physical  (index-aware  (SeqScan/IndexScan/
+                     descent)   nodes)   plan)      cost model)    Filter/Projection/Join)
+```
+
+* **Lexer** (`src/parser/lexer.*`): single-pass tokenizer; keywords, identifiers, integer/string literals, comparison operators (`= != <> < <= > >=`), and punctuation.
+* **Expression trees** (`src/parser/expression.h`): `WHERE`/`ON` predicates are full trees of `Comparison`, `Logical (AND/OR)`, `ColumnRef`, and `Constant` nodes — supporting arbitrarily nested logic and parenthesized grouping, with numeric-aware comparison so `age > 9` correctly accepts `10`.
+* **Parser** (`src/parser/parser.*`): recursive descent producing a typed `Statement` AST. Supports `CREATE TABLE`, `CREATE INDEX`, multi-row `INSERT`, `SELECT` (projection lists, `JOIN ... ON`, `WHERE`), `DELETE ... WHERE`, and `BEGIN`/`COMMIT`/`ROLLBACK`. Syntax errors are returned as an `InvalidStatement` (never thrown).
+* **Planner** (`src/planner/planner.*`): binds column references to physical indices and emits the executor pipeline. Single-column equality predicates are sent through the **Optimizer**, which consults the table's B+Tree indexes and picks the cheaper of `IndexScan` vs `SeqScan + Filter`.
 
 ## Design Decisions
 
@@ -94,6 +111,20 @@ ctest --output-on-failure
 # 5. Run the performance benchmark
 ./lsm_benchmark
 ```
+
+### Building natively on Windows (MSYS2 / MinGW)
+
+```bash
+# Configure with the MinGW Makefiles generator
+cmake -S . -B build -G "MinGW Makefiles"
+cmake --build build -j4
+```
+
+Make sure the MSYS2 runtime DLLs are on `PATH` (e.g. `C:\msys64\ucrt64\bin`)
+before building or running `ctest`. CMake's `gtest_discover_tests` launches each
+test executable at build time to enumerate cases, and those executables need
+`libstdc++` / `libgcc` / `libwinpthread` to be resolvable, otherwise the build's
+test-discovery step fails even though compilation succeeded.
 
 ## Team Details 
 

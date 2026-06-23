@@ -32,11 +32,20 @@ bool InsertExecutor::Next(Row* row) {
         std::string primary_key = child_row.columns[0];
         InternalKey lsm_key{table_oid_, primary_key};
 
+        std::string serialized = child_row.Serialize();
+
         // 1. Durability: Write to the WAL first
-        table->wal->Append(LogRecordType::PUT, lsm_key.Encode(), child_row.Serialize());
+        table->wal->Append(LogRecordType::PUT, lsm_key.Encode(), serialized);
 
         // 2. Storage: Write to the MemTable
         table->memtable->Put(lsm_key, child_row);
+
+        // 3. Index maintenance: keep every secondary index in sync with the row.
+        for (const auto& index : table->indexes) {
+            if (index->column_index < child_row.columns.size()) {
+                index->tree->Insert(child_row.columns[index->column_index], serialized);
+            }
+        }
 
         insert_count++;
     }
