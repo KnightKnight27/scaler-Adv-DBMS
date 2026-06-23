@@ -1,0 +1,6 @@
+# build artifacts
+/build/
+/build-cmake/
+/minidb
+*.o
+*.db
