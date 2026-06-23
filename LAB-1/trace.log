@@ -1,0 +1,31 @@
+execve("./file_io", ["./file_io"], 0x7ffde1234560 /* 20 vars */) = 0
+brk(NULL)                               = 0x5631c8a12000
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f3c2b100000
+access("/etc/ld.so.cache", F_OK)        = 0
+openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+close(3)                                = 0
+openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libstdc++.so.6", O_RDONLY|O_CLOEXEC) = 3
+close(3)                                = 0
+openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+close(3)                                = 0
+mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f3c2b0ff000
+fstat(1, {st_mode=S_IFCHR|0620, st_rdev=makedev(0x88, 0), ...}) = 0
+
+--- write phase ---
+openat(AT_FDCWD, "assignment-data.txt", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3
+write(3, "Advanced DBMS Lab 1\nThis file wa"..., 178) = 178
+fsync(3)                                = 0
+close(3)                                = 0
+write(1, "File written successfully: assign"..., 48) = 48
+write(1, "\n", 1)                       = 1
+
+--- read phase ---
+openat(AT_FDCWD, "assignment-data.txt", O_RDONLY) = 3
+read(3, "Advanced DBMS Lab 1\nThis file wa"..., 1023) = 178
+close(3)                                = 0
+write(1, "Read back from file:\n\n", 22) = 22
+write(1, "Advanced DBMS Lab 1\nThis file wa"..., 178) = 178
+write(1, "\n", 1)                       = 1
+
+exit_group(0)                           = ?
++++ exited with 0 +++
