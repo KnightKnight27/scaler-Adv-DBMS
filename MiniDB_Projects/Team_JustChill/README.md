@@ -112,7 +112,7 @@ A layered version with per-component detail lives in
 | Durability | `wal.*` | Write-ahead log with BEGIN/COMMIT framing + committed-replay recovery |
 | Distribution | `replication.*` | Primary/replica synchronous log shipping over TCP |
 | Server | `main.cpp` | CLI, parse→optimize→execute, recovery, checkpoint daemon, replication wiring |
-| Benchmarks | `benchmarks/*` | Storage + query-engine performance harnesses |
+| Benchmarks | `benchmarks/*` | Live database query performance harness |
 
 ### Data flow
 
@@ -370,7 +370,7 @@ Two complementary mechanisms:
 The combination provides **serializable** isolation. Strict 2PL forbids cascading
 aborts and non-serializable interleavings; the global lock makes statement
 execution effectively serial, which trivially guarantees serializability at the
-cost of concurrency (quantified in §10, "Global Lock Penalty").
+cost of concurrency.
 
 ### Deadlock handling
 **Timeout-based, not graph-based.** A lock request blocks on a condition variable
@@ -443,88 +443,50 @@ A two-node **primary/replica** topology ([replication.cpp](src/replication.cpp))
   primary's state — providing consistent read replicas.
 
 ### Results
-Measured on loopback TCP (see §10 for the full table):
-- **Replication throughput:** ~38,479 QPS, avg latency 25.99 µs.
-- **Network penalty:** ~14× vs. a local-only INSERT (1.87 µs → 25.99 µs) — write
-  throughput under synchronous replication is bound by loopback round-trip and
-  kernel socket overhead.
-- **Failure detection:** a replica crash/hang aborts the transaction in exactly
-  **2.00 s** (the socket receive timeout).
+- **Synchronous replication cost:** Under synchronous replication, write statements must be ACKed by the replica before committing on the primary. The Write Storm benchmark achieves **15,905 QPS** (average latency of **64.03 µs** per write query), indicating that throughput is bound by loopback round-trip and TCP network socket overhead.
+- **Failure detection:** A replica crash or network hang aborts the transaction on the primary in exactly **2.00 s** (the socket receive timeout), preventing the primary from blocking indefinitely.
 
 ---
 
 ## 10. Benchmarks
 
-Two harnesses ship with the project:
-- `benchmark` ([benchmarks/benchmark.cpp](benchmarks/benchmark.cpp)) — a
-  storage + query-engine harness (warmup pass, repeated runs, median throughput,
-  per-workload correctness checks).
-- `query_benchmark` ([benchmarks/query_benchmark.cpp](benchmarks/query_benchmark.cpp))
-  — the query-engine workload suite with latency percentiles.
+The project includes an end-to-end performance benchmark that targets the live, running system:
+- `live_query_benchmark.py` ([benchmarks/live_query_benchmark.py](benchmarks/live_query_benchmark.py)) — the end-to-end database pipeline benchmark executing queries against the live, running `minidb` subprocess processes via standard streams IPC.
 
 ### Experimental setup
-- **Machine:** Asus TUF F15 (2021).
-- **CPU:** 11th Gen Intel Core i7-11800H — 8 cores / 16 threads, 2.3 GHz base,
-  up to 4.6 GHz turbo, 24 MB cache.
-- **RAM:** 16 GB DDR4-3200 (2×8 GB, dual-channel).
-- **Storage:** 512 GB M.2 NVMe PCIe 3.0 SSD.
-- **OS:** Fedora Linux.
-- **Network:** nodes over `127.0.0.1` (loopback TCP) — local synchronous log
-  shipping.
-- **Config:** page size 4096 B; buffer pool 10 frames (primary) / 3 frames
-  (storage unit tests); global-lock concurrency control.
-- **Dataset:** cold start (0 rows), pre-populated sequentially for read/update
-  workloads; query engine tested at `N = 10,000`.
+- **Machine:** Asus TUF F15 / 12th Gen Intel Core i7.
+- **CPU:** 12th Gen Intel(R) Core(TM) i7-12700H — 14 cores / 20 threads, up to 4.7 GHz, 24 MB cache.
+- **RAM:** 16 GB DDR4.
+- **Storage:** M.2 NVMe SSD.
+- **OS:** Fedora Linux (Workstation Edition).
+- **Network:** nodes over `127.0.0.1` (loopback TCP) — local synchronous log shipping.
+- **Config:** page size 4096 B; buffer pool 64 frames (data pool) / 128 frames (index pool); global-lock concurrency control.
+
+### Methodology
+To measure the complete end-to-end system performance, the `live_query_benchmark.py` harness launches the actual compiled `./minidb` executable in both `primary` and `replica` modes as live background subprocesses:
+- Environment variables `stdbuf -oL -eL` are used to enforce line-buffering on the child process's standard output.
+- Queries (INSERTs, SELECTs) are piped into the primary node's standard input (`stdin`).
+- The harness reads the child process's stdout line-by-line using Python subprocess I/O, waiting until the print logs confirm completion (e.g., reading until `[WAL] COMMIT logged` for inserts or `(X rows)` for selects).
+- The benchmarks run 100 iterations of 1,000 queries per workload to average out scheduling jitter, process context switches, and network latency, calculating arithmetic means for throughput and percentiles.
 
 ### Results
 
-> **Note:** the numbers below were measured against the earlier *in-memory*
-> executor. The engine is now **page-backed** (slotted pages + buffer pool +
-> on-disk B+ Tree), so absolute throughput is lower and dominated by buffer-pool
-> hits and eviction I/O; the *relative* findings (index ≫ scan, replication and
-> global-lock penalties) still hold. Re-running the benchmarks on the
-> page-backed engine is pending.
+> **Note:** The numbers below reflect the fully page-backed relational query engine (slotted pages, LRU buffer pool, on-disk persistent B+ Tree, WAL logging, and TCP loopback replication) running on the specified experimental setup.
 
-**Core query workloads (N = 10,000):**
+These benchmarks measure the actual user-facing performance when piping SQL text commands to the live primary process (replicated to replica):
 
-| Workload | Description | Throughput | Avg | p50 | p90 | p99 |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| Write Storm (INSERT) | 10k sequential inserts, cold DB | **534,238 QPS** | 1.87 µs | 1.94 | 2.22 | 4.84 |
-| Point Lookups (SELECT PK) | 10k IndexScan descents | **2,215,010 QPS** | 0.45 µs | 0.43 | 0.50 | 0.81 |
-| Full Table Scans (SELECT \*) | 100 scans over 10k rows | **1,253 QPS** | 797.55 µs | 791.12 | 848.67 | 1125.97 |
-| Mixed CRUD (70/30) | 70% lookups / 30% inserts | **1,295,855 QPS** | 0.77 µs | 0.58 | 1.18 | 2.29 |
-
-**Storage layer:**
-
-| Workload | Size | Duration | Throughput |
-| :--- | :--- | :---: | :---: |
-| Sequential page allocate + write | 1,000 pages | 0.0137 s | **72,897 pages/sec** |
-| Cache-hit reads (100% hits) | 500,000 ops | 0.4051 s | **1,234,180 hits/sec** |
-| Random mixed (20% writes, evictions) | 10,000 ops | 0.0244 s | **410,293 ops/sec** |
-
-**Failure & recovery:**
-- WAL crash recovery (replay 10k committed inserts): **13.73 ms**, ≈ **728,342
-  rows/sec**.
-- Failure detection (replica crash/timeout abort): **2.00 s** (socket timeout).
-
-**Replication (loopback TCP):** **38,479 QPS**, avg 25.99 µs, p50 23.07 / p90
-31.55 / p99 70.38 µs.
+| Workload | Throughput | Avg | p50 | p90 | p99 |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| Write Storm (INSERT) | **15,905 QPS** | 64.03 µs | 49.96 µs | 102.23 µs | 191.94 µs |
+| Point Lookups (SELECT PK) | **94,133 QPS** | 10.90 µs | 10.28 µs | 12.34 µs | 22.46 µs |
+| Full Table Scans (SELECT \*) | **2,023 QPS** | 497.23 µs | 489.58 µs | 577.91 µs | 577.91 µs |
+| Mixed CRUD (70/30) | **39,753 QPS** | 25.70 µs | 11.57 µs | 56.48 µs | 117.16 µs |
 
 ### Analysis
-- **Index vs. scan.** Point lookups (≈2.2 M QPS) dramatically beat per-row scan
-  cost — the full-scan workload pays ~800 µs to traverse 10k rows, validating the
-  B+ Tree for selective queries.
-- **Synchronous replication bottleneck.** Replication caps writes at ~38k QPS — a
-  ~14× latency penalty over local writes. Synchronous durability across nodes is
-  bound by network RTT, even on loopback.
-- **Global-lock penalty.** The coarse `global_db_lock` serializes execution,
-  preventing B+ Tree split races but capping concurrent scalability (the mixed
-  CRUD number reflects sequentialized throughput).
-- **Durability I/O cost.** Flushing the WAL before commit costs write latency, but
-  sequential log replay reconstructs state fast (~728k rows/sec).
-- **Checkpoint trade-off.** The 5-minute checkpoint daemon flushes dirty pages and
-  truncates the WAL, introducing a brief latency spike in exchange for bounded
-  recovery time — a classic systems trade-off.
+- **Index vs. scan.** Point lookups dramatically beat per-row scan cost — the full-scan workload pays milliseconds to traverse rows, validating the B+ Tree for selective queries.
+- **Process I/O & IPC overhead.** Processing SQL queries sequentially through the live process standard streams IPC introduces formatting, parsing, and inter-process communication overhead.
+- **Synchronous replication bottleneck.** Replicating mutations synchronously before committing caps write throughput (Write Storm is at **15,905 QPS**), as the primary blocks waiting for replica TCP loopback network ACKs.
+- **Checkpoint trade-off.** The 5-minute checkpoint daemon flushes dirty pages and truncates the WAL, introducing a brief latency spike in exchange for bounded recovery time — a classic systems trade-off.
 
 ---
 
@@ -555,9 +517,8 @@ We would rather document what is incomplete or fragile than hide it.
 
 ### Scalability limits
 - **Coarse concurrency.** Table-level 2PL plus a global statement lock serialize
-  execution; throughput does not scale with cores (see §10).
-- **Synchronous replication** bounds write throughput to network RTT (~38k QPS on
-  loopback).
+  execution; throughput does not scale with cores.
+- **Synchronous replication** bounds write throughput to network RTT and acknowledgement round-trip times (Write Storm is at **15,905 QPS** on loopback).
 - **Tombstone deletes never reclaim space** — neither slotted-page slots nor B+
   Tree leaf entries are compacted, so delete-heavy workloads grow unbounded.
 - **B+ Tree duplicate keys across leaves under-count** in range scans. Benign
@@ -599,15 +560,14 @@ cmake --build build
 ```
 Targets produced: `storage` (WAL + replication), `query_engine` (the page-backed
 engine: storage core + index + SQL front-end + transactions); tests
-`track3_test`, `track4_test`, `track5_test`, `track1_2_test`; benchmarks
-`benchmark`, `query_benchmark`; and `minidb` (server).
+`track3_test`, `track4_test`, `track5_test`, `track1_2_test`; and `minidb` (server).
 
-### Run the tests and benchmarks
+### Run the tests and live benchmark
 ```bash
 cd build
 ctest --output-on-failure     # track3 + track4 + track5 (+ track1_2 on Linux)
-./benchmark                   # storage + query-engine benchmark (optional N)
-./query_benchmark 10000       # query-engine workloads with percentiles
+cd ..
+python3 benchmarks/live_query_benchmark.py
 ```
 `track5_test` covers the storage integration: slotted pages, the page-backed
 heap table + B+ tree (incl. eviction and persistence across reopen),
