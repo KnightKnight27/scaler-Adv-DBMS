@@ -30,7 +30,7 @@ int main() {
 
 Compile and create a test file:
 ```bash
-echo "hello from lab 1" > test.txt
+echo "hello from lab 1" > temp.txt
 g++ -o reader reader.cpp
 ```
 
@@ -54,7 +54,7 @@ Key syscalls observed:
 
 Full trace (condensed example):
 ```
-openat(AT_FDCWD, "test.txt", O_RDONLY) = 3
+openat(AT_FDCWD, "temp.txt", O_RDONLY) = 3
 fstat(3, {st_mode=S_IFREG|0644, st_size=18, ...}) = 0
 read(3, "hello from lab 1\n", 4096)    = 18
 read(3, "", 4096)                       = 0    # EOF
@@ -74,10 +74,10 @@ When `openat` is called, the kernel does:
 
 Check the inode number of a file:
 ```bash
-ls -i test.txt
-# e.g.: 1234567 test.txt
+ls -i temp.txt
+# e.g.: 1234567 temp.txt
 
-stat test.txt
+stat temp.txt
 # shows: Inode: 1234567, Links: 1, Size: 18, Blocks: 8
 ```
 
