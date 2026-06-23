@@ -1,0 +1,18 @@
+# Build output
+build/
+
+# Database artifacts produced at runtime / by demos / by benchmarks
+*.db
+*.wal
+*.catalog
+bench_bt.db
+bench_*_dir/
+test_lsm_dir/
+prof.db
+recoverydemo.*
+txndemo.*
+demo.*
+mydb.*
+
+# OS / editor noise
+.DS_Store
