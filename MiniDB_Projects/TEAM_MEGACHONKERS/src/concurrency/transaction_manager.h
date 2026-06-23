@@ -32,11 +32,13 @@ public:
     void Commit(Transaction* txn) {
         txn->SetState(TransactionState::COMMITTED);
 
-        // Strict 2PL: Release all locks at commit time
-        for (const auto& lock_key : txn->GetSharedLockSet()) {
+        auto shared_locks = txn->GetSharedLockSet();
+        auto exclusive_locks = txn->GetExclusiveLockSet();
+
+        for (const auto& lock_key : shared_locks) {
             lock_manager_->Unlock(txn, lock_key);
         }
-        for (const auto& lock_key : txn->GetExclusiveLockSet()) {
+        for (const auto& lock_key : exclusive_locks) {
             lock_manager_->Unlock(txn, lock_key);
         }
 

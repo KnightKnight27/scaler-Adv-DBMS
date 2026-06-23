@@ -26,8 +26,10 @@ add_library(minidb_core STATIC
     src/recovery/wal.cpp
     src/catalog/catalog.cpp
     src/concurrency/lock_manager.cpp
-
     src/storage/btree/bplus_tree.cpp
+
+    src/recovery/recovery_manager.cpp
+    src/execution/delete_executor.cpp
 
     src/execution/insert_executor.cpp
     src/execution/seq_scan_executor.cpp
@@ -52,10 +54,23 @@ target_link_libraries(wal_test PRIVATE minidb_core gtest_main)
 add_executable(execution_test tests/execution_test.cpp)
 target_link_libraries(execution_test PRIVATE minidb_core gtest_main)
 
+add_executable(recovery_test tests/recovery_test.cpp)
+target_link_libraries(recovery_test PRIVATE minidb_core gtest_main)
+
+add_executable(filter_delete_test tests/filter_delete_test.cpp)
+target_link_libraries(filter_delete_test PRIVATE minidb_core gtest_main)
+
+add_executable(transaction_test tests/transaction_test.cpp)
+target_link_libraries(transaction_test PRIVATE minidb_core gtest_main)
+
 include(GoogleTest)
 gtest_discover_tests(lsm_test)
 gtest_discover_tests(wal_test)
 gtest_discover_tests(execution_test)
+gtest_discover_tests(recovery_test)
+gtest_discover_tests(filter_delete_test)
+gtest_discover_tests(transaction_test)
+
 
 
 # Benchmarks
