@@ -19,8 +19,8 @@ Team name: Team_BlueLeaf
 
 | Name | Roll number | Scaler email |
 |------|-------------|--------------|
-| TODO: full name | TODO: SCALER_xxxxx | naverdo.sandeep@scalerailabs.com |
-| TODO: teammate | TODO | TODO |
+| Naverdo Sandeep | 24BCS10076 | naverdo.24BCS10076@sst.scaler.com |
+| Anishka Nase | 24BCS10075 | nase.24BCS10075@sst.scaler.com |
 
 ## 1. Project Overview
 
@@ -121,7 +121,7 @@ pool) on our machine:
 | metric | row store | LSM |
 |---|---|---|
 | write throughput (ops/sec) | about 155,000 | about 1,000,000 |
-| point-read latency (us/op) | about 1.2 | about 4.4 |
+| point-read latency (microseconds/op) | about 1.2 | about 4.4 |
 | space amplification | about 1.3x | about 1.1x (1.12x after compaction) |
 
 This is the expected trade-off: the LSM is roughly 6x faster on writes (sequential MemTable plus
