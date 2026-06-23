@@ -1,0 +1,17 @@
+# Compiled binaries and object files (build locally; not checked in)
+
+# Lab 4 - Red-Black Tree (Part 1)
+Lab-4/Part1-RBT/rbtree
+Lab-4/Part1-RBT/*.o
+
+# Lab 4 - B-Tree (Part 2)
+Lab-4/Part2-BTree/btree
+Lab-4/Part2-BTree/btree.exe
+
+# Lab 5 - Shunting-Yard + SQL parser
+Lab-5/sqlmini
+Lab-5/*.o
+
+# Lab 6 - Transaction Manager (MVCC + 2PL)
+Lab-6/txnmgr
+Lab-6/*.o
