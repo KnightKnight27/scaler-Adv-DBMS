@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Pre-commit: format staged files and verify build
+set -e
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cpp|h|hpp|cc)$' || true)
+
+if [ -n "$STAGED" ]; then
+ echo "[pre-commit] Formatting staged C++ files..."
+ echo "$STAGED" | xargs clang-format -i
+ echo "$STAGED" | xargs git add
+fi
+
+if [ -f CMakeLists.txt ] || git diff --cached --name-only | grep -qE '\.(cpp|h|hpp|cc)$'; then
+ echo "[pre-commit] Verifying build..."
+ if [ ! -d build ]; then
+ mkdir build
+ fi
+ (cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug > /dev/null 2>&1 && make -j$(sysctl -n hw.ncpu) > /dev/null 2>&1)
+ if [ $? -ne 0 ]; then
+ echo "[pre-commit] Build failed. Fix errors before committing."
+ exit 1
+ fi
+ echo "[pre-commit] Build OK."
+fi
+
+exit 0

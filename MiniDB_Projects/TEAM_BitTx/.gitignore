@@ -1,0 +1,32 @@
+# Build artifacts
+build/
+cmake-build-*/
+out/
+bin/
+
+# Compiled binaries
+*.out
+*.exe
+*.o
+*.dylib
+*.dSYM/
+a.out
+core
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Database runtime files
+*.db
+*.db-wal
+*.db-shm
+*.wal
+*.log
