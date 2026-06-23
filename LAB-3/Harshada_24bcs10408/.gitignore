@@ -1,0 +1,24 @@
+# Ignore compiled C++ files
+*.exe
+*.out
+*.o
+*.obj
+
+# Ignore build folders (if any)
+build/
+bin/
+dist/
+
+# Ignore VS Code settings (optional)
+.vscode/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore temporary files
+*.log
+*.tmp
+
+# If you don't want to upload screenshots, uncomment this:
+# screenshot/
