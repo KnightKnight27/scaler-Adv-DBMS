@@ -1,0 +1,11 @@
+build/
+Debug/
+Release/
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.sln
+.vs/
+CMakeCache.txt
+CMakeFiles/
