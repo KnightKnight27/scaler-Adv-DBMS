@@ -1,0 +1,6 @@
+minidb
+minidb_data/
+build/
+*.o
+reference_code/
+.DS_Store
