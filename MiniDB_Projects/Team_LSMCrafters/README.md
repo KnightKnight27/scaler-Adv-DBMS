@@ -13,10 +13,8 @@ store.
 
 | Name | Roll Number | Email |
 |---|---|---|
-| Nishant Dasgupta | 24BCS10451 | nishant.24bcs10451@sst.scaler.com
- |
-| Kartik Pettugani | 24BCS10418 | Veera.24BCS10418@sst.scaler.com 
- |
+| Nishant Dasgupta | 24BCS10451 | nishant.24bcs10451@sst.scaler.com|
+| Kartik Pettugani | 24BCS10418 | Veera.24BCS10418@sst.scaler.com |
 | NEERASA VEDA VARSHIT | 24bcs10005 | neerasa.24bcs10005@sst.scaler.com |
 
 
