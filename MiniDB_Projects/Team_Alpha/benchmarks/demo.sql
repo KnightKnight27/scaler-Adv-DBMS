@@ -1,0 +1,14 @@
+CREATE TABLE users (id INT PRIMARY KEY, name STRING, age INT);
+CREATE TABLE orders (oid INT PRIMARY KEY, uid INT, amount INT);
+INSERT INTO users VALUES (1, 'Alice', 30);
+INSERT INTO users VALUES (2, 'Bob', 25);
+INSERT INTO users VALUES (3, 'Carol', 40);
+INSERT INTO orders VALUES (100, 1, 250);
+INSERT INTO orders VALUES (101, 1, 75);
+INSERT INTO orders VALUES (102, 2, 300);
+SELECT * FROM users;
+SELECT name, age FROM users WHERE age > 28;
+SELECT users.name, orders.amount FROM users, orders WHERE users.id = orders.uid;
+SELECT * FROM users WHERE id = 2;
+DELETE FROM users WHERE id = 3;
+SELECT * FROM users;

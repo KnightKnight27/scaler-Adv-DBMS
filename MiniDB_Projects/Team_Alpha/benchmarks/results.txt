@@ -1,0 +1,22 @@
+=================  MiniDB BENCHMARKS  =================
+
+## Benchmark 1: Index Scan vs Sequential Scan (point lookup)
+rows       seqScan(us/query)    idxScan(us/query)    speedup   
+2000       1972                 340                  5.8x      
+10000      2651                 94                   28.2x     
+40000      16632                69                   241.0x    
+Index point lookup is ~constant (O(log n)); seq scan grows linearly with rows.
+
+## Benchmark 2: Buffer Pool Hit Rate
+Read-only scan phase: hits=2050 misses=0 hitRate=100.0%
+Hot pages stay cached, so repeated scans hit the buffer pool instead of disk.
+
+## Benchmark 3: MVCC vs 2PL Reader Blocking Under Write Contention
+(1 writer with ~50us lock hold + 1 reader, single hot row)
+scheme       avg read lock-acquire wait (us)
+2PL          32.50                         
+MVCC         6.16                          
+Reader wait reduction with MVCC: 5.3x less waiting per read
+2PL readers block until the writer releases the exclusive lock on the hot row;
+MVCC readers see a consistent snapshot immediately and never wait.
+
