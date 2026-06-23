@@ -446,9 +446,46 @@ These observations directly connect InnoDB's internal architecture to its real-w
 
 ## 6. Key Learnings
 
-1. **Storage Layout Dictates Performance Profiles:** InnoDB’s design proves that table organization and primary key selection dictate overall system throughput. Choosing a poor primary key can cripple performance due to index fragmentation and page splits.
-2. **Logging Layer Separation Benefits Concurrency:** Splitting write concerns into decoupled paths—Redo Logs for write performance, Undo Logs for MVCC isolation, and the Doublewrite Buffer for physical structural integrity—allows InnoDB to achieve high transactional throughput without sacrificing correctness.
-3. **Data Compaction Mitigates IO Bottlenecks:** By keeping modifications in-place and cleaning up historical data asynchronously via background Purge Threads, InnoDB avoids the table-bloat and high disk-I/O maintenance costs associated with append-only storage architectures.
+1. **Primary Key Selection Matters More Than Expected**
+   Because table rows are physically organized by the clustered index, primary key design directly affects storage locality, page splits, and overall query performance.
+
+2. **Concurrency Is Achieved Through Multiple Coordinated Mechanisms**
+   InnoDB does not rely on a single technique for concurrency. MVCC, row-level locks, gap locks, and undo logs work together to provide both isolation and throughput.
+
+3. **Durability Comes From Layered Protection**
+   Redo Logs, the Doublewrite Buffer, and crash recovery mechanisms each solve different failure scenarios. Together they allow committed transactions to survive unexpected crashes.
+
+4. **Secondary Indexes Have Hidden Costs**
+   Although secondary indexes improve lookup performance, they introduce an additional clustered-index traversal. Understanding this behavior is important when designing indexes for large tables.
+
+5. **Database Internals Explain Query Behavior**
+   Observing execution plans and locking behavior demonstrated that many performance characteristics are direct consequences of architectural decisions rather than optimizer choices alone.
 
 
 ---
+
+## References
+
+### Official Documentation
+
+1. MySQL Documentation – InnoDB Storage Engine
+   https://dev.mysql.com/doc/refman/8.0/en/innodb-storage-engine.html
+
+2. MySQL Documentation – InnoDB Architecture
+   https://dev.mysql.com/doc/refman/8.0/en/innodb-architecture.html
+
+3. MySQL Documentation – InnoDB Buffer Pool
+   https://dev.mysql.com/doc/refman/8.0/en/innodb-buffer-pool.html
+
+4. MySQL Documentation – InnoDB Locking and Transaction Model
+   https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html
+
+5. MySQL Documentation – InnoDB Multi-Versioning (MVCC)
+   https://dev.mysql.com/doc/refman/8.0/en/innodb-multi-versioning.html
+
+
+### Experimental Environment
+
+6. MySQL Community Server 8.0.44
+
+7. MySQL Workbench
