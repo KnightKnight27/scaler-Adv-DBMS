@@ -38,9 +38,16 @@ class InsertStatement(Statement):
 class SelectStatement(Statement):
     table_name: str
     predicate: Predicate | None = None
+    predicates: list[Predicate] = field(default_factory=list)
     join: JoinClause | None = None
     explain: bool = False
     count_star: bool = False
+
+    def __post_init__(self) -> None:
+        if self.predicates and self.predicate is None:
+            self.predicate = self.predicates[0]
+        elif self.predicate is not None and not self.predicates:
+            self.predicates = [self.predicate]
 
 
 @dataclass(slots=True)
@@ -87,15 +94,19 @@ class SQLParser:
         re.IGNORECASE,
     )
     SIMPLE_SELECT_RE = re.compile(
-        r"^SELECT\s+(?P<select>\*|COUNT\(\*\))\s+FROM\s+(?P<table>\w+)(?:\s+WHERE\s+(?P<column>\w+)\s*=\s*(?P<value>.+))?$",
+        r"^SELECT\s+(?P<select>\*|COUNT\(\*\))\s+FROM\s+(?P<table>\w+)(?:\s+WHERE\s+(?P<where>.+))?$",
         re.IGNORECASE | re.DOTALL,
     )
     DELETE_RE = re.compile(
-        r"^DELETE\s+FROM\s+(?P<table>\w+)\s+WHERE\s+(?P<column>\w+)\s*=\s*(?P<value>.+)$",
+        r"^DELETE\s+FROM\s+(?P<table>\w+)\s+WHERE\s+(?P<where>.+)$",
         re.IGNORECASE | re.DOTALL,
     )
     EXPLAIN_RE = re.compile(r"^EXPLAIN\s+(.+)$", re.IGNORECASE | re.DOTALL)
     SET_MODE_RE = re.compile(r"^SET\s+MODE\s+(2PL|MVCC)$", re.IGNORECASE)
+    PREDICATE_RE = re.compile(
+        r"^(?P<column>\w+)\s*(?P<operator>>=|<=|=|>|<)\s*(?P<value>.+)$",
+        re.IGNORECASE | re.DOTALL,
+    )
 
     def parse(self, sql: str) -> Statement:
         cleaned = sql.strip().rstrip(";").strip()
@@ -161,26 +172,21 @@ class SQLParser:
             )
 
         if select_match := self.SIMPLE_SELECT_RE.match(cleaned):
-            predicate = None
-            if select_match.group("column"):
-                predicate = Predicate(
-                    column=select_match.group("column"),
-                    operator="=",
-                    value=self._parse_value(select_match.group("value")),
-                )
+            predicates = self._parse_where_clause(select_match.group("where"))
+            predicate = predicates[0] if predicates else None
             return SelectStatement(
                 raw_sql=sql,
                 table_name=select_match.group("table"),
                 predicate=predicate,
+                predicates=predicates,
                 count_star=select_match.group("select").upper() == "COUNT(*)",
             )
 
         if delete_match := self.DELETE_RE.match(cleaned):
-            predicate = Predicate(
-                column=delete_match.group("column"),
-                operator="=",
-                value=self._parse_value(delete_match.group("value")),
-            )
+            predicates = self._parse_where_clause(delete_match.group("where"))
+            if len(predicates) != 1:
+                raise SQLParseError("DELETE currently supports exactly one WHERE predicate.")
+            predicate = predicates[0]
             return DeleteStatement(
                 raw_sql=sql,
                 table_name=delete_match.group("table"),
@@ -228,4 +234,52 @@ class SQLParser:
         if current:
             items.append("".join(current).strip())
         return items
+
+    def _parse_where_clause(self, payload: str | None) -> list[Predicate]:
+        if payload is None:
+            return []
+        predicates: list[Predicate] = []
+        for clause in self._split_and_clauses(payload):
+            match = self.PREDICATE_RE.match(clause)
+            if match is None:
+                raise SQLParseError(f"Unsupported predicate '{clause}'.")
+            predicates.append(
+                Predicate(
+                    column=match.group("column"),
+                    operator=match.group("operator"),
+                    value=self._parse_value(match.group("value")),
+                )
+            )
+        return predicates
+
+    def _split_and_clauses(self, payload: str) -> list[str]:
+        clauses: list[str] = []
+        current: list[str] = []
+        quote_char: str | None = None
+        index = 0
+        while index < len(payload):
+            char = payload[index]
+            if char in {"'", '"'}:
+                if quote_char == char:
+                    quote_char = None
+                elif quote_char is None:
+                    quote_char = char
+                current.append(char)
+                index += 1
+                continue
+            if (
+                quote_char is None
+                and payload[index : index + 3].upper() == "AND"
+                and (index == 0 or payload[index - 1].isspace())
+                and (index + 3 == len(payload) or payload[index + 3].isspace())
+            ):
+                clauses.append("".join(current).strip())
+                current = []
+                index += 3
+                continue
+            current.append(char)
+            index += 1
+        if current:
+            clauses.append("".join(current).strip())
+        return [clause for clause in clauses if clause]
 

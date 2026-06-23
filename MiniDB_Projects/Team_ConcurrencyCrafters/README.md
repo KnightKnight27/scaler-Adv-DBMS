@@ -105,6 +105,7 @@ The supported SQL subset is intentionally scoped to the capstone:
 - `CREATE INDEX`
 - `INSERT`
 - `SELECT`
+- `SELECT COUNT(*)`
 - `DELETE`
 - `JOIN`
 - `EXPLAIN`
@@ -113,7 +114,7 @@ The supported SQL subset is intentionally scoped to the capstone:
 - `ROLLBACK`
 - `SET MODE`
 
-`parser.py` converts these statements into typed statement objects that the engine routes through the optimizer and executor. Single-table reads use either `TABLE_SCAN` or `INDEX_SCAN`; equi-joins use a nested-loop join; deletes use predicate matching plus transactional hooks; and `EXPLAIN` returns the chosen physical operator and supporting details rather than executing the plan.
+`parser.py` converts these statements into typed statement objects that the engine routes through the optimizer and executor. Single-table reads use `TABLE_SCAN`, `INDEX_SCAN`, or `INDEX_RANGE_SCAN`; equi-joins use a nested-loop join; simple `AND` predicates are supported across equality and integer range filters; `COUNT(*)` returns a deterministic count row; deletes use predicate matching plus transactional hooks; and `EXPLAIN` returns the chosen physical operator and supporting details rather than executing the plan.
 
 The optimizer is lightweight but explicit. It tracks row count and page count statistics in the catalog, estimates equality selectivity as `1 / row_count` for indexed primary-key predicates, falls back to `0.1` for unknown predicates, chooses index access when it is available, and orders joins with the smaller estimated input first. These are educational approximations, but they are visible, testable, and consistent with the current engine behavior.
 
@@ -161,6 +162,14 @@ The read path still starts with the B+ Tree for keyed access. The index finds th
 | Strength | Simple serializable baseline | Better read concurrency under contention |
 | Cost | Blocking under hot-key contention | Version storage overhead and cleanup debt |
 
+## Additional Strengthening Features
+
+- `COUNT(*)` now works for full-table reads, filtered reads, and join queries, returning a deterministic count row such as `[{\"count\": 2}]`.
+- Simple `AND` predicate support now covers conjunctions of equality and integer range filters such as `id = 1 AND balance = 1000`.
+- Integer primary-key range predicates such as `id >= 1 AND id <= 10` now use `INDEX_RANGE_SCAN` instead of falling back to a full table scan.
+- `engine.vacuum()` provides a manual MVCC cleanup pass that removes obsolete committed versions while preserving any version still needed by an active snapshot.
+- The recovery report now distinguishes committed replay from uncommitted discard with `redone_operations` and `undone_or_ignored_operations`.
+
 ## Benchmarks
 
 ### Objective
@@ -195,10 +204,10 @@ The checked-in benchmark artifacts were generated from the repository scripts in
 
 The latest generated results in `benchmarks/benchmark_results.md` show:
 
-- `read_heavy`: `2PL` reached `225.78 tx/s`, while `MVCC` reached `375.71 tx/s`
+- `read_heavy`: `2PL` reached `232.17 tx/s`, while `MVCC` reached `340.05 tx/s`
 - `hot_key_contention`: `2PL` blocked `80` reads, while `MVCC` blocked `0`
-- `mixed`: `MVCC` reduced average read latency from `12.792 ms` to `5.070 ms`
-- `write_heavy`: `MVCC` still improved throughput from `118.99 tx/s` to `207.19 tx/s`
+- `mixed`: `MVCC` reduced average read latency from `14.487 ms` to `4.626 ms`
+- `write_heavy`: `MVCC` still improved throughput from `116.97 tx/s` to `210.61 tx/s`
 
 For the full result tables and baseline microbenchmarks, see:
 
@@ -241,11 +250,13 @@ bash scripts/run_concurrency_benchmarks.sh
 ## Demo Flow
 
 - Core SQL flow: create tables, insert rows, run `SELECT`, `DELETE`, `ROLLBACK`, and transaction mode changes with `python scripts/demo_core.py`
+- Additional SQL breadth: demonstrate `COUNT(*)`, `AND` predicates, and `INDEX_RANGE_SCAN` in the core demo
 - EXPLAIN index scan: show `INDEX_SCAN` for `SELECT * FROM accounts WHERE id = 1;`
 - JOIN query: demonstrate `accounts JOIN transactions` in the core demo
 - 2PL deadlock demo: reproduce waits-for cycle detection with `python scripts/demo_2pl_deadlock.py`
 - WAL recovery demo: prove committed state survives restart with `python scripts/demo_recovery.py`
 - MVCC snapshot demo: show non-blocking snapshot reads and own-write visibility with `python scripts/demo_mvcc_snapshot.py`
+- Manual MVCC cleanup: call `engine.vacuum()` from the core demo after an MVCC update
 - 2PL vs MVCC benchmark: compare contention behavior with `python benchmarks/run_concurrency_comparison.py`
 
 ## Testing
@@ -256,7 +267,7 @@ Latest verification uses:
 python -m unittest discover -s tests
 ```
 
-Current suite size: `38` tests.
+Current suite size: `51` tests.
 
 Coverage categories:
 
@@ -271,20 +282,22 @@ Coverage categories:
 - WAL
 - recovery
 - MVCC
+- COUNT, `AND` predicates, and range-index scans
+- manual MVCC vacuum
 - benchmark smoke testing
 
 ## Limitations
 
 - The SQL subset is intentionally scoped to the capstone and does not aim to be a full SQL implementation.
-- Recovery is logical WAL reconstruction, not full ARIES redo/undo with page LSNs.
-- MVCC does not yet include vacuum or garbage collection for old versions.
+- Recovery is logical REDO/UNDO-style WAL reconstruction, not full ARIES redo/undo with page LSNs.
+- MVCC cleanup is a manual `engine.vacuum()` pass, not a background vacuum or full garbage collector.
 - Historical-version handling for non-primary-key secondary indexes is simplified.
 - The engine is single-process and educational rather than production-grade.
 
 ## Future Improvements
 
 - ARIES-style page recovery with page LSNs and finer-grained redo/undo
-- MVCC vacuum and version garbage collection
+- background MVCC vacuum and fuller version garbage collection
 - richer secondary-index support
 - broader SQL grammar and more join forms
 - statistics histograms and a more realistic cost model

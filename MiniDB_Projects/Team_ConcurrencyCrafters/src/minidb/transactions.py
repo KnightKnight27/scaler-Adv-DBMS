@@ -334,6 +334,51 @@ class VersionStore:
             for key in self.committed.get(table, {})
         )
 
+    def vacuum(self, active_snapshots: list[int]) -> dict[str, object]:
+        with self._lock:
+            removed_versions = 0
+            retained_versions = 0
+            vacuumed_tables = 0
+            for table_name, table_versions in self.committed.items():
+                table_changed = False
+                for key, versions in list(table_versions.items()):
+                    if not versions:
+                        continue
+                    retained_indexes = {len(versions) - 1}
+                    for snapshot_ts in active_snapshots:
+                        visible_index: int | None = None
+                        for index, version in enumerate(versions):
+                            if version.begin_ts is not None and version.begin_ts <= snapshot_ts:
+                                visible_index = index
+                        if visible_index is not None:
+                            retained_indexes.add(visible_index)
+                    compacted_versions = [
+                        version
+                        for index, version in enumerate(versions)
+                        if index in retained_indexes
+                    ]
+                    if len(compacted_versions) != len(versions):
+                        removed_versions += len(versions) - len(compacted_versions)
+                        table_versions[key] = compacted_versions
+                        table_changed = True
+                    retained_versions += len(compacted_versions)
+                if table_changed:
+                    vacuumed_tables += 1
+            if removed_versions:
+                self._save()
+        summary = {
+            "active_snapshots": sorted(active_snapshots),
+            "removed_versions": removed_versions,
+            "retained_versions": retained_versions,
+            "vacuumed_tables": vacuumed_tables,
+        }
+        self.logs.append(
+            "version vacuum "
+            f"removed={removed_versions} retained={retained_versions} "
+            f"active_snapshots={summary['active_snapshots']}"
+        )
+        return summary
+
     def storage_overhead_bytes(self) -> int:
         if not self.store_path.exists():
             return 0
@@ -455,6 +500,13 @@ class MVCCManager:
     def max_commit_ts(self) -> int:
         return self.version_store.max_commit_ts()
 
+    def vacuum(self, active_snapshots: list[int]) -> dict[str, object]:
+        summary = self.version_store.vacuum(active_snapshots)
+        self.logs.append(
+            f"mvcc vacuum removed={summary['removed_versions']} retained={summary['retained_versions']}"
+        )
+        return summary
+
 
 class RecoveryManager:
     def __init__(self):
@@ -507,9 +559,12 @@ class RecoveryManager:
                 operations.append(record)
 
         rebuilt_versions: dict[str, dict[int, list[VersionedRecord]]] = {}
+        redone_operations = 0
+        ignored_operations = 0
         for record in operations:
             txn_id = int(record["txn_id"])
             if txn_id not in committed or txn_id in aborted:
+                ignored_operations += 1
                 continue
             table_name = str(record["table"])
             key = int(record["key"])
@@ -546,6 +601,7 @@ class RecoveryManager:
                 if version.tombstone:
                     previous.deleted_by_txn = txn_id
             key_versions.append(version)
+            redone_operations += 1
 
         self.mvcc_manager.version_store.replace_committed_versions(rebuilt_versions)
         for table_name in self.catalog.tables:
@@ -562,11 +618,22 @@ class RecoveryManager:
                 }
                 if txn_id not in committed
             ),
+            "redone_operations": redone_operations,
+            "undone_or_ignored_operations": ignored_operations,
+            "committed_txn_count": len(committed),
+            "uncommitted_txn_count": len(
+                {
+                    int(record["txn_id"])
+                    for record in records
+                    if "txn_id" in record and int(record["txn_id"]) not in committed
+                }
+            ),
         }
         self.logs.append(
             "recovery rebuilt state "
             f"committed={summary['committed_transactions']} "
-            f"uncommitted={summary['uncommitted_transactions']}"
+            f"uncommitted={summary['uncommitted_transactions']} "
+            f"redone={redone_operations} ignored={ignored_operations}"
         )
         return summary
 
@@ -848,6 +915,13 @@ class TransactionManager:
         if txn_id is None:
             return None
         return self._get_transaction(txn_id).snapshot_ts
+
+    def active_snapshot_timestamps(self) -> list[int]:
+        return sorted(
+            txn.snapshot_ts
+            for txn in self.transactions.values()
+            if txn.state == TransactionState.ACTIVE and txn.mode == TransactionMode.MVCC
+        )
 
     def _acquire_lock(self, txn_id: TransactionID, resource_id: ResourceID, lock_type: LockType) -> None:
         try:

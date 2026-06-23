@@ -40,24 +40,24 @@
 
 | Benchmark | Duration (s) | Rows/Events |
 | --- | ---: | ---: |
-| insert_100_records | 1.714953 | 100 |
-| point_lookup_btree | 0.000178 | 1 |
-| table_scan | 0.001083 | 100 |
-| nested_loop_join | 0.002067 | 100 |
-| 2pl_concurrent_workload | 0.051412 | t1:committed,t2:aborted |
+| insert_100_records | 1.572344 | 100 |
+| point_lookup_btree | 0.000165 | 1 |
+| table_scan | 0.000570 | 100 |
+| nested_loop_join | 0.001627 | 100 |
+| 2pl_concurrent_workload | 0.053308 | t1:committed,t2:aborted |
 
 ## Concurrency Results
 
 | Workload | Mode | Throughput (tx/s) | Avg Read (ms) | P95 Read (ms) | Avg Write (ms) | Blocked Reads | Wait Time (ms) | Committed | Aborted | Versions | Version Bytes |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| read_heavy | 2PL | 225.78 | 13.629 | 35.247 | 40.632 | 15 | 41.199 | 50 | 0 | 30 | 11946 |
-| read_heavy | MVCC | 375.71 | 4.783 | 6.641 | 26.542 | 0 | 0.000 | 50 | 0 | 30 | 11946 |
-| mixed | 2PL | 180.76 | 12.792 | 44.141 | 41.219 | 24 | 59.810 | 96 | 0 | 44 | 17301 |
-| mixed | MVCC | 285.45 | 5.070 | 8.819 | 27.944 | 0 | 0.000 | 96 | 0 | 44 | 17305 |
-| hot_key_contention | 2PL | 129.44 | 57.028 | 71.990 | 55.358 | 80 | 752.811 | 90 | 0 | 40 | 15768 |
-| hot_key_contention | MVCC | 210.90 | 6.019 | 10.247 | 42.582 | 0 | 0.000 | 90 | 0 | 40 | 15772 |
-| write_heavy | 2PL | 118.99 | 22.115 | 45.379 | 44.322 | 52 | 252.819 | 120 | 0 | 60 | 23437 |
-| write_heavy | MVCC | 207.19 | 5.022 | 8.266 | 28.886 | 0 | 0.000 | 120 | 0 | 60 | 23437 |
+| read_heavy | 2PL | 221.35 | 14.072 | 40.767 | 40.315 | 15 | 54.008 | 50 | 0 | 30 | 11946 |
+| read_heavy | MVCC | 302.43 | 3.126 | 5.102 | 33.000 | 0 | 0.000 | 50 | 0 | 30 | 11946 |
+| mixed | 2PL | 163.16 | 13.584 | 45.921 | 45.295 | 24 | 74.577 | 96 | 0 | 44 | 17301 |
+| mixed | MVCC | 255.09 | 5.733 | 11.486 | 31.255 | 0 | 0.000 | 96 | 0 | 44 | 17305 |
+| hot_key_contention | 2PL | 134.07 | 54.972 | 71.459 | 54.183 | 80 | 683.411 | 90 | 0 | 40 | 15768 |
+| hot_key_contention | MVCC | 223.66 | 5.418 | 10.565 | 40.154 | 0 | 0.000 | 90 | 0 | 40 | 15772 |
+| write_heavy | 2PL | 116.72 | 22.410 | 46.515 | 45.436 | 52 | 258.755 | 120 | 0 | 60 | 23437 |
+| write_heavy | MVCC | 202.63 | 5.603 | 8.555 | 29.528 | 0 | 0.000 | 120 | 0 | 60 | 23437 |
 
 ## Analysis
 
@@ -66,37 +66,37 @@ The strongest signal appears on hot keys and read-heavy traffic, where the concu
 ### read_heavy
 
 - Setup: 90% reads, 10% writes across three warm keys.
-- Throughput: `2PL` = `225.78 tx/s`, `MVCC` = `375.71 tx/s`.
+- Throughput: `2PL` = `221.35 tx/s`, `MVCC` = `302.43 tx/s`.
 - Blocked reads: `2PL` = `15`, `MVCC` = `0`.
-- Read latency: `2PL` average/P95 = `13.629` / `35.247` ms, `MVCC` average/P95 = `4.783` / `6.641` ms.
-- Write latency: `2PL` = `40.632` ms, `MVCC` = `26.542` ms.
+- Read latency: `2PL` average/P95 = `14.072` / `40.767` ms, `MVCC` average/P95 = `3.126` / `5.102` ms.
+- Write latency: `2PL` = `40.315` ms, `MVCC` = `33.000` ms.
 - Version overhead: `30` versions and `11946` bytes in the MVCC version store for this workload.
 
 ### mixed
 
 - Setup: 70% reads, 30% writes with moderate key reuse.
-- Throughput: `2PL` = `180.76 tx/s`, `MVCC` = `285.45 tx/s`.
+- Throughput: `2PL` = `163.16 tx/s`, `MVCC` = `255.09 tx/s`.
 - Blocked reads: `2PL` = `24`, `MVCC` = `0`.
-- Read latency: `2PL` average/P95 = `12.792` / `44.141` ms, `MVCC` average/P95 = `5.070` / `8.819` ms.
-- Write latency: `2PL` = `41.219` ms, `MVCC` = `27.944` ms.
+- Read latency: `2PL` average/P95 = `13.584` / `45.921` ms, `MVCC` average/P95 = `5.733` / `11.486` ms.
+- Write latency: `2PL` = `45.295` ms, `MVCC` = `31.255` ms.
 - Version overhead: `44` versions and `17305` bytes in the MVCC version store for this workload.
 
 ### hot_key_contention
 
 - Setup: Hot-key contention where readers and writers collide on the same key.
-- Throughput: `2PL` = `129.44 tx/s`, `MVCC` = `210.90 tx/s`.
+- Throughput: `2PL` = `134.07 tx/s`, `MVCC` = `223.66 tx/s`.
 - Blocked reads: `2PL` = `80`, `MVCC` = `0`.
-- Read latency: `2PL` average/P95 = `57.028` / `71.990` ms, `MVCC` average/P95 = `6.019` / `10.247` ms.
-- Write latency: `2PL` = `55.358` ms, `MVCC` = `42.582` ms.
+- Read latency: `2PL` average/P95 = `54.972` / `71.459` ms, `MVCC` average/P95 = `5.418` / `10.565` ms.
+- Write latency: `2PL` = `54.183` ms, `MVCC` = `40.154` ms.
 - Version overhead: `40` versions and `15772` bytes in the MVCC version store for this workload.
 
 ### write_heavy
 
 - Setup: Optional write-heavy mix with equal read and write transaction counts.
-- Throughput: `2PL` = `118.99 tx/s`, `MVCC` = `207.19 tx/s`.
+- Throughput: `2PL` = `116.72 tx/s`, `MVCC` = `202.63 tx/s`.
 - Blocked reads: `2PL` = `52`, `MVCC` = `0`.
-- Read latency: `2PL` average/P95 = `22.115` / `45.379` ms, `MVCC` average/P95 = `5.022` / `8.266` ms.
-- Write latency: `2PL` = `44.322` ms, `MVCC` = `28.886` ms.
+- Read latency: `2PL` average/P95 = `22.410` / `46.515` ms, `MVCC` average/P95 = `5.603` / `8.555` ms.
+- Write latency: `2PL` = `45.436` ms, `MVCC` = `29.528` ms.
 - Version overhead: `60` versions and `23437` bytes in the MVCC version store for this workload.
 
 ## Why MVCC Reduced Read Blocking

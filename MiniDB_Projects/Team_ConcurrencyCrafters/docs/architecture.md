@@ -93,9 +93,16 @@ This ordering is deliberate: Track B extends the visibility model without discar
 ### Single-Table Reads
 
 - If an indexed predicate exists on the requested column, the plan is `INDEX_SCAN`.
+- If a primary-key range predicate is present, the plan is `INDEX_RANGE_SCAN`.
 - Otherwise the plan is `TABLE_SCAN`.
 - Equality selectivity for indexed primary-key access is estimated as `1 / row_count`.
 - Unknown predicates fall back to selectivity `0.1`.
+
+### Additional SQL Breadth
+
+- `COUNT(*)` is modeled as an aggregate annotation on top of the chosen access path rather than as a separate executor subsystem.
+- Simple `AND` predicates are represented as a small list of conjunction terms and evaluated deterministically by the executor.
+- Integer range predicates such as `id >= low AND id <= high` reuse the B+ Tree leaf ordering instead of introducing a separate access method.
 
 ### Joins
 
@@ -145,6 +152,13 @@ Durability is handled through `WALManager` and `RecoveryManager`.
 4. The current logical rows are materialized back into heap storage.
 5. Uncommitted work is ignored or discarded.
 
+The recovery report now exposes:
+
+- `committed_transactions`
+- `uncommitted_transactions`
+- `redone_operations`
+- `undone_or_ignored_operations`
+
 ### Recovery Scope
 
 This is logical recovery, not ARIES. There are no page LSNs, compensation log records, or physiological redo/undo phases. The benefit is a smaller design that still proves the required durability property for the project.
@@ -176,6 +190,16 @@ Each version stores:
 ### Why Readers Do Not Block Writers
 
 In MVCC mode, readers do not acquire shared locks for visibility. They read from their snapshot and only rely on the version chain. Writers still coordinate through transaction hooks, but readers no longer wait behind the writer's exclusive lock window for the same logical key.
+
+### Manual Cleanup
+
+The project now includes a manual `engine.vacuum()` operation rather than a background vacuum subsystem. The cleanup rule is intentionally conservative:
+
+- keep the latest committed version for each logical key
+- keep any older committed version that is still the newest visible version for an active snapshot
+- remove only committed versions that no active transaction can still observe
+
+This strengthens MVCC storage behavior without introducing a long-running background worker or changing the benchmark methodology.
 
 ## Transaction Mode Comparison
 
@@ -219,6 +243,7 @@ The crucial project invariant is that 2PL is still present and correct. MVCC is 
 - Slotted heap pages are easy to reason about, but they are not optimized for compaction-heavy workloads.
 - Logical recovery is smaller and easier to demo than ARIES, but less realistic for industrial storage engines.
 - MVCC dramatically improves read concurrency, but it introduces version-history growth and future cleanup obligations.
+- Manual vacuum is safer than a background collector for this capstone, but it requires an explicit call and does not reclaim space automatically.
 - A lightweight optimizer keeps `EXPLAIN` understandable, but plan quality is limited by coarse statistics.
 
 ## Extension Points

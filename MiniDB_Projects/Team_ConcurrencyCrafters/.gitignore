@@ -8,6 +8,7 @@ __pycache__/
 .test_runtime_additional/
 .test_runtime_track_b/
 .test_runtime_submission/
+.test_runtime_strengthening/
 .txn_runtime/
 benchmarks/runtime/
 benchmarks/runtime_baseline/

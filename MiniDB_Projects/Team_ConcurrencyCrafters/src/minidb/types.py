@@ -168,6 +168,17 @@ class StorageEngine(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def lookup_index_range(
+        self,
+        table_name: str,
+        column_name: str,
+        *,
+        start_key: int | None,
+        end_key: int | None,
+    ) -> list[RecordID]:
+        raise NotImplementedError
+
+    @abstractmethod
     def get_stats(self, table_name: str) -> TableStats:
         raise NotImplementedError
 

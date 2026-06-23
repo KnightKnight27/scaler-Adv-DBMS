@@ -245,6 +245,21 @@ class HeapStorageEngine(StorageEngine):
         _, index = index_match
         return index.search(key)
 
+    def lookup_index_range(
+        self,
+        table_name: str,
+        column_name: str,
+        *,
+        start_key: int | None,
+        end_key: int | None,
+    ) -> list[RecordID]:
+        runtime = self._require_table(table_name)
+        index_match = runtime.index_for_column(column_name)
+        if index_match is None:
+            return []
+        _, index = index_match
+        return index.search_range(start_key=start_key, end_key=end_key)
+
     def get_stats(self, table_name: str) -> TableStats:
         return self.catalog.get_table(table_name).stats
 

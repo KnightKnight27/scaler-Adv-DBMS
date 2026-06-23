@@ -31,6 +31,10 @@ def main() -> None:
 
     print(db.execute("EXPLAIN SELECT * FROM accounts WHERE id = 1;"))
     print(db.execute("SELECT * FROM accounts WHERE id = 1;"))
+    print(db.execute("SELECT COUNT(*) FROM accounts;"))
+    print(db.execute("SELECT * FROM accounts WHERE id = 1 AND balance = 1000;"))
+    print(db.execute("EXPLAIN SELECT * FROM accounts WHERE id >= 1 AND id <= 2;"))
+    print(db.execute("SELECT * FROM accounts WHERE id >= 1 AND id <= 2;"))
     print(
         db.execute(
             "SELECT * FROM accounts JOIN transactions ON accounts.id = transactions.account_id;"
@@ -49,8 +53,8 @@ def main() -> None:
     print(db.execute("INSERT INTO accounts VALUES (1, 'Asha', 900);"))
     print(db.execute("COMMIT;"))
     print(db.execute("SELECT * FROM accounts WHERE id = 1;"))
+    print(db.vacuum())
 
 
 if __name__ == "__main__":
     main()
-

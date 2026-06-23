@@ -95,6 +95,10 @@ class MiniDBEngine:
     def recover(self) -> dict[str, object]:
         return self.recovery_manager.recover()
 
+    def vacuum(self) -> dict[str, object]:
+        active_snapshots = self.transaction_manager.active_snapshot_timestamps()
+        return self.mvcc_manager.vacuum(active_snapshots)
+
     def execute(self, sql: str, txn_id: int | None = None) -> Any:
         statement = self.parser.parse(sql)
         active_txn_id = txn_id if txn_id is not None else self.current_txn_id
@@ -184,63 +188,124 @@ class MiniDBEngine:
 
     def _execute_select(
         self, statement: SelectStatement, plan: QueryPlan, txn_id: int | None
-    ) -> list[dict[str, Value]] | int:
+    ) -> list[dict[str, Value]]:
+        predicates = self._select_predicates(statement)
         if statement.join is not None:
             rows = self._execute_join(statement, plan, txn_id)
-            return len(rows) if statement.count_star else rows
+            return self._format_select_result(rows, statement.count_star)
 
         rows: list[dict[str, Value]]
+        primary_key_predicate = self._primary_key_equality_predicate(
+            statement.table_name,
+            predicates,
+        )
+        range_bounds = self._primary_key_range_bounds(statement.table_name, predicates)
+        indexed_predicate = self._indexed_equality_predicate(statement.table_name, predicates)
         if (
             plan.operator == "INDEX_SCAN"
-            and statement.predicate is not None
-            and statement.predicate.column == self.storage.primary_key_column(statement.table_name)
-            and isinstance(statement.predicate.value, int)
+            and primary_key_predicate is not None
+            and isinstance(primary_key_predicate.value, int)
         ):
-            key = int(statement.predicate.value)
+            key = int(primary_key_predicate.value)
             row = self._read_logical_row_by_primary_key(statement.table_name, key, txn_id)
-            rows = [row] if row is not None and self._matches_predicate(row, statement.predicate) else []
+            rows = [row] if row is not None and self._matches_predicates(row, predicates) else []
+        elif plan.operator == "INDEX_RANGE_SCAN" and range_bounds is not None:
+            lower_bound, upper_bound = range_bounds
+            rows = self._execute_primary_key_range_scan(
+                statement.table_name,
+                predicates,
+                txn_id,
+                start_key=lower_bound,
+                end_key=upper_bound,
+            )
         elif (
             plan.operator == "INDEX_SCAN"
-            and statement.predicate is not None
+            and indexed_predicate is not None
             and self.transaction_manager.get_mode(txn_id) == TransactionMode.TWO_PL
         ):
-            rows = self._execute_secondary_index_scan(statement, txn_id)
+            rows = self._execute_secondary_index_scan(
+                statement.table_name,
+                indexed_predicate,
+                predicates,
+                txn_id,
+            )
         else:
             rows = self._scan_logical_rows(statement.table_name, txn_id)
-            if statement.predicate is not None:
+            if predicates:
                 rows = [
-                    row for row in rows if self._matches_predicate(row, statement.predicate)
+                    row for row in rows if self._matches_predicates(row, predicates)
                 ]
-        return len(rows) if statement.count_star else rows
+        return self._format_select_result(rows, statement.count_star)
 
     def _execute_secondary_index_scan(
-        self, statement: SelectStatement, txn_id: int | None
+        self,
+        table_name: str,
+        index_predicate: Predicate,
+        predicates: list[Predicate],
+        txn_id: int | None,
     ) -> list[dict[str, Value]]:
-        assert statement.predicate is not None
         candidate_rids = self.storage.lookup_index(
-            statement.table_name,
-            statement.predicate.column,
-            int(statement.predicate.value),
+            table_name,
+            index_predicate.column,
+            int(index_predicate.value),
         )
         rows: list[dict[str, Value]] = []
         seen_keys: set[int] = set()
         for rid in candidate_rids:
-            physical_row = self.storage.read(statement.table_name, rid)
+            physical_row = self.storage.read(table_name, rid)
             if physical_row is None:
                 continue
-            primary_key = self.storage.primary_key_column(statement.table_name)
+            primary_key = self.storage.primary_key_column(table_name)
             key = int(physical_row[primary_key])
             if key in seen_keys:
                 continue
-            resource_id = self._resource_for_key(statement.table_name, key)
+            resource_id = self._resource_for_key(table_name, key)
             self.transaction_manager.before_read(txn_id, resource_id)
             logical_row = self._logical_row_for_key(
-                statement.table_name,
+                table_name,
                 key,
                 txn_id,
                 base_row=physical_row,
             )
-            if logical_row is not None and self._matches_predicate(logical_row, statement.predicate):
+            if logical_row is not None and self._matches_predicates(logical_row, predicates):
+                rows.append(logical_row)
+                seen_keys.add(key)
+        return rows
+
+    def _execute_primary_key_range_scan(
+        self,
+        table_name: str,
+        predicates: list[Predicate],
+        txn_id: int | None,
+        *,
+        start_key: int | None,
+        end_key: int | None,
+    ) -> list[dict[str, Value]]:
+        primary_key = self.storage.primary_key_column(table_name)
+        candidate_rids = self.storage.lookup_index_range(
+            table_name,
+            primary_key,
+            start_key=start_key,
+            end_key=end_key,
+        )
+        rows: list[dict[str, Value]] = []
+        seen_keys: set[int] = set()
+        for rid in candidate_rids:
+            physical_row = self.storage.read(table_name, rid)
+            if physical_row is None:
+                continue
+            key = int(physical_row[primary_key])
+            if key in seen_keys:
+                continue
+            resource_id = self._resource_for_key(table_name, key)
+            self.transaction_manager.before_read(txn_id, resource_id)
+            logical_row = self._logical_row_for_key(
+                table_name,
+                key,
+                txn_id,
+                base_row=physical_row,
+            )
+            if logical_row is not None and self._matches_predicates(logical_row, predicates):
                 rows.append(logical_row)
                 seen_keys.add(key)
         return rows
@@ -397,9 +462,96 @@ class MiniDBEngine:
 
     @staticmethod
     def _matches_predicate(row: dict[str, Value], predicate: Predicate) -> bool:
-        if predicate.operator != "=":
-            raise ValueError(f"Unsupported predicate operator '{predicate.operator}'.")
-        return row.get(predicate.column) == predicate.value
+        row_value = row.get(predicate.column)
+        if predicate.operator == "=":
+            return row_value == predicate.value
+        if row_value is None or not isinstance(predicate.value, int):
+            return False
+        if not isinstance(row_value, int):
+            return False
+        if predicate.operator == ">=":
+            return row_value >= predicate.value
+        if predicate.operator == "<=":
+            return row_value <= predicate.value
+        if predicate.operator == ">":
+            return row_value > predicate.value
+        if predicate.operator == "<":
+            return row_value < predicate.value
+        raise ValueError(f"Unsupported predicate operator '{predicate.operator}'.")
+
+    @classmethod
+    def _matches_predicates(cls, row: dict[str, Value], predicates: list[Predicate]) -> bool:
+        return all(cls._matches_predicate(row, predicate) for predicate in predicates)
+
+    @staticmethod
+    def _format_select_result(
+        rows: list[dict[str, Value]],
+        count_star: bool,
+    ) -> list[dict[str, Value]]:
+        if count_star:
+            return [{"count": len(rows)}]
+        return rows
+
+    @staticmethod
+    def _select_predicates(statement: SelectStatement) -> list[Predicate]:
+        if statement.predicates:
+            return list(statement.predicates)
+        return [statement.predicate] if statement.predicate is not None else []
+
+    def _primary_key_equality_predicate(
+        self,
+        table_name: str,
+        predicates: list[Predicate],
+    ) -> Predicate | None:
+        primary_key = self.storage.primary_key_column(table_name)
+        for predicate in predicates:
+            if predicate.column == primary_key and predicate.operator == "=":
+                return predicate
+        return None
+
+    def _indexed_equality_predicate(
+        self,
+        table_name: str,
+        predicates: list[Predicate],
+    ) -> Predicate | None:
+        for predicate in predicates:
+            if predicate.operator != "=":
+                continue
+            if self.catalog.get_index_for_column(table_name, predicate.column) is not None:
+                return predicate
+        return None
+
+    def _primary_key_range_bounds(
+        self,
+        table_name: str,
+        predicates: list[Predicate],
+    ) -> tuple[int | None, int | None] | None:
+        primary_key = self.storage.primary_key_column(table_name)
+        lower_bound: int | None = None
+        upper_bound: int | None = None
+        saw_range_predicate = False
+        for predicate in predicates:
+            if predicate.column != primary_key or not isinstance(predicate.value, int):
+                continue
+            if predicate.operator == ">=":
+                lower_bound = max(lower_bound, int(predicate.value)) if lower_bound is not None else int(predicate.value)
+                saw_range_predicate = True
+            elif predicate.operator == ">":
+                candidate = int(predicate.value) + 1
+                lower_bound = max(lower_bound, candidate) if lower_bound is not None else candidate
+                saw_range_predicate = True
+            elif predicate.operator == "<=":
+                upper_bound = min(upper_bound, int(predicate.value)) if upper_bound is not None else int(predicate.value)
+                saw_range_predicate = True
+            elif predicate.operator == "<":
+                candidate = int(predicate.value) - 1
+                upper_bound = min(upper_bound, candidate) if upper_bound is not None else candidate
+                saw_range_predicate = True
+        if not saw_range_predicate:
+            return None
+        if lower_bound is not None and upper_bound is not None and lower_bound > upper_bound:
+            return (1, 0)
+        return lower_bound, upper_bound
 
     @staticmethod
     def _coerce_value(data_type: str, value: Value) -> Value:

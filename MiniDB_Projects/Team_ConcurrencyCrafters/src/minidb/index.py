@@ -58,6 +58,26 @@ class BPlusTree:
             node = node.next_leaf
         return items
 
+    def iter_range(
+        self, *, start_key: int | None = None, end_key: int | None = None
+    ) -> list[tuple[int, Any]]:
+        if start_key is None:
+            node = self.root
+            while not node.is_leaf:
+                node = node.children[0]
+        else:
+            node = self._find_leaf(self.root, start_key)
+        items: list[tuple[int, Any]] = []
+        while node is not None:
+            for key, value in zip(node.keys, node.values):
+                if start_key is not None and key < start_key:
+                    continue
+                if end_key is not None and key > end_key:
+                    return items
+                items.append((key, value))
+            node = node.next_leaf
+        return items
+
     def _find_leaf(self, node: BPlusTreeNode, key: int) -> BPlusTreeNode:
         if node.is_leaf:
             return node
@@ -154,6 +174,16 @@ class PersistentBPlusTree:
         if payload is None:
             return []
         return [RecordID(page_id=item[0], slot_id=item[1]) for item in payload]
+
+    def search_range(
+        self, *, start_key: int | None = None, end_key: int | None = None
+    ) -> list[RecordID]:
+        rows: list[RecordID] = []
+        for _, payload in self.tree.iter_range(start_key=start_key, end_key=end_key):
+            rows.extend(
+                RecordID(page_id=item[0], slot_id=item[1]) for item in payload
+            )
+        return rows
 
     def insert(self, key: int, rid: RecordID) -> None:
         payload = self.tree.search(key) or []
