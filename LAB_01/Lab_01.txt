@@ -1,0 +1,644 @@
+Raw System Calls + File Handling in Linux (C++)
+
+This journey will cover:
+
+1.What is a file in Linux??
+2.What is a file descriptor??
+3.What happens inside the kernel??
+4.What is an inode??
+5.Raw system calls (open, read, write, close).
+6.Writing a C++ program without high-level libraries.
+7.Tracing with strace.
+8.Kernel flow of file operations??
+9.Memory + kernel interaction??
+10.Full execution walkthrough
+
+1. Everything is a File in Linux
+
+In Linux:
+
+Normal files
+Directories
+Keyboards
+Network sockets
+Pipes
+Devices
+
+-->all are treated as files.
+
+Example:
+
+/dev/sda
+/dev/null
+/dev/tty
+
+Linux uses a unified abstraction:
+→ “Everything is a file.”
+
+2. What is a File Descriptor (FD)?
+
+A file descriptor is simply:
+
+An integer representing an opened file inside a process.
+
+Example:
+
+int fd = open("test.txt", O_RDONLY);
+
+Suppose:
+
+fd = 3
+
+Why 3?
+
+Because:
+
+FD	Meaning
+0	stdin
+1	stdout
+2	stderr
+3+	user opened files
+
+So kernel returns next free descriptor.
+
+3. Internal Kernel Journey
+
+When you do:
+
+open("test.txt", O_RDONLY);
+
+The process does NOT directly access disk.
+
+Instead:
+
+User Program
+    ↓
+glibc wrapper
+    ↓
+syscall instruction
+    ↓
+Kernel mode
+    ↓
+VFS (Virtual File System)
+    ↓
+Filesystem driver (ext4/xfs/etc)
+    ↓
+inode lookup
+    ↓
+page cache / disk
+
+Then kernel returns:
+
+file descriptor integer
+
+4. What is an inode?
+
+An inode is:
+
+Metadata structure describing a file.
+
+It DOES NOT store filename.
+
+It stores:
+
+permissions
+owner
+timestamps
+file size
+disk block locations
+
+Example:
+
+ls -i file.txt
+
+Output:
+
+348927 file.txt
+
+That number = inode number.
+
+5. File Open Flow Internally
+
+When kernel receives open():
+
+Step 1: Path Resolution
+
+Kernel traverses:
+
+/
+ └── home
+      └── prince
+            └── test.txt
+
+Each directory lookup involves inode traversal.
+
+Step 2: Create Kernel File Object
+
+Kernel creates:
+
+struct file
+
+Contains:
+
+current offset
+permissions
+inode pointer
+Step 3: Add to Process FD Table
+
+Process has:
+
+task_struct
+   └── files_struct
+         └── fdtable
+
+Kernel inserts pointer:
+
+fd 3 → struct file*
+
+Returns:
+
+3
+
+6. Raw System Calls
+
+We will use ONLY system calls.
+
+No:
+
+fstream
+stdio FILE*
+iostream file handling
+
+Only:
+
+open
+read
+write
+close
+
+7. Full C++ Program
+
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/syscall.h>
+
+int main() {
+
+    const char *filename = "demo.txt";
+
+    const char *message =
+        "Hello from raw system calls!\n";
+
+    // OPEN FILE
+    int fd = syscall(
+        SYS_open,
+        filename,
+        O_CREAT | O_WRONLY | O_TRUNC,
+        0644
+    );
+
+    if (fd < 0) {
+        return 1;
+    }
+
+    // WRITE FILE
+    syscall(
+        SYS_write,
+        fd,
+        message,
+        30
+    );
+
+    // RESET OFFSET
+    syscall(
+        SYS_close,
+        fd
+    );
+
+    // OPEN AGAIN FOR READING
+    fd = syscall(
+        SYS_open,
+        filename,
+        O_RDONLY
+    );
+
+    if (fd < 0) {
+        return 1;
+    }
+
+    char buffer[100];
+
+    long bytesRead = syscall(
+        SYS_read,
+        fd,
+        buffer,
+        sizeof(buffer)
+    );
+
+    // WRITE TO TERMINAL
+    syscall(
+        SYS_write,
+        1,
+        buffer,
+        bytesRead
+    );
+
+    syscall(
+        SYS_close,
+        fd
+    );
+
+    return 0;
+}
+
+8. Why This is “Raw”
+
+Normally:
+
+open()
+
+is a libc wrapper.
+
+But:
+
+syscall(SYS_open, ...)
+
+directly invokes kernel syscall interface.
+
+This is near raw userspace → kernel interaction.
+
+9. Compile
+
+g++ file.cpp -o file
+
+Run:
+
+./file
+
+Output:
+
+Hello from raw system calls!
+
+10. What Happens During write()
+
+When:
+
+write(fd, buffer, size)
+
+occurs:
+
+Kernel:
+
+validates FD
+gets struct file
+checks permissions
+copies data from userspace
+updates page cache
+schedules disk flush
+
+Important:
+
+Usually write DOES NOT instantly write to disk.
+
+Linux uses:
+
+Page Cache
+
+for performance.
+
+11. Userspace vs Kernel Space
+
+Memory is separated:
+
+Space	Accessible By
+Userspace	Your process
+Kernel space	Linux kernel
+
+During syscall:
+
+CPU switches privilege level
+
+via:
+
+syscall instruction
+
+or older:
+
+int 0x80
+
+12. What strace Does
+
+strace intercepts syscalls.
+
+Install:
+
+sudo apt install strace
+
+Run:
+
+strace ./file
+
+13. Example strace Output
+
+open("demo.txt", O_WRONLY|O_CREAT|O_TRUNC, 0644) = 3
+
+write(3, "Hello from raw system calls!\n", 30) = 30
+
+close(3) = 0
+
+open("demo.txt", O_RDONLY) = 3
+
+read(3, "Hello from raw system calls!\n", 100) = 30
+
+write(1, "Hello from raw system calls!\n", 30) = 30
+
+close(3) = 0
+
+14. Understanding Each Line
+
+open()
+open(...) = 3
+
+Kernel allocated FD 3.
+
+write()
+write(3, ...)
+
+Writes into file represented by FD 3.
+
+read()
+read(3, ...)
+
+Reads from current file offset.
+
+Kernel internally updates:
+
+f_pos
+
+inside struct file.
+
+15. File Offset
+
+Each opened file has:
+
+current cursor position
+
+Example:
+
+abcdef
+
+After reading 2 bytes:
+
+offset = 2
+
+Next read starts from:
+
+c
+
+Kernel tracks this automatically.
+
+16. Important Kernel Structures
+
+Process Table
+task_struct
+
+Represents process.
+
+File Descriptor Table
+files_struct
+
+Contains FD mappings.
+
+Open File Table
+struct file
+
+Stores:
+
+offset
+flags
+inode pointer
+inode
+
+Represents actual file metadata.
+
+17. Complete Relationship
+Process
+  ↓
+FD Table
+  ↓
+struct file
+  ↓
+inode
+  ↓
+disk blocks
+
+18. VFS (Virtual File System)
+
+Linux supports many filesystems:
+
+ext4
+xfs
+btrfs
+ntfs
+
+Kernel uses:
+
+VFS
+
+to provide common interface.
+
+So:
+
+read()
+
+works same everywhere.
+
+19. Why System Calls are Expensive
+
+Crossing userspace ↔ kernel boundary costs:
+
+privilege switch
+context handling
+validation
+memory copy
+
+Thus:
+
+Many small syscalls = slower
+
+20. Buffered vs Unbuffered
+
+Raw syscall write
+write(fd, data, 1);
+
+every call → kernel transition.
+
+std::ofstream
+
+Uses buffering:
+
+userspace buffer
+
+Less syscalls.
+
+More efficient.
+
+21. Check Open File Descriptors
+
+Run:
+
+ls /proc/$$/fd
+
+Or inside process:
+
+ls /proc/<pid>/fd
+
+You’ll see:
+
+0
+1
+2
+3
+22. Observe inode
+
+Create file:
+
+echo hello > a.txt
+
+Check inode:
+
+ls -i a.txt
+
+23. Verify with stat
+
+stat a.txt
+
+Shows:
+
+inode
+blocks
+permissions
+timestamps
+24. Deep Internal Flow of read()
+read(fd, buf, n)
+
+↓
+sys_read()
+
+↓
+vfs_read()
+
+↓
+filesystem specific read
+
+↓
+page cache lookup
+
+↓
+disk if cache miss
+
+↓
+copy_to_user()
+
+↓
+return bytes
+
+25. copy_to_user()
+
+Kernel CANNOT directly trust userspace memory.
+
+So Linux carefully copies:
+
+kernel → userspace
+
+using protected helpers:
+
+copy_to_user()
+copy_from_user()
+
+26. Important Flags
+
+O_RDONLY
+
+Read only.
+
+O_WRONLY
+
+Write only.
+
+O_RDWR
+
+Read + write.
+
+O_CREAT
+
+Create if missing.
+
+O_TRUNC
+
+Erase existing content.
+
+27. Permission 0644 Meaning
+
+0644
+
+Binary style permissions:
+
+User	Permission
+Owner	rw-
+Group	r--
+Others	r--
+
+28. Real Learning Goal
+
+This teaches:
+
+OS internals
+syscall interface
+kernel interaction
+filesystem architecture
+memory protection
+process abstraction
+
+This is foundational for:
+
+operating systems
+backend systems
+databases
+kernels
+distributed systems
+high-performance servers
+
+29. Advanced Exploration
+
+Next topics you can explore:
+
+mmap()
+epoll()
+io_uring
+pipes
+sockets
+sendfile()
+async I/O
+kernel modules
+
+30. Final Mental Model
+
+Your Program
+    ↓
+syscall()
+    ↓
+CPU switches to kernel mode
+    ↓
+Kernel validates request
+    ↓
+VFS resolves file
+    ↓
+inode located
+    ↓
+Page cache / disk accessed
+    ↓
+Kernel returns result
+    ↓
+Userspace resumes
+

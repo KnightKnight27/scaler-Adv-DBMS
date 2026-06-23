@@ -1,0 +1,20 @@
+System_Design_Docs/*.db
+System_Design_Docs/*.db-wal
+System_Design_Docs/*.db-shm
+__pycache__/
+*.pyc
+*.swp
+.DS_Store
+
+# IDE configs
+.vscode/
+.clangd
+
+# Build outputs & binaries
+build/
+rbtree
+txn_manager
+query_engine
+sql_parser
+concurrency_scheduler
+txmgr
