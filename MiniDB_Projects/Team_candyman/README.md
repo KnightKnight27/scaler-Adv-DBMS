@@ -20,6 +20,8 @@ every line can be explained and defended.
 |-----------|-------------|--------------|
 | Vansh Malhotra | 24BCS10268 | vansh.24bcs10268@asst.scaler.com |
 | Sarthak Arora  | 24BCS10150  | sarthak.24bcs10150@sst.scaler.com |
+| Vanshit Malik  | 24BCS10270  | vanshit.24bcs10270@sst.scaler.com |
+
 
 ---
 
