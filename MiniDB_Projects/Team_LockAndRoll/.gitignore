@@ -1,0 +1,9 @@
+build/
+testdata_*/
+bench_2pl/
+bench_mvcc/
+minidb_data/
+demo_data/
+crashdemo_data/
+*.o
+*.a
