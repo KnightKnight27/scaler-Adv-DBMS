@@ -1,0 +1,17 @@
+# Build directories
+Uni/build/
+build/
+bin/
+
+# Temporary DB and log files
+*.bin
+*.log
+wal.log
+db.bin
+
+# IDE and system files
+.vscode/
+.idea/
+.gemini/
+.DS_Store
+Thumbs.db
