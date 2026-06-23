@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minidb"
+version = "0.1.0"
+description = "MiniDB — a from-scratch relational database engine (Team walError, Advanced DBMS capstone)"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Archisman Midya", email = "archisman.23bcs10027@sst.scaler.com" }]
+# stdlib-first: no runtime dependencies. Dev tooling only.
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "matplotlib>=3.7"]
+
+[project.scripts]
+minidb = "minidb.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+# src-layout: make `import minidb` work without installation during tests.
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-ra"
