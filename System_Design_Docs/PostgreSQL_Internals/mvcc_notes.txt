@@ -1,0 +1,9 @@
+MVCC observation checklist:
+
+1. Start transaction A and read a row.
+2. Start transaction B and update the same row.
+3. Transaction A continues to see its old snapshot depending on isolation level.
+4. Transaction B creates a newer tuple version instead of overwriting the old one directly.
+5. Vacuum later removes dead tuple versions when no active transaction can still see them.
+
+This explains why PostgreSQL can serve readers and writers concurrently without relying only on coarse table locks.

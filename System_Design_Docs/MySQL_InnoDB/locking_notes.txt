@@ -1,0 +1,7 @@
+InnoDB locking notes:
+
+- Point lookup on a unique indexed key can use a record lock.
+- Range scans may use next-key locks.
+- Gap locks protect spaces between index records under repeatable-read behavior.
+- Short transactions reduce lock wait time.
+- Correct indexes reduce the number of rows and gaps touched by a transaction.
