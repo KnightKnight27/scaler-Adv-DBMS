@@ -1,0 +1,10 @@
+# build artifacts
+/build/
+/build-cmake/
+/minidb
+*.o
+*.db
+# benchmark data artifacts (keep bench.csv)
+benchmarks/results/*.db
+benchmarks/results/*.cat
+benchmarks/results/lsm/
