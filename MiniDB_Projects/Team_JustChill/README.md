@@ -68,10 +68,11 @@ Team_JustChill/
 │   ├── replication.{h,cpp}   # primary/replica over TCP             (Track D)
 │   └── main.cpp              # server entry (primary | replica)
 ├── tests/
-│   └── track3_test.cpp       # executor / B+ Tree / lock-manager unit tests
+│   ├── track3_test.cpp       # executor / B+ Tree / lock-manager unit tests
+│   └── track1_2_test.cpp     # storage + WAL/replication unit tests
 ├── benchmarks/
-│   ├── benchmark.cpp         # Track 2 storage correctness tests
-│   └── query_benchmark.cpp   # INSERT/SELECT throughput benchmark   (Track 4)
+│   ├── benchmark.cpp         # storage-layer perf benchmark (pages, cache)
+│   └── query_benchmark.cpp   # query-layer INSERT/SELECT benchmark   (Track 4)
 └── docs/
     └── architecture.md       # full architecture write-up
 ```
@@ -120,24 +121,32 @@ cmake --build build
 ```
 
 This produces:
-- `storage` — Track 2 static library
-- `query_engine` — Track 3 static library
-- `track3_test` — Track 3 unit tests
-- `benchmark` — Track 2 storage correctness tests
-- `query_benchmark` — Track 4 INSERT/SELECT benchmark
+- `storage` — storage + WAL/replication static library
+- `query_engine` — query engine (B+ Tree, executor, 2PL) static library
+- `track3_test` — query-engine unit tests
+- `track1_2_test` — storage + WAL/replication unit tests
+- `benchmark` — storage-layer performance benchmark
+- `query_benchmark` — query-layer INSERT/SELECT benchmark
+- `minidb` — server entry point (primary | replica)
+
+> **Windows note:** `storage` (and therefore `benchmark`, `track1_2_test`,
+> `minidb`) currently fails to compile on MinGW because `replication.cpp` uses
+> POSIX sockets — see [Limitations](#limitations--known-issues) issue 1. The
+> `query_engine`, `track3_test`, and `query_benchmark` targets build on all
+> platforms; the full project builds on Linux/macOS.
 
 ## Test
 
 ```bash
 cd build
-ctest --output-on-failure        # runs track3_test (executor / B+ Tree / locks)
-./benchmark                      # Track 2 storage correctness tests
+ctest --output-on-failure        # runs track3_test and track1_2_test
 ```
 
 `track3_test` exercises ~2,100 assertions across the B+ Tree (splits, range
 scans, tombstone deletes), the lock manager (shared compatibility, the 3-second
 exclusive timeout, lock upgrade, and blocked-waiter wakeup), and the full
 operator set (scan / index / filter / project / join / insert / delete).
+`track1_2_test` covers the storage layer and WAL/replication (Linux/macOS).
 
 ## Benchmark results
 
@@ -167,10 +176,76 @@ Observations:
 - Numbers are for the current in-memory store; figures will change once the
   executor is bound onto the buffer-pooled heap file (disk I/O + WAL).
 
+## Limitations & Known Issues
+
+We would rather document what we know is incomplete or fragile than ship it
+silently. The following are real, understood limitations of the current code —
+the "why" matters more than pretending they don't exist.
+
+1. **`replication.cpp` does not build on Windows/MinGW.** It uses POSIX sockets
+   (`<sys/socket.h>`, `<netinet/in.h>`, `<unistd.h>`, `socket`/`accept`/`recv`/
+   `send`/`close`), which are not available on Windows. Because `replication.cpp`
+   is part of the `storage` library, this breaks the `storage`, `benchmark`,
+   `track1_2_test`, and `minidb` targets on MinGW. **It compiles and runs on
+   Linux/macOS.** Cross-platform support needs a Winsock2 shim
+   (`WSAStartup`/`closesocket`, link `ws2_32`) guarded by `#ifdef _WIN32`. The
+   query engine (`query_engine`, `track3_test`, `query_benchmark`) is
+   unaffected and builds everywhere.
+
+2. **B+ Tree does not correctly handle duplicate keys spanning multiple leaves.**
+   The index assumes a *unique* primary key. If the same key is inserted enough
+   times to span more than one leaf, point `search` still returns a match, but a
+   range scan can **under-count**: internal-node routing (`upper_bound`) jumps to
+   the right-most leaf that could hold the key, so duplicate entries living in
+   earlier leaves are skipped. Observed: 200 identical keys → `range(k, k)`
+   returned only 40 rows. *Root cause:* leaf chaining is forward-only and the
+   descent does not back up to the first leaf containing the key.
+
+3. **No primary-key uniqueness enforcement.** `Table::insert` appends the row and
+   adds an index entry unconditionally — a duplicate primary key is silently
+   accepted, which then triggers issue (2). Uniqueness is currently assumed to be
+   guaranteed by the caller, not checked by the engine.
+
+4. **Query layer is in-memory only.** The executor runs on the in-memory
+   `Table`/`Catalog` store and is **not yet bound to `BufferPool`/`HeapFile`**, so
+   query-engine data is neither persisted to disk nor written to the WAL. The
+   storage layer (Track 2) and the query layer (Track 3) are individually
+   functional but not yet stitched together.
+
+5. **Tombstone deletes never reclaim space.** `DELETE` flags rows/index entries
+   `is_deleted` (by design — we skip rebalancing). Deleted entries are skipped by
+   scans but remain in memory; there is no compaction/vacuum pass, so a
+   delete-heavy workload grows unbounded.
+
+6. **`NestedLoopJoin` is O(n×m) and equi-join only.** The inner child is
+   re-scanned in full for every outer tuple, and only a single
+   `outer[col] == inner[col]` equality predicate is supported — no hash join,
+   merge join, or multi-column / inequality join conditions.
+
+7. **Index is limited to a single integer primary key.** Text primary keys are
+   not indexed (sequential scan only), and there are no secondary or composite
+   indexes. `DELETE` therefore requires an integer primary key and throws
+   otherwise.
+
+8. **Concurrency is coarse and deadlock handling is approximate.** Locking is at
+   **table granularity**, which serializes whole-table access. The 3-second
+   acquisition timeout is a heuristic, not true deadlock detection — under heavy
+   contention it can abort a transaction that was merely slow rather than
+   genuinely deadlocked (a false positive).
+
+9. **SQL coverage is limited to simplified inline parsing.** `main.cpp` parses
+   basic `INSERT`, `DELETE`, and `SELECT` statements inline rather than through a
+   full parser/optimizer module (`parser.cpp` / `optimizer.cpp` are not yet the
+   query path). Richer SQL (multi-table JOINs, nested queries, expression
+   predicates) is still constructed as operator trees in C++ rather than parsed
+   from SQL text.
+
 ## Status & roadmap
 
 - ✅ **Track 2 (storage)** and **Track 3 (index, executor, 2PL)** implemented, built under one CMake project, and tested.
 - ✅ **Track 1** parser/optimizer (simplified inline parsing for INSERT, DELETE, and SELECT in `main.cpp`).
 - ✅ **WAL** logging and **Track D** primary/replica synchronous replication.
 - ✅ **Phase 3 Integration** complete (two-terminal primary/replica live verification and replication timeout handling).
-- 🔜 Bind the executor's Table onto BufferPool/HeapFile (page-backed rows).
+- 🔜 Add a Winsock2 shim so `replication.cpp` builds on Windows (see issue 1).
+- 🔜 Bind the executor's `Table` onto `BufferPool`/`HeapFile` (page-backed rows) and route mutations through the WAL.
+- 🔜 Enforce primary-key uniqueness and fix duplicate-key range scans (issues 2–3).
