@@ -1,0 +1,1 @@
+/usr/bin/c++ -g -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/bench_execution.dir/benchmarks/bench_execution.cpp.o -o bench_execution  libsolo_engine.a
