@@ -1,0 +1,31 @@
+=== Part 1: Shunting-Yard Algorithm Demo ===
+
+Expression : age * 2 + salary / 1000 > 100
+RPN        : age 2 * salary 1000 / + 100 > 
+Variables  : age=30, salary=50000
+Result     : true
+
+Expression : (3 + 4) * 2 ^ 3 - 1
+RPN        : 3 4 + 2 3 ^ * 1 - 
+Result     : 55
+
+Expression : age >= 18 && gpa > 3.0
+RPN        : age 18 >= gpa 3.0 > && 
+Variables  : age=22, gpa=3.5
+Result     : true
+
+=== Part 2: Minimal SQL SELECT Parser ===
+
+SQL: SELECT id, name, gpa FROM students WHERE gpa > 3.0 ORDER BY gpa DESC LIMIT 3
+id=1  name=Alice  gpa=3.8  
+id=3  name=Carol  gpa=3.5  
+id=4  name=Dave  gpa=3.1  
+
+SQL: SELECT * FROM students WHERE age >= 22 && age <= 26
+id=1  name=Alice  age=22  gpa=3.8  
+id=2  name=Bob  age=25  gpa=2.9  
+
+SQL: SELECT name, age FROM students WHERE gpa >= 3.5 ORDER BY age ASC
+name=Carol  age=21  
+name=Alice  age=22  
+
