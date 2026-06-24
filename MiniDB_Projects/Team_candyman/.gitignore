@@ -1,0 +1,13 @@
+# Build artifacts
+/minidb
+*.exe
+
+# Local database files / engine output
+/data/
+*.db
+*.wal
+*.sst
+
+# Go
+*.test
+*.out
