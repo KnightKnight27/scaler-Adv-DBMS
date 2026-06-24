@@ -1,0 +1,75 @@
+# --- Images ---
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.webp
+*.svg
+
+# --- Documents ---
+*.pdf
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.xls
+*.xlsx
+
+# --- Compiled C / C++ ---
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.dSYM/
+
+# Lab binaries (no extension on macOS/Linux)
+StorageEngine/**/file_io
+StorageEngine/**/lab*
+!StorageEngine/**/lab*/
+
+# --- Java ---
+*.class
+*.jar
+*.war
+target/
+build/
+.gradle/
+
+# --- Lab data / scratch files ---
+*.dat
+*.db
+*.log
+demo.txt
+*.tmp
+*.swp
+
+# --- IDE / Editor ---
+.vscode/
+.idea/
+*.iml
+*.sublime-*
+.cursor/
+
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# --- Misc ---
+node_modules/
+.env
+.env.local
+
+# --- Lab 4 submission artifacts (narrow exceptions to the rules above) ---
+!StorageEngine/lab4/screenshots/
+!StorageEngine/lab4/screenshots/*.png
+!StorageEngine/lab4/db/
+!StorageEngine/lab4/db/pokedex.db
