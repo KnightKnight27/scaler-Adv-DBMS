@@ -1,3 +1,10 @@
-project(db_engine)
+cmake_minimum_required(VERSION 3.10)
 
-add_executable(db_engine main.cpp)
+project(clock_sweep_buffer)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+
+add_executable(storage_buffer main.cpp)
