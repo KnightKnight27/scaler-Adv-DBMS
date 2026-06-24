@@ -1,0 +1,17 @@
+# Build directories
+build/
+cmake-build-debug/
+cmake-build-release/
+
+# Compiled object files and executables
+*.o
+*.out
+minidb
+run_benchmarks
+
+# Database storage and log files
+*.log
+*.dat
+*.idx
+*.db
+wal.log
