@@ -1,19 +1,25 @@
+#include <thread>
 
-template<typename T>
-class ClockSweep
+template<typename K>
+class BufferManager {
 public:
-   ClockSweep(int maxNumber): maxCacheSize(maxNumber) {};
+    BufferManager(int max_cap) : capacity(max_cap) {}
 
-   T getKey(T key){}
+    K fetchKey(K key) {
+        // Implementation
+        return key;
+    }
 
-   void putKey(T key){}
+    void storeKey(K key) {
+        // Implementation
+    }
 
 private:
-  uint maxCacheSize{0u};
-  std::thread bgClockThread;
-	
+    unsigned int capacity{0u};
+    std::thread worker_thread;
 };
-int main(){
-	ClockSweep<int> clockSweep;
 
+int main() {
+    BufferManager<int> mgr(10);
+    return 0;
 }
