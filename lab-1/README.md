@@ -1,8 +1,8 @@
 # Advanced DBMS Lab 1: System Call and Storage Path Analysis
 
-**Name:** Om Malviya  
-**Roll Number:** 24BCS10448  
-**Course:** Advanced Database Management Systems  
+**Name:** Pratham Onkar Singh
+
+**Roll Number:** 24bcs10136    
 
 ---
 
