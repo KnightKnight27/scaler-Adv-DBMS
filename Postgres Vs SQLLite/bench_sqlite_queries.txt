@@ -1,0 +1,36 @@
+=== SQLITE QUERY TIMINGS (10x each) ===
+(.timer on; runs Q1 ten times, then Q2 ten times)
+
+-- Q1 (filter dept=CS) --
+Run Time: real 0.000168 user 0.000000 sys 0.000000
+Run Time: real 0.000170 user 0.000000 sys 0.000000
+Run Time: real 0.000173 user 0.000000 sys 0.000000
+Run Time: real 0.000152 user 0.000000 sys 0.000000
+Run Time: real 0.000167 user 0.000000 sys 0.000000
+Run Time: real 0.000156 user 0.000000 sys 0.000000
+Run Time: real 0.000167 user 0.000000 sys 0.000000
+Run Time: real 0.000181 user 0.000000 sys 0.000000
+Run Time: real 0.000156 user 0.000000 sys 0.000000
+Run Time: real 0.000185 user 0.000000 sys 0.000000
+
+-- Q2 (students JOIN courses) --
+Run Time: real 0.000232 user 0.000000 sys 0.000000
+Run Time: real 0.000245 user 0.000000 sys 0.000000
+Run Time: real 0.000235 user 0.000000 sys 0.000000
+Run Time: real 0.000371 user 0.000000 sys 0.000000
+Run Time: real 0.000264 user 0.000000 sys 0.000000
+Run Time: real 0.000219 user 0.000000 sys 0.000000
+Run Time: real 0.000231 user 0.000000 sys 0.000000
+Run Time: real 0.000183 user 0.000000 sys 0.000000
+Run Time: real 0.000243 user 0.000000 sys 0.000000
+Run Time: real 0.000221 user 0.000000 sys 0.000000
+
+-- EXPLAIN QUERY PLAN Q1 --
+QUERY PLAN
+`--SCAN students
+
+-- EXPLAIN QUERY PLAN Q2 --
+QUERY PLAN
+|--SCAN c
+|--SEARCH s USING INTEGER PRIMARY KEY (rowid=?)
+`--USE TEMP B-TREE FOR ORDER BY
