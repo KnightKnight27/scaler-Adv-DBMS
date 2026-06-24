@@ -1,0 +1,84 @@
+==========================================
+  PostgreSQL Experiment (1000000 rows)
+==========================================
+psql (PostgreSQL) 16.13 (Ubuntu 16.13-0ubuntu0.24.04.1)
+NOTICE:  database "labtest" does not exist, skipping
+
+Inserting 1000000 rows...
+
+=== Page / storage metadata ===
+ block_size 
+------------
+ 8192
+(1 row)
+
+ shared_buffers 
+----------------
+ 128MB
+(1 row)
+
+ effective_cache_size 
+----------------------
+ 4GB
+(1 row)
+
+ work_mem 
+----------
+ 4MB
+(1 row)
+
+ relname | relpages | reltuples | heap_size | total_size 
+---------+----------+-----------+-----------+------------
+ users   |     9345 |   1000000 | 73 MB     | 95 MB
+(1 row)
+
+
+=== Underlying file on disk ===
+Postgres data_directory : /var/lib/postgresql/16/main
+users relfilenode path  : base/16388/16390
+
+=== Query timing — first run (cold-ish) ===
+Timing is on.
+DISCARD ALL
+Time: 0.167 ms
+ rows_total |       avg_age       
+------------+---------------------
+    1000000 | 57.5000000000000000
+(1 row)
+
+Time: 45.287 ms
+ adults_over_30 
+----------------
+         837500
+(1 row)
+
+Time: 35.671 ms
+
+=== Query timing — repeat (warm cache) ===
+Timing is on.
+ rows_total |       avg_age       
+------------+---------------------
+    1000000 | 57.5000000000000000
+(1 row)
+
+Time: 32.325 ms
+ adults_over_30 
+----------------
+         837500
+(1 row)
+
+Time: 24.765 ms
+
+=== ps aux | grep postgres ===
+postgres    4092  0.0  0.3 220276 31240 ?        Ss   10:14   0:00 /usr/lib/postgresql/16/bin/postgres -D /var/lib/postgresql/16/main -c config_file=/etc/postgresql/16/main/postgresql.conf
+postgres    4093  0.0  0.0 220408  6596 ?        Ss   10:14   0:00 postgres: 16/main: checkpointer 
+postgres    4094  0.0  0.0 220424  7624 ?        Ss   10:14   0:00 postgres: 16/main: background writer 
+postgres    4096  0.0  0.1 220276 10532 ?        Ss   10:14   0:00 postgres: 16/main: walwriter 
+postgres    4097  0.0  0.1 221868  8876 ?        Ss   10:14   0:00 postgres: 16/main: autovacuum launcher 
+postgres    4098  0.0  0.1 221852  8268 ?        Ss   10:14   0:00 postgres: 16/main: logical replication launcher 
+ridaa       5147  0.0  0.0   4752  3380 pts/0    S+   10:17   0:00 bash /mnt/c/Users/ridaa/scaler-Adv-DBMS/Lab2/postgres_experiment.sh
+ridaa       5148  0.0  0.0   3132  1740 pts/0    S+   10:17   0:00 tee /mnt/c/Users/ridaa/scaler-Adv-DBMS/Lab2/results/postgres_output.txt
+
+==========================================
+  PostgreSQL experiment done.
+==========================================
