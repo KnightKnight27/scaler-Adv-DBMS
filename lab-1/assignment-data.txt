@@ -1,0 +1,3 @@
+Advanced DBMS Lab 1
+This file was written using POSIX open/write and read using open/read.
+It demonstrates how user code reaches the operating system through system calls.
