@@ -1,0 +1,6 @@
+# Generated database file — recreate with: sqlite3 students.db ".read schema.sql"
+students.db
+
+# Python cache
+__pycache__/
+*.pyc
