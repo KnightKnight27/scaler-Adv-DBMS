@@ -1,0 +1,228 @@
+# Lab 4 – Implementation of Red-Black Tree and B-Tree
+
+**Name:** Amitabh Panda
+**Roll No:** 24BCS10104
+
+## Objective
+
+The purpose of this lab was to study and implement two widely used balanced tree data structures: the **Red-Black Tree** and the **B-Tree**. These structures are designed to maintain balanced heights, enabling efficient insertion, deletion, and search operations even as the amount of stored data increases.
+
+---
+
+# Red-Black Tree
+
+A Red-Black Tree is a self-balancing Binary Search Tree (BST) that uses node coloring and rotations to maintain balance after updates.
+
+## Characteristics
+
+The tree follows a set of rules that ensure logarithmic height:
+
+* Every node is assigned either a Red or Black color.
+* The root node must always be Black.
+* A Red node cannot have a Red child.
+* Every path from a node to a NULL leaf contains the same number of Black nodes.
+* Newly inserted nodes are initially colored Red.
+
+These constraints prevent the tree from becoming heavily skewed.
+
+## Implemented Features
+
+The Red-Black Tree implementation includes:
+
+* Node insertion
+* Left rotation
+* Right rotation
+* Color adjustment (recoloring)
+* Inorder traversal
+
+## Complexity Analysis
+
+| Operation | Time Complexity |
+| --------- | --------------- |
+| Search    | O(log n)        |
+| Insert    | O(log n)        |
+| Traversal | O(n)            |
+
+---
+
+# B-Tree
+
+A B-Tree is a height-balanced multiway search tree commonly used for indexing in databases and file systems.
+
+Unlike a binary tree, each node in a B-Tree can store multiple keys and have several child pointers. This structure reduces tree height and minimizes disk accesses.
+
+For this implementation:
+
+```text
+Minimum Degree (t) = 3
+```
+
+---
+
+## Supported Operations
+
+The following functionalities were implemented:
+
+* Search
+* Traversal
+* Insertion
+* Insertion into a non-full node
+* Node splitting
+* Deletion
+* Removal from leaf nodes
+* Removal from internal nodes
+* Borrowing keys from siblings
+* Merging nodes
+* Root adjustment after deletions
+
+---
+
+# Insertion Process in a B-Tree
+
+When an insertion causes a node to exceed its capacity:
+
+1. The node is divided into two parts.
+2. The median key is promoted to the parent node.
+3. Two new child nodes are formed.
+4. Tree balance is preserved automatically.
+
+This strategy keeps the tree shallow and ensures efficient operations even with large datasets.
+
+---
+
+# Deletion Process in a B-Tree
+
+Deletion requires several cases to be handled carefully.
+
+### Removing from a Leaf Node
+
+If the target key is located in a leaf, it can be removed directly.
+
+### Removing from an Internal Node
+
+When the key resides in an internal node, it is replaced by either:
+
+* Its predecessor key, or
+* Its successor key
+
+depending on which child subtree can provide a suitable replacement.
+
+### Borrowing Keys
+
+If a child node falls below the minimum key requirement, a key can be borrowed from an adjacent sibling node.
+
+### Merging Nodes
+
+When borrowing is not possible, neighboring nodes are merged together and the parent is updated accordingly.
+
+---
+
+# Demonstration Data
+
+### Keys Inserted
+
+```text
+10 20 5 6 12 30 7 17
+```
+
+### Keys Removed
+
+```text
+6
+7
+12
+```
+
+### Search Example
+
+```text
+12
+```
+
+---
+
+# Applications in Database Systems
+
+Balanced trees play an important role in modern database architectures.
+
+## Red-Black Tree Applications
+
+Commonly used in:
+
+* In-memory indexing structures
+* Operating system scheduling algorithms
+* Balanced associative containers
+
+## B-Tree Applications
+
+Widely used in:
+
+* Database indexing
+* File system metadata management
+* Storage engines
+* Query processing systems
+
+Most relational database systems rely on B-Tree indexes because they provide excellent performance while minimizing disk I/O operations.
+
+---
+
+# Directory Structure
+
+```text
+Lab4/
+│
+├── README.md
+│
+├── red_black_tree/
+│   └── red_black_tree.cpp
+│
+└── b_tree/
+    ├── BTree.h
+    └── main.cpp
+```
+
+---
+
+# Compilation and Execution
+
+## Red-Black Tree
+
+```bash
+g++ red_black_tree.cpp -o rbtree
+./rbtree
+```
+
+## B-Tree
+
+```bash
+g++ main.cpp -o btree
+./btree
+```
+
+---
+
+# Performance Comparison
+
+## Red-Black Tree
+
+| Operation | Complexity |
+| --------- | ---------- |
+| Search    | O(log n)   |
+| Insert    | O(log n)   |
+| Rotation  | O(1)       |
+
+## B-Tree
+
+| Operation | Complexity |
+| --------- | ---------- |
+| Search    | O(log n)   |
+| Insert    | O(log n)   |
+| Delete    | O(log n)   |
+
+---
+
+# Conclusion
+
+This experiment explored the implementation of two important balanced tree structures in C++. Both data structures ensure efficient searching and updating by preventing excessive tree growth.
+
+The Red-Black Tree maintains balance through rotations and color adjustments, while the B-Tree relies on splitting, borrowing, and merging operations. Because of their efficiency and scalability, these structures are fundamental components of modern database management systems and indexing mechanisms.
