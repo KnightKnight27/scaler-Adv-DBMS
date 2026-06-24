@@ -1,0 +1,8 @@
+CompileFlags:
+  Add: [-pthread]
+
+---
+If:
+  PathMatch: .*\.(cpp|cc|cxx|h|hpp)
+CompileFlags:
+  Add: [-std=c++17]
