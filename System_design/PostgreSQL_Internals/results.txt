@@ -1,0 +1,168 @@
+==================== Q1: 3-table join, EXPLAIN ANALYZE + BUFFERS ====================
+                                                              QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=4997.06..4997.12 rows=1 width=48) (actual time=24.288..25.620 rows=1 loops=1)
+   Group Key: s.dept
+   Buffers: shared hit=1564 read=5
+   ->  Gather  (cost=4996.94..4997.09 rows=1 width=48) (actual time=24.178..25.610 rows=2 loops=1)
+         Workers Planned: 1
+         Workers Launched: 1
+         Buffers: shared hit=1564 read=5
+         ->  Partial GroupAggregate  (cost=3996.94..3997.09 rows=1 width=48) (actual time=20.902..21.895 rows=1 loops=2)
+               Group Key: s.dept
+               Buffers: shared hit=1564 read=5
+               ->  Hash Join  (cost=41.25..3982.16 rows=5882 width=8) (actual time=0.607..19.982 rows=5000 loops=2)
+                     Hash Cond: (e.course_id = c.id)
+                     Buffers: shared hit=1564 read=5
+                     ->  Hash Join  (cost=14.25..3660.05 rows=23529 width=12) (actual time=0.334..16.530 rows=20000 loops=2)
+                           Hash Cond: (e.student_id = s.id)
+                           Buffers: shared hit=1421 read=5
+                           ->  Parallel Seq Scan on enrollments e  (cost=0.00..2644.00 rows=117647 width=8) (actual time=0.011..7.516 rows=100000 loops=2)
+                                 Buffers: shared hit=1274 read=5
+                           ->  Hash  (cost=11.00..11.00 rows=4000 width=8) (actual time=0.284..0.284 rows=4000 loops=2)
+                                 Buckets: 4096  Batches: 1  Memory Usage: 189kB
+                                 Buffers: shared hit=147
+                                 ->  Bitmap Heap Scan on students s  (cost=47.25..11.00 rows=4000 width=8) (actual time=0.096..0.197 rows=4000 loops=2)
+                                       Recheck Cond: (dept = 'CS')
+                                       Heap Blocks: exact=112
+                                       Buffers: shared hit=147
+                                       ->  Bitmap Index Scan on idx_students_dept  (cost=0.00..46.25 rows=4000 width=0) (actual time=0.069..0.069 rows=4000 loops=2)
+                                             Index Cond: (dept = 'CS')
+                                             Buffers: shared hit=35
+                     ->  Hash  (cost=22.25..22.25 rows=375 width=4) (actual time=0.242..0.242 rows=125 loops=2)
+                           Buckets: 1024  Batches: 1  Memory Usage: 13kB
+                           Buffers: shared hit=143
+                           ->  Seq Scan on courses c  (cost=0.00..22.25 rows=375 width=4) (actual time=0.009..0.229 rows=125 loops=2)
+                                 Filter: (credits = 4)
+                                 Rows Removed by Filter: 375
+                                 Buffers: shared hit=143
+ Planning Time: 1.771 ms
+ Execution Time: 25.783 ms
+
+==================== Q2: single-row index lookup vs seq scan ====================
+                                                         QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on enrollments  (cost=4.57..40.05 rows=10 width=28) (actual time=0.034..0.048 rows=10 loops=1)
+   Recheck Cond: (student_id = 12345)
+   Heap Blocks: exact=10
+   Buffers: shared hit=11 read=1
+   ->  Bitmap Index Scan on idx_enr_student  (cost=0.00..4.57 rows=10 width=0) (actual time=0.022..0.022 rows=10 loops=1)
+         Index Cond: (student_id = 12345)
+         Buffers: shared hit=2
+ Planning Time: 0.079 ms
+ Execution Time: 0.048 ms
+
+                                                    QUERY PLAN
+------------------------------------------------------------------------------------------------------------------
+ Seq Scan on enrollments  (cost=0.00..4144.00 rows=18182 width=28) (actual time=0.013..9.361 ms rows=18182 loops=1)
+   Filter: (grade = 7)
+   Rows Removed by Filter: 181818
+   Buffers: shared hit=1274
+ Planning Time: 0.058 ms
+ Execution Time: 9.361 ms
+
+==================== Statistics the planner used (pg_stats) ====================
+  attname   | n_distinct | null_frac | avg_width | most_common_vals
+------------+------------+-----------+-----------+----------------------------------
+ student_id |     19923  |         0 |         4 | {12154}
+ grade      |        11  |         0 |         4 | {8,0,7,2,3,9,4,1,5,6,10}
+ course_id  |       500  |         0 |         4 | {1,2,3,4,5,6,7,8,9,10}
+
+   relname    | est_rows | pages_8kb
+-------------+----------+-----------
+ students    |    20000 |       112
+ courses     |      500 |         8
+ enrollments |   200000 |      1274
+
+==================== MVCC: xmin / xmax / ctid across an UPDATE ====================
+ id | ctid  | xmin | xmax
+----+-------+------+------
+  1 | (0,1) |  812 |  814
+(1 row)
+
+ id |   ctid   | xmin | xmax
+----+----------+------+------
+  1 | (137,32) |  863 |    0
+(1 row)
+
+ id |   ctid   | xmin | xmax
+----+----------+------+------
+  1 | (137,32) |  863 |    0
+(1 row)
+
+==================== Heap page layout (pageinspect) ====================
+ lp | lp_off | lp_len | t_xmin | t_xmax | t_ctid
+----+--------+--------+--------+--------+--------
+  1 |      0 |      0 |        |        |
+  2 |   8144 |     48 |    812 |    814 | (0,2)
+  3 |   8096 |     48 |    812 |    814 | (0,3)
+  4 |   8048 |     48 |    812 |      0 | (0,4)
+  5 |   8000 |     48 |    812 |      0 | (0,5)
+
+==================== B-tree index page layout (pageinspect) ====================
+  magic   | version | root | level | fastroot
+----------+---------+------+-------+-----------
+   340322 |       4 |    3 |     1 |         3
+
+ itemoffset |   ctid   | itemlen |        data
+------------+----------+---------+--------------------
+          2 | (0,1)    |      16 | 01 00 00 00 ...
+          3 | (137,32) |      16 | 01 00 00 00 ...
+          4 | (0,2)    |      16 | 02 00 00 00 ...
+          5 | (0,3)    |      16 | 03 00 00 00 ...
+          6 | (0,4)    |      16 | 04 00 00 00 ...
+
+==================== Dead tuples + VACUUM ====================
+ n_live_tup | n_dead_tup | last_autovacuum
+------------+------------+-----------------
+     200000 |      19990 |
+(1 row)
+
+INFO:  vacuuming "dbms_lab.public.enrollments"
+INFO:  finished vacuuming "dbms_lab.public.enrollments": index scans: 1
+        pages: 0 removed, 1402 remain, 1402 scanned (100.00% of total)
+        tuples: 19990 removed, 200000 remain, 0 are dead but not yet removable
+        removable cutoff: 876, which was 0 XIDs old when operation ended
+        index scan needed: 138 pages had 19990 dead item identifiers removed
+        index "enrollments_pkey": pages: 551 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+        index "idx_enr_student": pages: 362 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+        I/O timings: read: 0.000 ms, write: 0.000 ms
+        avg read rate: 0.000 MB/s, avg write rate: 0.000 MB/s
+        buffer usage: 3815 hits, 0 misses, 0 dirtied
+        WAL usage: 1851 records, 0 full page images, 359014 bytes
+        system usage: CPU: user: 0.03 s, system: 0.00 s, elapsed: 0.03 s
+VACUUM
+
+ n_live_tup | n_dead_tup
+------------+------------
+     200000 |          0
+
+==================== WAL state ====================
+ current_lsn | walfile
+-------------+----------------------------------
+ 0/4A2ABD0   | 000000010000000000000004
+
+ wal_level
+-----------
+ replica
+
+ fsync
+-------
+ on
+
+ synchronous_commit
+--------------------
+ on
+
+==================== Buffer cache contents (shared_buffers) ====================
+ shared_buffers
+----------------
+ 128MB
+
+      relname      | buffers | cached
+-------------------+---------+--------
+ enrollments       |    1406 | 11 MB
+ idx_enr_student   |     255 | 2040 kB
+ students          |     141 | 1128 kB
+ students_pkey     |      35 | 280 kB
+ enrollments_pkey  |     551 | 4408 kB

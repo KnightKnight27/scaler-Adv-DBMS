@@ -1,0 +1,50 @@
+
+========== LEVELED compaction ==========
+logical user bytes written : 109.7 MB
+flush bytes -> L0          : 109.9 MB
+compaction bytes written   : 301.7 MB
+WAL bytes written          : 124.0 MB
+WRITE AMPLIFICATION        : 3.75x  (flush+compaction)/user
+---
+live data (logical)        : 87.1 MB
+SST files on disk          : 87.1 MB
+SPACE AMPLIFICATION        : 1.00x  sst/live
+---
+point reads                : 100000  (hits=19589 misses=80411)
+bloom filter useful (skips): 29984  full-positives: 19895
+data blocks read from disk : 98007
+--- per-level (rocksdb.levelstats) ---
+Level Files Size(MB)
+--------------------
+  0        0        0
+  1        0        0
+  2        0        0
+  3        0        0
+  4        0        0
+  5        0        0
+  6       22       87
+
+========== UNIVERSAL compaction ==========
+logical user bytes written : 109.7 MB
+flush bytes -> L0          : 109.9 MB
+compaction bytes written   : 242.4 MB
+WAL bytes written          : 124.0 MB
+WRITE AMPLIFICATION        : 3.21x  (flush+compaction)/user
+---
+live data (logical)        : 87.1 MB
+SST files on disk          : 87.1 MB
+SPACE AMPLIFICATION        : 1.00x  sst/live
+---
+point reads                : 100000  (hits=19589 misses=80411)
+bloom filter useful (skips): 29992  full-positives: 19887
+data blocks read from disk : 82603
+--- per-level (rocksdb.levelstats) ---
+Level Files Size(MB)
+--------------------
+  0        0        0
+  1        0        0
+  2        0        0
+  3        0        0
+  4        0        0
+  5        0        0
+  6       22       87
