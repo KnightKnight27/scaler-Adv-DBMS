@@ -1,0 +1,25 @@
+=== SQLITE WITH mmap_size = 256 MB (10x each) ===
+
+-- Q1 (mmap on) --
+Run Time: real 0.000278 user 0.000000 sys 0.000000
+Run Time: real 0.000248 user 0.000000 sys 0.000000
+Run Time: real 0.000250 user 0.000000 sys 0.000000
+Run Time: real 0.000164 user 0.000000 sys 0.000000
+Run Time: real 0.000146 user 0.000000 sys 0.000000
+Run Time: real 0.000147 user 0.000000 sys 0.000000
+Run Time: real 0.000152 user 0.000000 sys 0.000000
+Run Time: real 0.000230 user 0.000000 sys 0.000000
+Run Time: real 0.000166 user 0.000000 sys 0.000000
+Run Time: real 0.000155 user 0.000000 sys 0.000000
+
+-- Q2 (mmap on) --
+Run Time: real 0.000175 user 0.000000 sys 0.000000
+Run Time: real 0.000306 user 0.000000 sys 0.000000
+Run Time: real 0.000234 user 0.000000 sys 0.000000
+Run Time: real 0.000191 user 0.000000 sys 0.000000
+Run Time: real 0.000213 user 0.000000 sys 0.000000
+Run Time: real 0.000967 user 0.000000 sys 0.000000
+Run Time: real 0.000213 user 0.000000 sys 0.000000
+Run Time: real 0.000329 user 0.000000 sys 0.000000
+Run Time: real 0.000340 user 0.000000 sys 0.000000
+Run Time: real 0.000418 user 0.000000 sys 0.000000
