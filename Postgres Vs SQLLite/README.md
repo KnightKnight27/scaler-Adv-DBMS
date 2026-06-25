@@ -45,4 +45,3 @@ PGPASSWORD=postgres psql -U postgres -d advdbms -h localhost -f schema.sql
 - `PRAGMA mmap_size` made no measurable difference at 12 KB — exactly as
   SQLite's docs predict for cache-hot workloads.
 
-Forked from [Jils31/scaler-Adv-DBMS](https://github.com/Jils31/scaler-Adv-DBMS).
