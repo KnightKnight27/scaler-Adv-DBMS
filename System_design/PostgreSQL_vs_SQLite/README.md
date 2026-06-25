@@ -1,0 +1,160 @@
+# PostgreSQL vs SQLite — Architecture Comparison
+
+> Two relational databases that both speak SQL and both store B-trees on disk, yet they were built for almost opposite worlds. PostgreSQL is a multi-process server you connect to over a socket; SQLite is a library you link into your program. Almost every architectural difference below falls out of that one decision.
+
+All numbers in this document were measured locally on **PostgreSQL 18.3** and **SQLite 3.51** (macOS, Apple Silicon) using the same schema (`students`, `enrollments`) loaded with 20,000 and 200,000 rows respectively. The scripts to reproduce are in this folder (`sqlite_setup.sql`); the Postgres side reuses `../PostgreSQL_Internals/setup.sql` (identical schema).
+
+---
+
+## 1. Problem Background
+
+**SQLite (2000, D. Richard Hipp).** Hipp was building software for a US Navy destroyer and wanted a database that didn't need a server to be running or an administrator to configure it — the program should just open a file. SQLite's tagline is *"a replacement for `fopen()`"*, not "a replacement for Oracle." The entire database is a single file, and the engine is a C library that runs inside the host process. There is no separate database process at all.
+
+**PostgreSQL (1986 → POSTGRES at Berkeley, SQL support 1994).** PostgreSQL descends from academic research into extensible, object-relational databases. Its target was always the *shared* database: many users, many concurrent connections, long-lived data that must survive crashes and outlive any single client. That requires a process that is always running, that owns the data files, and that arbitrates between clients.
+
+So the two systems answer different questions:
+- SQLite: *"How do I give one application structured, transactional local storage with zero setup?"*
+- PostgreSQL: *"How do I let hundreds of clients safely share one consistent dataset?"*
+
+---
+
+## 2. Architecture Overview
+
+### SQLite — embedded / in-process
+
+```
+┌─────────────────────────────────────────┐
+│           Application process            │
+│                                          │
+│   app code  ──►  SQLite library (C)      │
+│                    │  SQL compiler       │
+│                    │  VDBE (bytecode)    │
+│                    │  B-tree layer       │
+│                    │  Pager + cache      │
+│                    ▼                      │
+│                  OS file I/O              │
+└────────────────────┬─────────────────────┘
+                     ▼
+              one file:  app.db
+              (+ app.db-wal / -journal)
+```
+No IPC, no network, no server. A function call goes straight down to a `read()`/`write()` on the database file. Concurrency between processes is coordinated entirely through **file locks** on that one file.
+
+### PostgreSQL — client-server, process-per-connection
+
+```mermaid
+flowchart TD
+    C1[psql / app] -- TCP / unix socket --> PM[postmaster<br/>listener]
+    C2[app 2] -- connect --> PM
+    PM -- fork --> B1[backend process 1]
+    PM -- fork --> B2[backend process 2]
+    B1 --> SB[(Shared Buffers<br/>128 MB)]
+    B2 --> SB
+    SB <--> WAL[WAL writer]
+    SB <--> BGW[bgwriter / checkpointer]
+    SB <--> DISK[(heap + index files<br/>1 file per relation)]
+    WAL --> WALDISK[(pg_wal/)]
+```
+
+When a client connects, the **postmaster** forks a dedicated **backend process** for that connection. All backends share one region of shared memory (**shared buffers**, the page cache) and coordinate through it. Background processes (WAL writer, checkpointer, autovacuum, background writer) handle durability and cleanup. One connection = one OS process.
+
+---
+
+## 3. Internal Design
+
+### Storage layout — measured
+
+| Property | SQLite | PostgreSQL |
+|---|---|---|
+| Default page size | **4 KB** (`PRAGMA page_size`) | **8 KB** (`SHOW block_size`) |
+| File organization | **one file** holds all tables + indexes + schema | **one file per relation** (table, index), plus `pg_wal/`, catalogs |
+| `students`+`enrollments`+2 indexes | 1,482 pages in a single **6.07 MB** `lab.db` | `enrollments` heap alone = 1,274 × 8 KB ≈ **10 MB**, separate file |
+| Schema storage | `sqlite_schema` table (page 1) | system catalogs (`pg_class`, `pg_attribute`, …) |
+| File header | bytes 0–15 = `"SQLite format 3\000"` | per-file; cluster metadata in `PG_VERSION`, `pg_control` |
+
+SQLite's `dbstat` virtual table shows how the *single file* is internally divided:
+
+```
+name             bytes     pages
+enrollments      3.13 MB    764
+idx_enr_student  2.19 MB    534
+students         0.54 MB    133
+idx_students_dept 0.20 MB    50
+```
+
+Same logical data, two physical philosophies: SQLite multiplexes every object into **one file** with a page-allocation map inside it; PostgreSQL gives **every table and index its own file** so they can be locked, vacuumed, extended, and replicated independently.
+
+### Index implementation
+Both use **B-trees** for ordered indexes. The notable structural difference is the *primary table*:
+- **SQLite**: a table with an `INTEGER PRIMARY KEY` becomes a B-tree *keyed on the rowid* — the table **is** a clustered B-tree (like InnoDB). Other tables are stored as a B-tree on an implicit `rowid`.
+- **PostgreSQL**: tables are **heaps** (unordered). Every index, even the primary key, is a *separate* B-tree pointing into the heap by `ctid`. Postgres has no clustered index (only a one-shot `CLUSTER` command that physically reorders once).
+
+### Query execution — measured
+
+The same join, two different strategies:
+
+```
+-- SQLite (EXPLAIN QUERY PLAN)
+SEARCH s USING COVERING INDEX idx_students_dept (dept=?)
+SEARCH e USING COVERING INDEX idx_enr_student (student_id=?)   -- nested loop
+```
+```
+-- PostgreSQL (EXPLAIN ANALYZE)
+Parallel Hash Join  (Workers Launched: 1)
+  Hash Cond: e.student_id = s.id
+  -> Parallel Seq Scan on enrollments
+  -> Bitmap Heap Scan on students (dept='CS')
+```
+
+SQLite always uses **nested-loop joins** driven by indexes — simple, low-memory, great when the working set is tiny. PostgreSQL has a **cost-based planner** that picked a **hash join** and even spun up a **parallel worker**, because for a 200k-row scan a hash join beats nested loops. SQLite has no parallelism and a deliberately simpler planner; that's a feature for an embedded engine, not a bug.
+
+### Transactions, concurrency & durability
+
+| | SQLite | PostgreSQL |
+|---|---|---|
+| Concurrency unit | **whole database** (file-level locks) | **per-row** (MVCC) |
+| Default isolation | Serializable | Read Committed |
+| Writers | **one at a time** for the whole DB | many concurrent writers, blocked only on the same row |
+| Readers vs writer | rollback-journal mode: reader blocks writer; **WAL mode: readers + 1 writer concurrent** | readers never block writers, writers never block readers (MVCC) |
+| Durability log | rollback journal (default) or **WAL** (`-wal` file) | **WAL** (`pg_wal/`), `fsync=on`, `synchronous_commit=on` |
+| Crash recovery | replay/rollback journal or WAL on next open | replay WAL from last checkpoint at startup |
+
+SQLite's concurrency model is *"the file is the lock."* Even in WAL mode (which I enabled — it created `lab.db-wal` and `lab.db-shm`), it allows **many readers but only a single writer** at a time. PostgreSQL uses **MVCC**: each writer creates new row versions, so concurrent readers see a consistent snapshot without ever taking a read lock. That is the single biggest reason Postgres scales to many writers and SQLite does not.
+
+---
+
+## 4. Design Trade-Offs
+
+**Why SQLite is embedded.** Zero configuration, zero IPC, the whole DB is one portable file you can copy or ship inside an app. The cost: the file-level write lock means it is unsuitable for many concurrent writers, and being in-process means a crash in the host app is a crash of the DB engine.
+
+**Why PostgreSQL is client-server.** A always-on server process can: arbitrate many writers via row-level MVCC, enforce permissions, run background vacuum/checkpoint, stream WAL to replicas, and keep a large shared cache warm across connections. The cost: you must run and administer a server, and every query pays IPC + planning + MVCC overhead.
+
+**The overhead shows up even on tiny data.** From the earlier 10-row benchmark (`comparison.md`): a trivial `COUNT` took **~0.5 ms** in PostgreSQL but **<0.05 ms** in SQLite — Postgres pays socket protocol, a real planner, and MVCC visibility checks on every query. SQLite, being a function call, has almost no fixed cost. On *large multi-user* workloads the ranking inverts: Postgres's parallelism, MVCC concurrency, and shared cache win decisively.
+
+**Process-per-connection is itself a trade-off.** It's robust (one backend crashing doesn't take others down) and simple, but each connection costs an OS process (~few MB) — which is why high-connection Postgres deployments put a pooler (PgBouncer) in front.
+
+---
+
+## 5. Experiments / Observations
+
+Schema: `students` (20k rows), `enrollments` (200k rows), two secondary indexes, loaded identically into both engines.
+
+**Storage:**
+- SQLite packed *everything* into a single **6.07 MB** file (1,482 × 4 KB pages).
+- PostgreSQL spread it across **multiple files**; the `enrollments` heap alone is **1,274 × 8 KB pages ≈ 10 MB**, in its own file separate from its indexes.
+
+**Same selectivity question, same answer — different mechanics.** Both engines used the secondary index for the selective predicate (`student_id = 12345`, ~10 rows) and fell back to a **full scan** for the unselective one (`grade = 7`, ~18k rows = 9% of the table). Postgres's planner made that choice from collected statistics (n_distinct=11 for `grade`); SQLite's simpler planner reached the same conclusion via its index/scan cost rules.
+
+**Joins:** SQLite = index-driven nested loop. PostgreSQL = parallel hash join. The plans are structurally different because the planners have different ambitions.
+
+**Concurrency (conceptual, confirmed by lock model):** Enabling WAL mode in SQLite (`PRAGMA journal_mode=wal`) lets readers run concurrently with a single writer, but a second writer still has to wait for the whole-database write lock. PostgreSQL's MVCC lets two transactions update *different* rows of the same table at the same time with no waiting.
+
+---
+
+## 6. Key Learnings
+
+1. **One architectural choice explains the rest.** "Library vs server" cascades into file-level vs row-level locking, one-file vs file-per-relation, nested-loop vs cost-based parallel plans, and single-writer vs MVCC.
+2. **SQLite wins on the small and local; PostgreSQL wins on the shared and large.** SQLite's per-query cost is near zero, which is exactly what an embedded engine in a phone app or browser needs. Postgres's per-query overhead buys concurrency, durability machinery, and a planner that scales to big data.
+3. **"Why SQLite for mobile?"** — no server to run, one file to back up/ship, tiny footprint, in-process speed, and a single app means the single-writer limitation rarely bites. It's the most deployed database in the world for precisely these reasons.
+4. **"Why PostgreSQL for large multi-user systems?"** — MVCC concurrency, per-relation storage that supports online vacuum and replication, a cost-based parallel planner, and a hardened durability path (WAL + checkpoints + fsync).
+5. **Both are "correct" designs.** They optimize for different constraints. SQLite even documents that for many read-heavy sites it can outperform a client-server DB *because* it skips the network — the trade-off is real and bidirectional.
