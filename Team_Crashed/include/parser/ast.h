@@ -70,6 +70,13 @@ struct CreateStmt {
     std::string table;
     std::vector<catalog::Column> columns;
     bool ifNotExists = false;
+    // CREATE INDEX path. When `isIndex` is true the statement is
+    //   CREATE INDEX <indexName> ON <table> (<indexColumn>)
+    // and `columns` is empty. Reusing CreateStmt avoids adding a new
+    // StmtKind (which would require touching ast.cpp's switch).
+    bool        isIndex     = false;
+    std::string indexName;
+    std::string indexColumn;
 };
 
 struct DropStmt {

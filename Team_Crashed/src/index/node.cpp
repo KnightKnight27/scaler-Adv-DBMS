@@ -220,23 +220,41 @@ void Node::setChild(std::uint16_t i, PageId pg) {
 
 // -- key (de)serialisation ---------------------------------------------------
 
-// INT — 4 bytes, big-endian so INT keys sort the same as their integer order.
+// INT — 4 bytes, big-endian, with a sign-bit flip so that byte-wise comparison
+// of the encoded form matches the signed numeric order.
+//
+// Two's-complement integers already compare correctly *within* the negatives
+// and *within* the positives as raw unsigned bit patterns: e.g. INT_MIN
+// (0x80000000) < -2 (0xFFFFFFFE) < -1 (0xFFFFFFFF) as unsigned, matching the
+// numeric order. The only defect is that all negatives (sign bit set, range
+// 0x80000000..0xFFFFFFFF) sort ABOVE all positives (0x00000000..0x7FFFFFFF).
+//
+// Flipping just the sign bit maps negatives to [0x00000000..0x7FFFFFFF] and
+// positives to [0x80000000..0xFFFFFFFF], preserving intra-range order and
+// placing every negative below every positive. This is therefore a single
+// unconditional XOR with 0x80000000 — NOT the float trick (which flips ALL
+// bits of negatives because IEEE-754 orders negative magnitudes in reverse,
+// the opposite of two's complement).
+//
+// Decode reverses exactly: XOR with 0x80000000 is its own inverse.
 std::vector<std::uint8_t> encodeIntKey(int32_t v) {
+    std::uint32_t b = static_cast<std::uint32_t>(v) ^ 0x80000000u;
     std::vector<std::uint8_t> out(4);
-    out[0] = static_cast<std::uint8_t>((static_cast<std::uint32_t>(v) >> 24) & 0xFFu);
-    out[1] = static_cast<std::uint8_t>((static_cast<std::uint32_t>(v) >> 16) & 0xFFu);
-    out[2] = static_cast<std::uint8_t>((static_cast<std::uint32_t>(v) >>  8) & 0xFFu);
-    out[3] = static_cast<std::uint8_t>( static_cast<std::uint32_t>(v)        & 0xFFu);
+    out[0] = static_cast<std::uint8_t>((b >> 24) & 0xFFu);
+    out[1] = static_cast<std::uint8_t>((b >> 16) & 0xFFu);
+    out[2] = static_cast<std::uint8_t>((b >>  8) & 0xFFu);
+    out[3] = static_cast<std::uint8_t>( b        & 0xFFu);
     return out;
 }
 
 int32_t decodeIntKey(std::span<const std::uint8_t> k) {
     if (k.size() < 4) return 0;
-    std::uint32_t v = (static_cast<std::uint32_t>(k[0]) << 24) |
+    std::uint32_t b = (static_cast<std::uint32_t>(k[0]) << 24) |
                       (static_cast<std::uint32_t>(k[1]) << 16) |
                       (static_cast<std::uint32_t>(k[2]) <<  8) |
                       (static_cast<std::uint32_t>(k[3]));
-    return static_cast<int32_t>(v);
+    b ^= 0x80000000u;
+    return static_cast<int32_t>(b);
 }
 
 // FLOAT — re-interpret the IEEE-754 bit pattern so that byte-wise comparison

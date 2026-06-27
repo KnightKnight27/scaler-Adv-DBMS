@@ -5,13 +5,22 @@
 //
 // MVCC visibility
 // ---------------
-//   A row is visible to a reader whose snapshot is S (the max active txn
-//   id at the reader's BEGIN time) iff:
+//   A row carries (createdBy, deletedBy). A reader's snapshot S is the
+//   committed high-water mark at the reader's BEGIN time: S = the highest
+//   txn id that had COMMITTED before the reader started. A row is visible
+//   to the reader iff:
 //
-//       row.createdBy <= S  AND  (row.deletedBy == 0 OR row.deletedBy > S)
+//       createdBy == reader          (own write: visible unless the reader
+//                                     itself also deleted it), OR
+//       createdBy <= S                (creator committed before the reader
+//                                     began) AND
+//       (deletedBy == 0 OR deletedBy > S)   (not yet deleted at snapshot)
 //
-//   This implements snapshot isolation: readers see a consistent snapshot
-//   and never block on writers.
+//   The "own write" arm lets a transaction see the rows it inserted even
+//   though its own id is greater than its snapshot. The S = committed-high
+//   rule (not "id - 1") is what makes an uncommitted txn's writes invisible
+//   to a reader that began after it — that is the snapshot-isolation
+//   guarantee the v1 "id - 1" snapshot failed to provide.
 //
 // Write-write conflict detection
 // -------------------------------
@@ -29,22 +38,24 @@ TransactionManager::TransactionManager()  = default;
 TransactionManager::~TransactionManager() = default;
 
 // Allocate a new transaction id, record the snapshot high-water mark
-// (max active txn id before this one), and return the id.
+// (the highest COMMITTED txn id before this one), and return the id.
 TransactionId TransactionManager::begin() {
     std::lock_guard<std::mutex> lk(mu_);
 
     TransactionId id = next_++;
     auto t = std::make_unique<Transaction>(id);
-    // Snapshot = max active txn id before we start. next_ - 1 is always
-    // >= the id of every txn already in txns_, because ids are monotonic.
-    t->setSnapshotHigh(id - 1);
+    // Snapshot = highest txn id that has COMMITTED so far. Rows created by
+    // any txn that has not yet committed (even one that began earlier) are
+    // therefore invisible to this reader — the snapshot-isolation guarantee.
+    t->setSnapshotHigh(committedHighWater_);
     txns_[id] = std::move(t);
     return id;
 }
 
 // Commit a transaction.
 //   1. Check for write-write conflicts.
-//   2. If clean, mark COMMITTED, release 2PL locks, drop write set.
+//   2. If clean, mark COMMITTED, advance the committed high-water mark,
+//      release 2PL locks, drop write set.
 Status TransactionManager::commit(TransactionId id) {
     std::lock_guard<std::mutex> lk(mu_);
 
@@ -54,6 +65,9 @@ Status TransactionManager::commit(TransactionId id) {
     if (hasConflictLocked(id)) return Status::TXN_CONFLICT;
 
     it->second->setState(TxnState::COMMITTED);
+    // This txn is now durably visible to every reader that begins later:
+    // advance the committed high-water mark.
+    if (id > committedHighWater_) committedHighWater_ = id;
     auto wIt = writes_.find(id);
     if (wIt != writes_.end()) {
         for (RecordId rid : wIt->second) {
@@ -81,15 +95,33 @@ Status TransactionManager::abort(TransactionId id) {
 // MVCC visibility test.
 //
 // A row (created by c, deleted by d) is visible to reader r iff:
-//   c <= r.snapshotHigh()  AND  (d == 0 OR d > r.snapshotHigh())
+//   - it is r's OWN write (c == r.id): visible unless r itself deleted it
+//     (d == r.id); OR
+//   - the creator committed before r's snapshot (c <= r.snapshotHigh()) AND
+//     the row was not deleted before r's snapshot
+//     (d == 0 OR d > r.snapshotHigh()).
 //
-// deletedBy == 0 means "not deleted yet".
+// d == 0 means "not deleted yet". The own-write arm is what lets a txn read
+// its own uncommitted inserts.
 bool TransactionManager::isVisible(TransactionId rowCreator,
                                    TransactionId rowDeleter,
                                    const Transaction& reader) {
-    if (rowCreator > reader.snapshotHigh()) return false;
-    if (rowDeleter != 0 && rowDeleter <= reader.snapshotHigh()) return false;
+    const TransactionId self = reader.id();
+    if (rowCreator == self) {
+        // Own write: visible unless the reader itself deleted it.
+        return !(rowDeleter != 0 && rowDeleter == self);
+    }
+    if (rowCreator > reader.snapshotHigh()) return false;          // not committed at snapshot
+    if (rowDeleter != 0 && rowDeleter <= reader.snapshotHigh()) return false;  // deleted at snapshot
     return true;
+}
+
+// Look up the Transaction object for an id. Returns nullptr if the id is
+// unknown or the txn has been evicted from the active set.
+const Transaction* TransactionManager::getTransaction(TransactionId id) const {
+    std::lock_guard<std::mutex> lk(mu_);
+    auto it = txns_.find(id);
+    return it == txns_.end() ? nullptr : it->second.get();
 }
 
 // Record that txn wrote rid (for MVCC conflict detection at commit time).

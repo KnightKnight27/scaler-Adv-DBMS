@@ -6,16 +6,23 @@
 // Concurrency model
 // -----------------
 //   * mu_ guards every map. The lock manager is a coarse-grained in-memory
-//     structure; contention is low.
-//   * We never actually block a calling thread. If a request would have to
-//     wait, we record the wait edge in waitsFor_, run a cycle check, and
-//     report DEADLOCK right away. The caller is expected to abort the
-//     transaction. This keeps the manager simple.
+//     structure.
+//   * When a request cannot be granted because another transaction holds a
+//     conflicting lock, the requesting transaction BLOCKS: it records its
+//     wait edge in waitsFor_, runs a cycle check, and — if no cycle would
+//     form — parks on cv_ until a release wakes it. On wake it re-checks
+//     and either grabs the lock or parks again.
+//   * If recording the wait edge WOULD form a cycle in waitsFor_, the
+//     request is refused with Status::DEADLOCK. The caller aborts the
+//     transaction, which releases its locks and wakes the waiters it was
+//     blocking — resolving the deadlock. We abort the REQUESTER (the txn
+//     that would close the cycle) as the victim.
 //
 // Visibility rules for SHARED vs EXCLUSIVE
 //   * Many txns may hold S on the same rid.
 //   * Only one txn may hold X; while X is held no S is granted either.
-//   * Upgrading S -> X is treated as a fresh request.
+//   * Upgrading S -> X is treated as a fresh request; the own S lock is
+//     ignored when checking for conflicting holders.
 // =============================================================================
 #include "transaction/lock_manager.h"
 
@@ -51,8 +58,7 @@ bool dfsHasCycle(TransactionId start,
 } // anonymous namespace
 
 // Check if some other txn holds an exclusive lock in this holder map.
-// Caller must already hold mu_. (rid itself is implicit in the map
-// reference; passed-in rid is not needed here.)
+// Caller must already hold mu_.
 static bool holderMapHasOtherExclusive(TransactionId self,
     const std::unordered_map<TransactionId, LockMode>& h) {
     for (const auto& [other, mode] : h) {
@@ -73,61 +79,73 @@ static bool hasCycleLocked(
     return false;
 }
 
-// Acquire a SHARED lock on rid for txn.
-//
-// Grant iff no other txn holds an EXCLUSIVE lock on rid. Otherwise add a
-// wait edge and run a cycle check. Returns DEADLOCK if the wait would
-// form a cycle (v1: no actual blocking).
+// Remove `txn` from rid's waiter list and drop its wait edge. Caller holds mu_.
+static void clearWait(LockManager&, // unused; kept for symmetry with old code
+                      std::unordered_map<TransactionId, TransactionId>& waitsFor,
+                      std::unordered_map<RecordId, std::vector<TransactionId>>& waiters,
+                      TransactionId txn, RecordId rid) {
+    waitsFor.erase(txn);
+    auto& q = waiters[rid];
+    q.erase(std::remove(q.begin(), q.end(), txn), q.end());
+}
+
+// Acquire a SHARED lock on rid for txn, blocking if an exclusive lock is held
+// by another transaction. Returns DEADLOCK if the wait would close a cycle.
 Status LockManager::acquireShared(TransactionId txn, RecordId rid) {
-    std::lock_guard<std::mutex> lk(mu_);
-
-    auto& h = holders_[rid];
-    if (holderMapHasOtherExclusive(txn, h)) {
-        // Pick the X-holder as the blocker. There can be only one X-holder.
-        for (const auto& [other, mode] : h) {
-            if (mode == LockMode::EXCLUSIVE) {
-                waitsFor_[txn] = other;
-                waiters_[rid].push_back(txn);
-                break;
-            }
+    std::unique_lock<std::mutex> lk(mu_);
+    while (true) {
+        auto& h = holders_[rid];
+        if (!holderMapHasOtherExclusive(txn, h)) {
+            h[txn] = LockMode::SHARED;
+            clearWait(*this, waitsFor_, waiters_, txn, rid);
+            return Status::OK;
         }
-        if (hasCycleLocked(waitsFor_)) return Status::DEADLOCK;
-        return Status::DEADLOCK;  // v1: no actual blocking; caller aborts.
-    }
-
-    h[txn] = LockMode::SHARED;
-    waitsFor_.erase(txn);
-    waiters_[rid].erase(
-        std::remove(waiters_[rid].begin(), waiters_[rid].end(), txn),
-        waiters_[rid].end());
-    return Status::OK;
-}
-
-// Acquire an EXCLUSIVE lock on rid for txn.
-//
-// Grant iff no other txn holds any lock (S or X) on rid. Otherwise add a
-// wait edge and run a cycle check. Returns DEADLOCK on cycle.
-Status LockManager::acquireExclusive(TransactionId txn, RecordId rid) {
-    std::lock_guard<std::mutex> lk(mu_);
-
-    auto& h = holders_[rid];
-    for (const auto& [other, mode] : h) {
-        if (other == txn) continue;  // upgrade from S is fine
-        waitsFor_[txn] = other;
+        // Park: record the wait edge against the (single) X-holder and check
+        // for a cycle before blocking.
+        TransactionId blocker = INVALID_TXN_ID;
+        for (const auto& [other, mode] : h) {
+            if (mode == LockMode::EXCLUSIVE) { blocker = other; break; }
+        }
+        waitsFor_[txn] = blocker;
+        if (hasCycleLocked(waitsFor_)) {
+            clearWait(*this, waitsFor_, waiters_, txn, rid);
+            return Status::DEADLOCK;
+        }
         waiters_[rid].push_back(txn);
-        if (hasCycleLocked(waitsFor_)) return Status::DEADLOCK;
-        return Status::DEADLOCK;  // v1: no blocking
+        cv_.wait(lk);   // release mu_, park; reacquire on wake and recheck
     }
-
-    h[txn] = LockMode::EXCLUSIVE;
-    waitsFor_.erase(txn);
-    waiters_[rid].erase(
-        std::remove(waiters_[rid].begin(), waiters_[rid].end(), txn),
-        waiters_[rid].end());
-    return Status::OK;
 }
 
-// Release every lock held by txn. Called at commit / abort.
+// Acquire an EXCLUSIVE lock on rid for txn, blocking if any other transaction
+// holds any lock on rid. Returns DEADLOCK if the wait would close a cycle.
+Status LockManager::acquireExclusive(TransactionId txn, RecordId rid) {
+    std::unique_lock<std::mutex> lk(mu_);
+    while (true) {
+        auto& h = holders_[rid];
+        TransactionId blocker = INVALID_TXN_ID;
+        for (const auto& [other, mode] : h) {
+            (void)mode;
+            if (other == txn) continue;   // own S lock: upgrade is fine
+            blocker = other;
+            break;
+        }
+        if (blocker == INVALID_TXN_ID) {
+            h[txn] = LockMode::EXCLUSIVE;
+            clearWait(*this, waitsFor_, waiters_, txn, rid);
+            return Status::OK;
+        }
+        waitsFor_[txn] = blocker;
+        if (hasCycleLocked(waitsFor_)) {
+            clearWait(*this, waitsFor_, waiters_, txn, rid);
+            return Status::DEADLOCK;
+        }
+        waiters_[rid].push_back(txn);
+        cv_.wait(lk);
+    }
+}
+
+// Release every lock held by txn. Called at commit / abort. Wakes all
+// blocked waiters so they can re-evaluate their requests.
 void LockManager::releaseAll(TransactionId txn) {
     std::lock_guard<std::mutex> lk(mu_);
 
@@ -144,6 +162,7 @@ void LockManager::releaseAll(TransactionId txn) {
     for (auto& [rid, q] : waiters_) {
         q.erase(std::remove(q.begin(), q.end(), txn), q.end());
     }
+    cv_.notify_all();
 }
 
 // Walk the wait-for graph. Public entry point (acquires mu_).
@@ -151,6 +170,14 @@ void LockManager::releaseAll(TransactionId txn) {
 bool LockManager::hasCycle() {
     std::lock_guard<std::mutex> lk(mu_);
     return hasCycleLocked(waitsFor_);
+}
+
+// True iff `txn` holds any lock on `rid`. Public test inspector.
+bool LockManager::holdsLock(TransactionId txn, RecordId rid) const {
+    std::lock_guard<std::mutex> lk(mu_);
+    auto it = holders_.find(rid);
+    if (it == holders_.end()) return false;
+    return it->second.count(txn) != 0;
 }
 
 } // namespace minidb::transaction

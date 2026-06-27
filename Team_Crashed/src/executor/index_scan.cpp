@@ -28,6 +28,7 @@
 #include "common/status.h"
 #include "common/types.h"
 #include "executor/executor.h"
+#include "executor/mvcc.h"
 #include "index/bplus_tree.h"
 #include "index/index_manager.h"
 #include "parser/ast.h"
@@ -207,21 +208,47 @@ Status IndexScanExecutor::init() {
     return Status::OK;
 }
 
-// Yield the next cached RecordId, materialising its row image.
+// Yield the next cached RecordId, materialising its row image. Rows that
+// are not visible to the reader's MVCC snapshot are skipped; in TWO_PL mode
+// an S lock is taken on each row we return.
 Status IndexScanExecutor::next(Tuple& out) {
     (void)decodeRow; // suppress unused-helper warning
-    if (cursor_ >= rids_.size()) return Status::DONE;
-    RecordId rid = rids_[cursor_++];
-    PageId pid = ridPage(rid);
-    std::uint16_t slot = ridSlot(rid);
+    const std::size_t rowSize = info_->schema.rowSize();
+    while (cursor_ < rids_.size()) {
+        RecordId rid = rids_[cursor_++];
+        PageId pid = ridPage(rid);
+        std::uint16_t slot = ridSlot(rid);
 
-    storage::Page* page = nullptr;
-    Status s = ctx_->bp->fetchPage(pid, page);
-    if (s != Status::OK) return s;
-    std::span<const std::uint8_t> bytes = page->getRecord(slot);
-    materialiseTuple(bytes, *info_, out);
-    (void)ctx_->bp->unpinPage(pid, false);
-    return Status::OK;
+        storage::Page* page = nullptr;
+        Status s = ctx_->bp->fetchPage(pid, page);
+        if (s != Status::OK) return s;
+        std::span<const std::uint8_t> bytes = page->getRecord(slot);
+
+        // MVCC snapshot filter: skip rows not visible to the reader.
+        bool visible = true;
+        if (ctx_->txn != nullptr && ctx_->readerTxn != nullptr &&
+            hasMvccTrailer(rowSize, bytes)) {
+            auto [created, deleted] = readMvccTrailer(bytes, rowSize);
+            visible = visibleTo(ctx_->txn, ctx_->readerTxn, created, deleted);
+        }
+        if (!visible) {
+            (void)ctx_->bp->unpinPage(pid, false);
+            continue;
+        }
+
+        materialiseTuple(bytes, *info_, out);
+        (void)ctx_->bp->unpinPage(pid, false);
+
+        // Strict 2PL: lock the row we hand back.
+        if (ctx_->isoMode == IsoMode::TWO_PL && ctx_->txn != nullptr &&
+            ctx_->currentTxnId != INVALID_TXN_ID) {
+            Status ls = ctx_->txn->lockManager().acquireShared(
+                ctx_->currentTxnId, rid);
+            if (ls == Status::DEADLOCK) return Status::DEADLOCK;
+        }
+        return Status::OK;
+    }
+    return Status::DONE;
 }
 
 // Nothing buffered; nothing to release.

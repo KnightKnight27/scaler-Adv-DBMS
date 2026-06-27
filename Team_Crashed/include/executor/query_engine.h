@@ -12,6 +12,7 @@
 
 #include "executor/executor.h"
 #include "recovery/recovery_manager.h"
+#include "recovery/wal.h"
 
 namespace minidb::planner  { class Optimizer; }
 
@@ -23,7 +24,8 @@ public:
                 catalog::CatalogManager*           cat,
                 index::IndexManager*               idx,
                 transaction::TransactionManager*   txn,
-                recovery::RecoveryManager*         rec);
+                recovery::RecoveryManager*         rec,
+                recovery::WAL*                     wal = nullptr);
 
     ~QueryEngine();
 
@@ -38,6 +40,7 @@ public:
 
 private:
     ExecutorContext           ctx_;
+    recovery::WAL*            wal_;
     std::unique_ptr<planner::Optimizer> optimizer_;
     // executors are constructed per call, not stored.
 };

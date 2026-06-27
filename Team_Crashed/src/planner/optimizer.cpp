@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -36,6 +37,23 @@ constexpr double PAGE_SIZE = 4096.0;
 // Default fanout assumed for the B+ tree when we don't know the exact
 // value. Used by estimateCost for index access.
 constexpr double INDEX_FANOUT = 64.0;
+
+// ---------------------------------------------------------------------------
+// Forward declarations (defined near the cost-estimation section below).
+// chooseScan() and Optimizer::estimateRows() use them, but they are defined
+// after the helpers they themselves depend on (estimateCardinality, etc.).
+// ---------------------------------------------------------------------------
+double selectivityOf(const catalog::CatalogManager* cat,
+                     const std::string& table,
+                     const parser::Expr& pred);
+double predicateSelectivity(const catalog::CatalogManager* cat,
+                            const std::string& table,
+                            const parser::Expr& e);
+double seqScanCost(const catalog::CatalogManager* cat,
+                   const std::string& table);
+double indexScanCost(const catalog::CatalogManager* cat,
+                     const std::string& table,
+                     double selectivity);
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -485,6 +503,87 @@ bool hasIndexOnColumn(catalog::CatalogManager* cat,
     return false;
 }
 
+// Split a predicate that may be an AND-chain into its leaf comparison
+// conjuncts. Ownership of each Expr is transferred out of the AND nodes.
+// A non-AND predicate comes back as a single-element vector.
+std::vector<std::unique_ptr<parser::Expr>>
+splitAnd(std::unique_ptr<parser::Expr> e) {
+    std::vector<std::unique_ptr<parser::Expr>> out;
+    if (!e) return out;
+    if (e->kind == parser::ExprKind::BINARY_OP && e->op == "AND" &&
+        e->args.size() == 2 && e->args[0] && e->args[1]) {
+        auto left  = std::move(e->args[0]);
+        auto right = std::move(e->args[1]);
+        auto lparts = splitAnd(std::move(left));
+        auto rparts = splitAnd(std::move(right));
+        for (auto& p : lparts) out.push_back(std::move(p));
+        for (auto& p : rparts) out.push_back(std::move(p));
+        return out;
+    }
+    out.push_back(std::move(e));
+    return out;
+}
+
+// Recombine a list of conjuncts (owned) into a left-deep AND chain.
+// Returns nullptr when the list is empty, and the single conjunct directly
+// when there is only one (so we don't wrap a trivial AND).
+std::unique_ptr<parser::Expr>
+andTogetherPtrs(std::vector<std::unique_ptr<parser::Expr>> parts) {
+    if (parts.empty()) return nullptr;
+    auto cur = std::move(parts.front());
+    for (std::size_t i = 1; i < parts.size(); ++i) {
+        auto next = std::make_unique<parser::Expr>();
+        next->kind = parser::ExprKind::BINARY_OP;
+        next->op   = "AND";
+        next->args.push_back(std::move(cur));
+        next->args.push_back(std::move(parts[i]));
+        cur = std::move(next);
+    }
+    return cur;
+}
+
+// True when `e` is `<column> <op> <literal>` or `<literal> <op> <column>`
+// with op in {=,<,<=,>,>=}. This is exactly the shape IndexScanExecutor can
+// consume to extract a search key; a two-column comparison is rejected
+// because the index scan can't pull a literal key from it.
+bool isIndexableConjunct(const parser::Expr& e) {
+    if (e.kind != parser::ExprKind::BINARY_OP) return false;
+    if (e.op != "=" && e.op != "<" && e.op != "<=" &&
+        e.op != ">" && e.op != ">=") return false;
+    if (e.args.size() != 2) return false;
+    const auto* l = e.args[0].get();
+    const auto* r = e.args[1].get();
+    if (l == nullptr || r == nullptr) return false;
+    auto isColumn = [](const parser::Expr* x) {
+        return x != nullptr && x->kind == parser::ExprKind::COLUMN;
+    };
+    auto isLiteral = [](const parser::Expr* x) {
+        if (x == nullptr) return false;
+        return x->kind == parser::ExprKind::INT_LIT   ||
+               x->kind == parser::ExprKind::FLOAT_LIT ||
+               x->kind == parser::ExprKind::STR_LIT   ||
+               x->kind == parser::ExprKind::BOOL_LIT;
+    };
+    return (isColumn(l) && isLiteral(r)) ||
+           (isColumn(r) && isLiteral(l));
+}
+
+// Walk the AND-conjuncts of a scan predicate and pick the first one that
+// (a) is indexable by IndexScanExecutor and (b) has an index on its column.
+// On a hit we restructure to:
+//
+//     FILTER(residual)         (only if there are leftover conjuncts)
+//       IndexScan(indexable conjunct)
+//
+// The IndexScan carries ONLY the indexable conjunct (so the executor can
+// extract the search key), and the residual conjuncts are re-ANDed into a
+// FILTER above it. When there is no residual we promote the scan directly
+// to an IndexScan with no wrapper. The non-AND path (a single comparison)
+// is preserved: splitAnd returns a one-element vector and we end up with a
+// bare IndexScan, exactly like the original behaviour.
+//
+// estRows / estCost are NOT set here; toPhysical stamps them bottom-up after
+// chooseScan returns, so the freshly built nodes get costs naturally.
 std::unique_ptr<LogicalPlan>
 chooseScan(std::unique_ptr<LogicalPlan> node,
            catalog::CatalogManager* cat,
@@ -493,20 +592,75 @@ chooseScan(std::unique_ptr<LogicalPlan> node,
     for (auto& c : node->children) {
         c = chooseScan(std::move(c), cat, idx);
     }
-    if (node->kind == LogicalKind::SCAN && node->predicate) {
-        auto sp = classifySimplePredicate(*node->predicate);
-        if (sp.ok) {
-            std::string tableForPred = sp.table.empty() ? node->table : sp.table;
-            std::string idxName;
-            if (hasIndexOnColumn(cat, idx, tableForPred, sp.column, idxName)) {
-                // Switch to IndexScan. The predicate is kept so the
-                // executor can extract the search key.
-                node->kind      = LogicalKind::INDEX_SCAN;
-                node->indexName = idxName;
-            }
+    if (node->kind != LogicalKind::SCAN || !node->predicate) return node;
+
+    auto conjuncts = splitAnd(std::move(node->predicate));
+    // node->predicate is now moved-from.
+
+    // Cost-based scan selection. For every conjunct that is indexable AND
+    // has an index on its column, compute the index-scan cost and track the
+    // cheapest. Compare it against a sequential scan of the whole table
+    // (the conjuncts then applied as a filter). Promote to INDEX_SCAN only
+    // when the index path is strictly cheaper — so on a tiny table, or for
+    // a low-selectivity range that touches most rows, we correctly keep the
+    // sequential scan instead of blindly using the index the way the v1
+    // heuristic did (it promoted whenever an index existed).
+    int    chosen      = -1;
+    std::string idxName;
+    double bestIdxCost = std::numeric_limits<double>::infinity();
+    for (std::size_t i = 0; i < conjuncts.size(); ++i) {
+        if (!conjuncts[i]) continue;
+        if (!isIndexableConjunct(*conjuncts[i])) continue;
+        auto sp = classifySimplePredicate(*conjuncts[i]);
+        if (!sp.ok) continue;
+        std::string tableForPred = sp.table.empty() ? node->table : sp.table;
+        std::string name;
+        if (!hasIndexOnColumn(cat, idx, tableForPred, sp.column, name)) continue;
+        double sel = selectivityOf(cat, tableForPred, *conjuncts[i]);
+        double c   = indexScanCost(cat, tableForPred, sel);
+        if (c < bestIdxCost) {
+            bestIdxCost = c;
+            chosen      = static_cast<int>(i);
+            idxName     = name;
         }
     }
-    return node;
+
+    if (chosen < 0) {
+        // No indexable conjunct — restore the predicate (re-ANDed) and leave
+        // the node as a SEQ_SCAN.
+        node->predicate = andTogetherPtrs(std::move(conjuncts));
+        return node;
+    }
+
+    // The cost-based decision: only use the index if it actually beats a
+    // full table scan. estRows/estCost are stamped AFTER chooseScan returns,
+    // so we compute the two costs directly here from the catalog cardinality
+    // and the predicate selectivity.
+    if (bestIdxCost >= seqScanCost(cat, node->table)) {
+        node->predicate = andTogetherPtrs(std::move(conjuncts));
+        return node;
+    }
+
+    // Promote the chosen conjunct to an IndexScan.
+    auto indexPred = std::move(conjuncts[static_cast<std::size_t>(chosen)]);
+    conjuncts.erase(conjuncts.begin() + static_cast<std::size_t>(chosen));
+    auto residual = andTogetherPtrs(std::move(conjuncts));
+
+    auto idxScan = std::make_unique<LogicalPlan>();
+    idxScan->kind      = LogicalKind::INDEX_SCAN;
+    idxScan->table     = node->table;
+    idxScan->indexName = idxName;
+    idxScan->predicate = std::move(indexPred);
+    // INDEX_SCAN is a leaf — no children.
+
+    if (residual) {
+        auto flt = std::make_unique<LogicalPlan>();
+        flt->kind      = LogicalKind::FILTER;
+        flt->predicate = std::move(residual);
+        flt->children.push_back(std::move(idxScan));
+        return flt;
+    }
+    return idxScan;
 }
 
 // ---------------------------------------------------------------------------
@@ -528,17 +682,24 @@ reorderJoin(std::unique_ptr<LogicalPlan> node,
         node->children.size() == 2 &&
         node->children[0] && node->children[1]) {
 
-        double leftRows  = node->children[0]->estRows;
-        double rightRows = node->children[1]->estRows;
-        if (leftRows <= 0.0 && cat != nullptr) {
-            leftRows = static_cast<double>(cat->cardinality(node->children[0]->table));
+        // Cost-based join ordering: put the cheaper subtree on the left
+        // (outer / build side). estCost is stamped bottom-up before this
+        // rule runs, so it already folds in scan choice, selectivity, and
+        // per-operator CPU/page costs — not just a raw row count the way the
+        // v1 swap did. (Multi-way join enumeration is future work; the parser
+        // currently emits at most one JOIN per SELECT, so the decision space
+        // is a single two-way swap.)
+        double leftCost  = node->children[0]->estCost;
+        double rightCost = node->children[1]->estCost;
+        if (leftCost <= 0.0 && cat != nullptr) {
+            leftCost = static_cast<double>(cat->cardinality(node->children[0]->table));
         }
-        if (rightRows <= 0.0 && cat != nullptr) {
-            rightRows = static_cast<double>(cat->cardinality(node->children[1]->table));
+        if (rightCost <= 0.0 && cat != nullptr) {
+            rightCost = static_cast<double>(cat->cardinality(node->children[1]->table));
         }
-        if (leftRows <= 0.0)  leftRows  = 100.0;
-        if (rightRows <= 0.0) rightRows = 100.0;
-        if (rightRows < leftRows) {
+        if (leftCost <= 0.0)  leftCost  = 100.0;
+        if (rightCost <= 0.0) rightCost = 100.0;
+        if (rightCost < leftCost) {
             std::swap(node->children[0], node->children[1]);
         }
     }
@@ -572,6 +733,95 @@ double estimateCardinality(const catalog::CatalogManager* cat,
     std::uint64_t n = cat->cardinality(table);
     if (n == 0) return 100.0; // unknown — assume 100
     return static_cast<double>(n);
+}
+
+// ---------------------------------------------------------------------------
+// Selectivity estimation
+// ---------------------------------------------------------------------------
+//
+// A real cost-based optimizer needs per-column statistics (histograms, MCVs,
+// distinct counts, min/max). MiniDB keeps only a per-table row count in the
+// catalog, so we derive a principled selectivity from the predicate shape and
+// what we DO know:
+//   * equality on the primary-key column   -> 1 / |T|   (PK is unique -> 1 row)
+//   * equality on any other indexed column  -> 1 / sqrt(|T|)  (unknown ndistinct
+//     heuristic; a common rule of thumb when distinct counts are unavailable)
+//   * range predicate                      -> 0.1      (no min/max stats yet)
+//   * BETWEEN                              -> 0.05
+//   * anything else                        -> 0.1
+// This replaces the flat 0.1 magic number the v1 estimator applied everywhere.
+double selectivityOf(const catalog::CatalogManager* cat,
+                     const std::string& table,
+                     const parser::Expr& pred) {
+    if (pred.kind != parser::ExprKind::BINARY_OP) return 0.1;
+    const auto* l = (pred.args.size() > 0) ? pred.args[0].get() : nullptr;
+    const auto* r = (pred.args.size() > 1) ? pred.args[1].get() : nullptr;
+    const parser::Expr* col = nullptr;
+    if (l && l->kind == parser::ExprKind::COLUMN) col = l;
+    else if (r && r->kind == parser::ExprKind::COLUMN) col = r;
+
+    double card = estimateCardinality(cat, table);
+
+    // Detect a primary-key column so equality can be treated as unique.
+    bool isPk = false;
+    if (cat != nullptr && col != nullptr) {
+        const auto* info = cat->getTable(table);
+        if (info != nullptr) {
+            std::string cn = columnName(*col);
+            for (const auto& c : info->schema.columns()) {
+                if (c.isPrimaryKey && c.name == cn) { isPk = true; break; }
+            }
+        }
+    }
+
+    if (pred.op == "=") {
+        if (isPk) return 1.0 / std::max(1.0, card);
+        return 1.0 / std::max(10.0, std::sqrt(card));
+    }
+    if (pred.op == "<" || pred.op == "<=" ||
+        pred.op == ">" || pred.op == ">=") {
+        return 0.1;
+    }
+    if (pred.op == "BETWEEN") return 0.05;
+    return 0.1;
+}
+
+// Selectivity of an AND-chain: the product of the leaf selectivities. A
+// non-comparison leaf (e.g. a function call) falls back to 0.1.
+double predicateSelectivity(const catalog::CatalogManager* cat,
+                            const std::string& table,
+                            const parser::Expr& e) {
+    if (e.kind == parser::ExprKind::BINARY_OP && e.op == "AND" &&
+        e.args.size() == 2 && e.args[0] && e.args[1]) {
+        return predicateSelectivity(cat, table, *e.args[0]) *
+               predicateSelectivity(cat, table, *e.args[1]);
+    }
+    return selectivityOf(cat, table, e);
+}
+
+// Full table scan: one sequential page read per page of the table, plus a
+// CPU pass over every row.
+double seqScanCost(const catalog::CatalogManager* cat,
+                   const std::string& table) {
+    double rows = estimateCardinality(cat, table);
+    double rowSize = estimateRowSize(cat, table);
+    double pages = std::ceil((rows * rowSize) / PAGE_SIZE);
+    if (pages < 1.0) pages = 1.0;
+    return pages * W_IO + rows * W_CPU;
+}
+
+// Index scan: descend the B+ tree (log_F(|T|) + 1 page reads), then one
+// random heap fetch per matching RID, plus a CPU pass over the matches.
+// `selectivity` is the fraction of |T| the index predicate selects.
+double indexScanCost(const catalog::CatalogManager* cat,
+                     const std::string& table,
+                     double selectivity) {
+    double rows = estimateCardinality(cat, table);
+    double match = std::max(1.0, rows * selectivity);
+    double h = std::log(rows) / std::log(INDEX_FANOUT);
+    if (h < 1.0) h = 1.0;
+    double treeIO = std::ceil(h) + 1.0;
+    return treeIO * W_IO + match * W_IO + match * W_CPU;
 }
 
 } // anonymous namespace
@@ -626,12 +876,20 @@ double Optimizer::estimateRows(const LogicalPlan& p) const {
     switch (p.kind) {
         case LogicalKind::SCAN:
         case LogicalKind::INDEX_SCAN:
-            return estimateCardinality(cat_, p.table) * (p.predicate ? 0.1 : 1.0);
+            return estimateCardinality(cat_, p.table) *
+                   (p.predicate ? predicateSelectivity(cat_, p.table, *p.predicate) : 1.0);
 
         case LogicalKind::FILTER: {
             double in = 0.0;
-            if (!p.children.empty() && p.children[0]) in = estimateRows(*p.children[0]);
-            if (p.predicate) return in * 0.1;   // rough selectivity
+            std::string tbl;
+            if (!p.children.empty() && p.children[0]) {
+                in  = estimateRows(*p.children[0]);
+                tbl = p.children[0]->table;
+            }
+            if (p.predicate) {
+                if (!tbl.empty()) return in * predicateSelectivity(cat_, tbl, *p.predicate);
+                return in * 0.1;   // no table context — rough selectivity
+            }
             return in;
         }
         case LogicalKind::PROJECT: {

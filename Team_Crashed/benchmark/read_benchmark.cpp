@@ -198,7 +198,7 @@ int main(int /*argc*/, char** /*argv*/) {
     }
 
     executor::QueryEngine qe(bp.get(), cat.get(), idx.get(),
-                             txn.get(), rec.get());
+                             txn.get(), rec.get(), wal.get());
 
     // -- schema setup --
     (void)qe.executeUpdate("DROP TABLE IF EXISTS bench_t;");

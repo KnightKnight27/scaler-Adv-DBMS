@@ -23,10 +23,12 @@
 #include "common/status.h"
 #include "common/types.h"
 #include "executor/executor.h"
+#include "executor/mvcc.h"
 #include "index/bplus_tree.h"
 #include "index/index_manager.h"
 #include "parser/ast.h"
 #include "storage/heap_file.h"
+#include "transaction/transaction_manager.h"
 
 namespace minidb::executor {
 
@@ -185,12 +187,39 @@ Status InsertExecutor::next(Tuple& out) {
         encodeValue(v, cols[ci], bytes);
     }
 
+    // MVCC: stamp this row version with the inserting transaction so later
+    // readers can apply snapshot visibility. We append the trailer AFTER the
+    // schema columns, so column offsets (and the B+ tree key encoding, which
+    // reads from columnOffset()) are untouched. No active txn => no trailer
+    // (legacy row, always visible).
+    const bool inTxn = (ctx_->txn != nullptr && ctx_->currentTxnId != INVALID_TXN_ID);
+    if (inTxn) {
+        appendMvccTrailer(bytes, ctx_->currentTxnId, /*deleted=*/0);
+    }
+
     // Insert into the heap file.
     RecordId rid = INVALID_RID;
     Status s = file_->insertRecord(
         std::span<const std::uint8_t>(bytes.data(), bytes.size()), rid);
     if (s != Status::OK) return s;
     if (rid == INVALID_RID) return Status::IO_ERROR;
+    lastRid_ = rid;
+
+    // Concurrency control on the freshly-inserted rid.
+    if (inTxn) {
+        // MVCC: register the write in the txn's write-set so a concurrent
+        // writer of the same rid is detected as a write-write conflict at
+        // commit (first-updater-wins).
+        ctx_->txn->recordWrite(ctx_->currentTxnId, rid);
+        // Strict 2PL: take an X lock on the row so concurrent readers/writers
+        // block until this txn commits. Only in TWO_PL mode; the autocommit
+        // and MVCC paths never take locks.
+        if (ctx_->isoMode == IsoMode::TWO_PL) {
+            Status ls = ctx_->txn->lockManager().acquireExclusive(
+                ctx_->currentTxnId, rid);
+            if (ls == Status::DEADLOCK) return Status::DEADLOCK;
+        }
+    }
 
     // Update every index that covers one of the columns. We rebuild the
     // list of indexes from the index manager (any name that mentions this
@@ -253,6 +282,28 @@ Status InsertExecutor::next(Tuple& out) {
         std::string key = encodeKey(keyVal);
         Status is = tree->insert(key, rid);
         if (is != Status::OK && is != Status::DUPLICATE_KEY) return is;
+    }
+
+    // Append a WAL INSERT record for crash recovery. We do this AFTER the
+    // heap mutation and index updates have succeeded, and the QueryEngine
+    // flushes the WAL at statement commit (before any page reaches disk),
+    // so the write-ahead ordering holds. Null/invalid txn => skip silently.
+    if (ctx_->wal != nullptr && ctx_->currentTxnId != INVALID_TXN_ID) {
+        recovery::LogRecord rec;
+        rec.kind    = recovery::LogKind::INSERT;
+        rec.txnId   = ctx_->currentTxnId;
+        rec.prevLSN = ctx_->lastLsn;
+        rec.rid     = rid;
+        rec.afterImage.assign(bytes.begin(), bytes.end());
+        try { ctx_->lastLsn = ctx_->wal->append(rec); }
+        catch (...) { /* WAL is best-effort; never crash a write */ }
+    }
+
+    // Maintain the per-table row count so the cost-based optimizer has a
+    // real cardinality to estimate from (instead of the 100-row default).
+    if (ctx_->cat != nullptr) {
+        ctx_->cat->setCardinality(info_->name,
+            ctx_->cat->cardinality(info_->name) + 1);
     }
 
     ++rowIdx_;

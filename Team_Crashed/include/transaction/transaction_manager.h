@@ -36,6 +36,10 @@ public:
                             TransactionId rowDeleter,
                             const Transaction& reader);
 
+    // Look up the Transaction object for an id (nullptr if unknown / committed
+    // and evicted). Used by executors to obtain the reader's snapshot.
+    const Transaction* getTransaction(TransactionId id) const;
+
     // 2PL baseline.
     LockManager&  lockManager() { return lockMgr_; }
 
@@ -49,6 +53,12 @@ public:
 private:
     mutable std::mutex                                       mu_;
     TransactionId                                            next_ = 1;
+    // MVCC snapshot high-water mark: the highest txn id that has COMMITTED.
+    // A reader's snapshot = committedHighWater_ at its BEGIN time, so a row
+    // created by an as-yet-uncommitted txn (even one that began before the
+    // reader) is correctly invisible. This is real snapshot isolation; the
+    // earlier "id - 1" rule leaked uncommitted writes.
+    TransactionId                                            committedHighWater_ = 0;
     std::unordered_map<TransactionId, std::unique_ptr<Transaction>> txns_;
     // per-txn write set for MVCC conflict detection
     std::unordered_map<TransactionId, std::unordered_set<RecordId>> writes_;

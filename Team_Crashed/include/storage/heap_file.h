@@ -44,6 +44,12 @@ public:
     Status deleteRecord(RecordId rid);
 
     // Returns a forward iterator over all *live* records. Used by SeqScan.
+    //
+    // Lifetime contract: the `bytes` span returned by next() points into
+    // the currently-parked page's buffer. The page stays pinned between
+    // successive next() calls, so the span remains valid for the caller's
+    // immediate use until the next call to next() (which may advance to a
+    // different page) or close().
     class Iterator {
     public:
         bool next(RecordId& rid, std::span<const std::uint8_t>& bytes);
@@ -51,9 +57,11 @@ public:
         ~Iterator();
     private:
         friend class HeapFile;
-        BufferPool*         bp_   = nullptr;
-        PageId              page_ = 0;
-        std::uint16_t       slot_ = 0;
+        BufferPool*         bp_      = nullptr;
+        PageId              page_    = 0;   // page currently parked on; 0 = done
+        Page*               pagePtr_ = nullptr; // valid only while pinned_
+        std::uint16_t       slot_    = 0;   // next slot to examine on page_
+        bool                pinned_  = false; // is page_ currently pinned?
     };
 
     std::unique_ptr<Iterator> scan();
@@ -61,6 +69,7 @@ public:
 private:
     BufferPool*                    bp_;
     const catalog::TableInfo*      info_;     // firstPageId is set by the catalog
+    PageId                         lastInsertPageId_ = INVALID_PAGE_ID; // free-space hint
 };
 
 } // namespace minidb::storage

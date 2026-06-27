@@ -19,6 +19,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "catalog/catalog_manager.h"
@@ -135,7 +136,10 @@ Status DeleteExecutor::next(Tuple& out) {
             }
 
             const std::uint16_t n = page->slotCount();
-            std::vector<std::uint16_t> toDelete;
+            // Slots to delete, paired with the row image captured while the
+            // page is still pinned. The before-image is what the WAL DELETE
+            // record carries (and what undo re-inserts on recovery).
+            std::vector<std::pair<std::uint16_t, std::vector<std::uint8_t>>> toDelete;
             for (std::uint16_t sIdx = 0; sIdx < n; ++sIdx) {
                 auto bytes = page->getRecord(sIdx);
                 if (bytes.empty()) continue;
@@ -146,7 +150,8 @@ Status DeleteExecutor::next(Tuple& out) {
                 if (where_) {
                     if (!evalPredicate(*where_, candidate, info->schema)) continue;
                 }
-                toDelete.push_back(sIdx);
+                toDelete.emplace_back(sIdx,
+                    std::vector<std::uint8_t>(bytes.begin(), bytes.end()));
             }
 
             const PageId next = page->nextPage();
@@ -154,16 +159,54 @@ Status DeleteExecutor::next(Tuple& out) {
 
             // Now actually delete. We unpin first because deleteRecord
             // will fetch (and pin) the page itself.
-            for (std::uint16_t sIdx : toDelete) {
+            for (auto& [sIdx, beforeImage] : toDelete) {
                 RecordId rid = makeRid(pid, sIdx);
-                (void)file.deleteRecord(rid);
+
+                // Concurrency control on the victim row, when running inside
+                // a transaction. MVCC: record the write so a concurrent writer
+                // of the same rid is caught as a write-write conflict at
+                // commit. 2PL: take an X lock; if that would deadlock, skip
+                // this row (the txn will abort on the commit conflict check).
+                if (ctx_->txn != nullptr && ctx_->currentTxnId != INVALID_TXN_ID) {
+                    ctx_->txn->recordWrite(ctx_->currentTxnId, rid);
+                    if (ctx_->isoMode == IsoMode::TWO_PL) {
+                        Status ls = ctx_->txn->lockManager().acquireExclusive(
+                            ctx_->currentTxnId, rid);
+                        if (ls == Status::DEADLOCK) continue;
+                    }
+                }
+
+                Status dStatus = file.deleteRecord(rid);
+                bool deleted = (dStatus == Status::OK);
+                // Keep the per-table row count in sync for the optimizer.
+                if (deleted && ctx_->cat != nullptr) {
+                    auto cur = ctx_->cat->cardinality(info->name);
+                    if (cur > 0) ctx_->cat->setCardinality(info->name, cur - 1);
+                }
+
+                // Append a WAL DELETE record carrying the before-image. The
+                // QueryEngine flushes the WAL at statement commit, before any
+                // dirty page reaches disk, so write-ahead ordering holds.
+                if (ctx_->wal != nullptr &&
+                    ctx_->currentTxnId != INVALID_TXN_ID) {
+                    recovery::LogRecord rec;
+                    rec.kind    = recovery::LogKind::DELETE;
+                    rec.txnId   = ctx_->currentTxnId;
+                    rec.prevLSN = ctx_->lastLsn;
+                    rec.rid     = rid;
+                    rec.beforeImage = std::move(beforeImage);
+                    // afterImage left empty; the encoder falls back to
+                    // beforeImage for DELETE, and undo re-inserts that row.
+                    try { ctx_->lastLsn = ctx_->wal->append(rec); }
+                    catch (...) { /* best-effort WAL; never crash a delete */ }
+                }
 
                 // Remove from every index. v1: encode the first column's
                 // value the same way the inserter did.
                 std::string key = encodeKeyForIndex(t, info->schema);
                 auto names = ctx_->idx->list();
-                for (const auto& n : names) {
-                    index::BPlusTree* tree = ctx_->idx->open(n);
+                for (const auto& nm : names) {
+                    index::BPlusTree* tree = ctx_->idx->open(nm);
                     if (!tree) continue;
                     (void)tree->remove(key);
                 }

@@ -89,6 +89,7 @@ set(MINIDB_TEST_DIRS
     index
     parser
     executor
+    optimizer
     transaction
     recovery
 )

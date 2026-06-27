@@ -6,6 +6,7 @@
 // =============================================================================
 #include "parser/parser.h"
 
+#include <cctype>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -307,10 +308,46 @@ std::unique_ptr<DeleteStmt> Parser::parseDelete() {
 // -----------------------------------------------------------------------------
 
 // CREATE TABLE [IF NOT EXISTS] <t> (col TYPE [NOT NULL] [PRIMARY KEY], ...)
+// CREATE INDEX <name> ON <t> (<col>)
+//
+// `INDEX` is not a reserved keyword in the lexer, so after CREATE we peek
+// for an IDENT whose (case-insensitive) text is "INDEX" and dispatch to the
+// index path; otherwise we fall through to CREATE TABLE.
 std::unique_ptr<CreateStmt> Parser::parseCreate() {
     auto out = std::make_unique<CreateStmt>();
 
     if (!consume(TokenKind::KW_CREATE, "CREATE")) return nullptr;
+
+    // CREATE INDEX <name> ON <table> (<column>)
+    if (peek().kind == TokenKind::IDENT) {
+        std::string upper = peek().text;
+        for (char& c : upper)
+            c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        if (upper == "INDEX") {
+            advance();  // consume INDEX
+            out->isIndex = true;
+            if (peek().kind != TokenKind::IDENT) {
+                err_ = "expected index name after CREATE INDEX";
+                return nullptr;
+            }
+            out->indexName = advance().text;
+            if (!consume(TokenKind::KW_ON, "ON")) return nullptr;
+            if (peek().kind != TokenKind::IDENT) {
+                err_ = "expected table name after ON";
+                return nullptr;
+            }
+            out->table = advance().text;
+            if (!consume(TokenKind::LPAREN, "'('")) return nullptr;
+            if (peek().kind != TokenKind::IDENT) {
+                err_ = "expected column name";
+                return nullptr;
+            }
+            out->indexColumn = advance().text;
+            if (!consume(TokenKind::RPAREN, "')'")) return nullptr;
+            return out;
+        }
+    }
+
     if (!consume(TokenKind::KW_TABLE,  "TABLE"))  return nullptr;
 
     // Optional IF NOT EXISTS

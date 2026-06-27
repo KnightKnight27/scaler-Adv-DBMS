@@ -23,11 +23,16 @@ public:
     Status next (Tuple& out) override;   // one tuple per call (DONE after all rows)
     Status close() override;
 
+    // RecordId of the row inserted by the last successful next() call.
+    // Exposed so tests can inspect 2PL lock acquisition / MVCC write-sets.
+    RecordId lastRid() const { return lastRid_; }
+
 private:
     std::unique_ptr<parser::InsertStmt> stmt_;
     std::size_t                         rowIdx_ = 0;
     const catalog::TableInfo*           info_   = nullptr;
     std::unique_ptr<storage::HeapFile>  file_;
+    RecordId                            lastRid_ = INVALID_RID;
 };
 
 } // namespace minidb::executor

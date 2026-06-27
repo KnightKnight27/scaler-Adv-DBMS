@@ -360,7 +360,7 @@ int main(int argc, char** argv) {
     }
 
     // 7. QueryEngine. It owns the optimizer and an executor context.
-    executor::QueryEngine qe(&bp, &cat, &idx, &txnMgr, &recMgr);
+    executor::QueryEngine qe(&bp, &cat, &idx, &txnMgr, &recMgr, &wal);
 
     // 8. REPL or file mode.
     int rc = 0;

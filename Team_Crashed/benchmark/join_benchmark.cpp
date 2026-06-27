@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    executor::QueryEngine qe(bp.get(), cat.get(), idx.get(), txn.get(), rec.get());
+    executor::QueryEngine qe(bp.get(), cat.get(), idx.get(), txn.get(), rec.get(), wal.get());
     Status s = qe.executeUpdate(
         "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(16), age INT);");
     if (s != Status::OK) return 1;

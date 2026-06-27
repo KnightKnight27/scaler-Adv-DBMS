@@ -38,7 +38,9 @@
 #include "parser/parser.h"
 #include "planner/optimizer.h"
 #include "planner/physical_plan.h"
+#include "recovery/log_record.h"
 #include "recovery/recovery_manager.h"
+#include "recovery/wal.h"
 #include "transaction/transaction_manager.h"
 
 namespace minidb::executor {
@@ -207,9 +209,11 @@ QueryEngine::QueryEngine(storage::BufferPool*             bp,
                          catalog::CatalogManager*         cat,
                          index::IndexManager*             idx,
                          transaction::TransactionManager* txn,
-                         recovery::RecoveryManager*       rec)
-    : ctx_{bp, cat, idx, txn}
+                         recovery::RecoveryManager*       rec,
+                         recovery::WAL*                   wal)
+    : ctx_{bp, cat, idx, txn}, wal_(wal)
 {
+    ctx_.wal = wal_;
     optimizer_ = std::make_unique<planner::Optimizer>(cat, idx, txn);
     (void)rec;
 }
@@ -218,6 +222,13 @@ QueryEngine::QueryEngine(storage::BufferPool*             bp,
 QueryEngine::~QueryEngine() = default;
 
 // SELECT path. Parse, optimise, build the executor tree, drain it.
+//
+// The SELECT runs inside an implicit transaction so the reader has an MVCC
+// snapshot: SeqScan/IndexScan filter out rows whose (created_txn, deleted_txn)
+// trailer says they belong to a txn not committed at the reader's snapshot.
+// This is how MVCC delivers non-blocking, consistent reads. The implicit txn
+// writes nothing and (in the default AUTOCOMMIT mode) takes no locks, so the
+// ad-hoc CLI / demo path is unchanged; it simply becomes snapshot-aware.
 std::vector<Tuple> QueryEngine::execute(const std::string& sql) {
     std::vector<Tuple> out;
     parser::Lexer lex(sql);
@@ -236,15 +247,31 @@ std::vector<Tuple> QueryEngine::execute(const std::string& sql) {
     }
     if (!plan) return out;
 
-    auto root = buildPlan(&ctx_, *plan);
-    if (!root) return out;
-
-    if (root->init() != Status::OK) return out;
-    Tuple t;
-    while (root->next(t) == Status::OK) {
-        out.push_back(std::move(t));
+    // Begin an implicit reader transaction (for the MVCC snapshot). Done
+    // after parsing/optimising so a parse failure doesn't leak a txn.
+    const bool useTxn = (ctx_.txn != nullptr);
+    TransactionId tid = INVALID_TXN_ID;
+    if (useTxn) {
+        tid = ctx_.txn->begin();
+        ctx_.currentTxnId = tid;
+        ctx_.readerTxn   = ctx_.txn->getTransaction(tid);
     }
-    (void)root->close();
+
+    auto root = buildPlan(&ctx_, *plan);
+    if (root && root->init() == Status::OK) {
+        Tuple t;
+        while (root->next(t) == Status::OK) {
+            out.push_back(std::move(t));
+        }
+        (void)root->close();
+    }
+
+    if (useTxn) {
+        (void)ctx_.txn->commit(tid);          // release any 2PL locks, drop write-set
+        ctx_.currentTxnId = INVALID_TXN_ID;
+        ctx_.readerTxn   = nullptr;
+    }
+
     sortAndLimit(out, *stmt.select);
     return out;
 }
@@ -267,25 +294,117 @@ Status QueryEngine::executeUpdate(const std::string& sql) {
     switch (stmt.kind) {
         case parser::StmtKind::INSERT: {
             if (!stmt.insert) return Status::INVALID_ARGUMENT;
+            // Drive the insertion inside an implicit transaction so the WAL
+            // carries BEGIN / INSERT / COMMIT records that recovery can redo.
+            ctx_.lastLsn      = INVALID_LSN;
+            ctx_.currentTxnId = INVALID_TXN_ID;
+            const bool useTxn = (wal_ != nullptr && ctx_.txn != nullptr);
+            TransactionId tid = INVALID_TXN_ID;
+            if (useTxn) {
+                tid = ctx_.txn->begin();
+                ctx_.currentTxnId = tid;
+                // The writer's own scans (none here, but uniform with DELETE)
+                // would filter by this snapshot.
+                ctx_.readerTxn = ctx_.txn->getTransaction(tid);
+            }
             InsertExecutor exec(&ctx_, std::move(stmt.insert));
             Status s = exec.init();
-            if (s != Status::OK) return s;
-            Tuple t;
-            while (exec.next(t) == Status::OK) { /* drain */ }
-            return exec.close();
+            if (s == Status::OK) {
+                Tuple t;
+                Status ns;
+                while ((ns = exec.next(t)) == Status::OK) { /* drain */ }
+                if (ns != Status::DONE) s = ns;            // next() raised an error
+                Status cs = exec.close();
+                if (s == Status::OK) s = cs;
+            }
+            if (useTxn) {
+                // Write-ahead ordering: each row's INSERT record was appended
+                // to the WAL after the in-memory heap mutation succeeded, and
+                // the BufferPool flushes pages lazily. We fsync the WAL here,
+                // at statement commit, before returning to the caller and
+                // before any shutdown flush — so the log reaches disk ahead
+                // of the dirty pages and the recovery demo can redo.
+                if (s == Status::OK) {
+                    recovery::LogRecord commit;
+                    commit.kind   = recovery::LogKind::COMMIT;
+                    commit.txnId  = tid;
+                    commit.prevLSN = ctx_.lastLsn;
+                    try { (void)wal_->append(commit); wal_->flush(); }
+                    catch (...) { /* a WAL failure must never crash execution */ }
+                    (void)ctx_.txn->commit(tid);
+                } else {
+                    recovery::LogRecord abort;
+                    abort.kind    = recovery::LogKind::ABORT;
+                    abort.txnId   = tid;
+                    abort.prevLSN = ctx_.lastLsn;
+                    try { (void)wal_->append(abort); }
+                    catch (...) {}
+                    (void)ctx_.txn->abort(tid);
+                }
+                ctx_.currentTxnId = INVALID_TXN_ID;
+                ctx_.readerTxn   = nullptr;
+            }
+            return s;
         }
         case parser::StmtKind::DELETE: {
             if (!stmt.del) return Status::INVALID_ARGUMENT;
+            // Same implicit-transaction + WAL pattern as INSERT. The
+            // DeleteExecutor captures each row's before-image and appends a
+            // DELETE record; we then COMMIT + flush here.
+            ctx_.lastLsn      = INVALID_LSN;
+            ctx_.currentTxnId = INVALID_TXN_ID;
+            const bool useTxn = (wal_ != nullptr && ctx_.txn != nullptr);
+            TransactionId tid = INVALID_TXN_ID;
+            if (useTxn) {
+                tid = ctx_.txn->begin();
+                ctx_.currentTxnId = tid;
+                // The DELETE drives a SeqScan child to find victims; that scan
+                // must filter by this writer's snapshot (see only rows that
+                // were committed when the delete began).
+                ctx_.readerTxn = ctx_.txn->getTransaction(tid);
+            }
             DeleteExecutor exec(&ctx_, std::move(stmt.del));
             Status s = exec.init();
-            if (s != Status::OK) return s;
-            Tuple t;
-            while (exec.next(t) == Status::OK) { /* drain */ }
-            return exec.close();
+            if (s == Status::OK) {
+                Tuple t;
+                Status ns;
+                while ((ns = exec.next(t)) == Status::OK) { /* drain */ }
+                if (ns != Status::DONE) s = ns;
+                Status cs = exec.close();
+                if (s == Status::OK) s = cs;
+            }
+            if (useTxn) {
+                if (s == Status::OK) {
+                    recovery::LogRecord commit;
+                    commit.kind   = recovery::LogKind::COMMIT;
+                    commit.txnId  = tid;
+                    commit.prevLSN = ctx_.lastLsn;
+                    try { (void)wal_->append(commit); wal_->flush(); }
+                    catch (...) {}
+                    (void)ctx_.txn->commit(tid);
+                } else {
+                    recovery::LogRecord abort;
+                    abort.kind    = recovery::LogKind::ABORT;
+                    abort.txnId   = tid;
+                    abort.prevLSN = ctx_.lastLsn;
+                    try { (void)wal_->append(abort); }
+                    catch (...) {}
+                    (void)ctx_.txn->abort(tid);
+                }
+                ctx_.currentTxnId = INVALID_TXN_ID;
+                ctx_.readerTxn   = nullptr;
+            }
+            return s;
         }
         case parser::StmtKind::CREATE: {
             if (!stmt.create) return Status::INVALID_ARGUMENT;
             const auto& c = *stmt.create;
+            // CREATE INDEX <name> ON <tbl> (<col>) — handled by the index
+            // manager directly; no table is created.
+            if (c.isIndex) {
+                if (ctx_.idx == nullptr) return Status::INVALID_ARGUMENT;
+                return ctx_.idx->createIndex(c.table, c.indexColumn, c.indexName);
+            }
             catalog::TableInfo info;
             info.name = c.table;
             info.schema = catalog::Schema();

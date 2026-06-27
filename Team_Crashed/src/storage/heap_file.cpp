@@ -25,8 +25,6 @@
 
 namespace minidb::storage {
 
-HeapFile::Iterator::~Iterator() = default;
-
 HeapFile::HeapFile(BufferPool* bp, const catalog::TableInfo* info)
     : bp_(bp), info_(info) {}
 
@@ -41,12 +39,15 @@ Status HeapFile::insertRecord(std::span<const std::uint8_t> record, RecordId& ou
         return Status::INVALID_ARGUMENT;
     }
 
-    // Walk the chain. The first page is given by TableInfo::firstPageId;
-    // every subsequent page is reached by following `nextPage`. If we
-    // reach a page with nextPage == 0 we know we've found the tail and we
-    // may append. If a page is full we allocate a new page, link the old
-    // tail's nextPage to the new id, and continue.
-    PageId curr = info_->firstPageId;
+    // Free-space hint: start the search from the page where the last
+    // successful insert landed (if valid). That page usually still has
+    // room, so a typical insert pins one page and is done — amortized
+    // O(1) instead of the O(pages) walk from firstPageId. Only when the
+    // cached page is full do we walk forward from there to the tail and
+    // append a new page. HeapFile instances are short-lived (one per
+    // statement), so this per-instance cache needs no persistence.
+    PageId curr = (lastInsertPageId_ != INVALID_PAGE_ID) ? lastInsertPageId_
+                                                         : info_->firstPageId;
     while (true) {
         Page* page = nullptr;
         Status s = bp_->fetchPage(curr, page);
@@ -58,11 +59,13 @@ Status HeapFile::insertRecord(std::span<const std::uint8_t> record, RecordId& ou
             // Try to insert; if it doesn't fit, fall through and allocate a new page.
             if (page->insertRecord(freeSlot, record)) {
                 outRid = makeRid(curr, freeSlot);
+                lastInsertPageId_ = curr;   // remember where we just wrote
                 return bp_->unpinPage(curr, true);
             }
         }
-        // Page is full (or had no free slot at all). If it already has a
-        // successor in the chain, just follow it.
+        // Page is full (or had no free slot, or the record did not fit
+        // even though a free slot existed). If it already has a successor
+        // in the chain, just follow it.
         const PageId next = page->nextPage();
         if (next != INVALID_PAGE_ID) {
             (void)bp_->unpinPage(curr, false);
@@ -112,54 +115,73 @@ Status HeapFile::deleteRecord(RecordId rid) {
 
 std::unique_ptr<HeapFile::Iterator> HeapFile::scan() {
     auto it = std::make_unique<Iterator>();
-    it->bp_   = bp_;
-    it->page_ = info_->firstPageId;
-    it->slot_ = 0;
+    it->bp_      = bp_;
+    it->page_   = info_->firstPageId;
+    it->slot_   = 0;
+    it->pinned_ = false;
     return it;
 }
 
 bool HeapFile::Iterator::next(RecordId& rid, std::span<const std::uint8_t>& bytes) {
     if (bp_ == nullptr || page_ == 0) return false;
     while (true) {
-        Page* p = nullptr;
-        if (bp_->fetchPage(page_, p) != Status::OK) return false;
-        if (p == nullptr) {
-            (void)bp_->unpinPage(page_, false);
-            return false;
+        // Pin the page we are currently parked on exactly once. While we
+        // scan its slots it stays pinned, so the `bytes` span we hand back
+        // to the caller remains valid until the next call to next() (which
+        // may advance to another page) or close().
+        if (!pinned_) {
+            Page* p = nullptr;
+            if (bp_->fetchPage(page_, p) != Status::OK) return false;
+            if (p == nullptr) {
+                (void)bp_->unpinPage(page_, false);
+                page_ = 0;
+                return false;
+            }
+            pagePtr_ = p;
+            pinned_  = true;
         }
-        // We need the slot count to know when to advance pages. We don't
-        // unpin until we find a live record or we exhaust the chain.
-        const std::uint16_t n = p->slotCount();
+        const std::uint16_t n = pagePtr_->slotCount();
         while (slot_ < n) {
             const std::uint16_t here = slot_;
             ++slot_;
-            auto sp = p->getRecord(here);
+            auto sp = pagePtr_->getRecord(here);
             if (!sp.empty()) {
                 rid = makeRid(page_, here);
                 bytes = sp;
-                return true;  // we keep this page pinned; close() will unpin
+                return true;  // page stays pinned; next()/close() will unpin
             }
         }
-        // Out of slots on this page. Follow the chain via nextPage; 0
-        // means "end of chain" and the iteration is done.
-        const PageId next = p->nextPage();
+        // Out of slots on this page. Unpin it once now that we are done
+        // with it, then follow the chain via nextPage; 0 means "end of
+        // chain" and the iteration is done.
+        const PageId next = pagePtr_->nextPage();
         (void)bp_->unpinPage(page_, false);
+        pagePtr_ = nullptr;
+        pinned_  = false;
         if (next == INVALID_PAGE_ID) {
             page_ = 0;
             return false;
         }
         page_ = next;
         slot_ = 0;
-        // Loop and re-fetch the new page.
+        // Loop: the next iteration will lazily pin the new page.
     }
 }
 
 void HeapFile::Iterator::close() {
     if (bp_ == nullptr) return;
-    if (page_ != 0) {
+    if (pinned_ && page_ != 0) {
         (void)bp_->unpinPage(page_, false);
-        page_ = 0;
     }
+    pagePtr_ = nullptr;
+    pinned_  = false;
+    page_    = 0;
+}
+
+HeapFile::Iterator::~Iterator() {
+    // Guarantee we never leak a pin even if the caller forgets close().
+    // Safe to call on a default-constructed (unused) iterator.
+    close();
 }
 
 } // namespace minidb::storage

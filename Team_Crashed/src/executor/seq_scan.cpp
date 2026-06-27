@@ -28,6 +28,7 @@
 #include "common/status.h"
 #include "common/types.h"
 #include "executor/executor.h"
+#include "executor/mvcc.h"
 #include "executor/predicate_eval.h"
 #include "parser/ast.h"
 #include "storage/heap_file.h"
@@ -60,11 +61,28 @@ Status SeqScanExecutor::init() {
 }
 
 // Pull the next surviving (predicate-passing) row, decoding it into out.
+//
+// Two concurrency-control concerns are handled here:
+//   * MVCC visibility — if a reader transaction is set, rows whose MVCC
+//     trailer says they were created by a txn not committed at the reader's
+//     snapshot are skipped, without ever blocking the writer.
+//   * 2PL — in TWO_PL mode, an S lock is taken on each row we actually
+//     return, so a concurrent writer of that row blocks until we commit.
 Status SeqScanExecutor::next(Tuple& out) {
     if (!it_) return Status::DONE;
+    const std::size_t rowSize = info_->schema.rowSize();
     RecordId rid;
     std::span<const std::uint8_t> bytes;
     while (it_->next(rid, bytes)) {
+        // MVCC snapshot filter: skip rows not visible to the reader. A row
+        // with no trailer is a legacy row and is always visible.
+        if (ctx_->txn != nullptr && ctx_->readerTxn != nullptr &&
+            hasMvccTrailer(rowSize, bytes)) {
+            auto [created, deleted] = readMvccTrailer(bytes, rowSize);
+            if (!visibleTo(ctx_->txn, ctx_->readerTxn, created, deleted))
+                continue;
+        }
+
         out.values.clear();
         const auto& cols = info_->schema.columns();
         std::size_t off = 0;
@@ -74,9 +92,18 @@ Status SeqScanExecutor::next(Tuple& out) {
             out.values.push_back(v);
             off += n;
         }
-        if (!predicate_) return Status::OK;
-        if (evalPredicate(*predicate_, out, info_->schema)) return Status::OK;
-        // Predicate failed — keep scanning.
+        if (predicate_ && !evalPredicate(*predicate_, out, info_->schema))
+            continue;   // predicate failed — keep scanning
+
+        // Strict 2PL: lock the row we are about to hand back so writers of
+        // it block until our txn commits. Only in TWO_PL mode.
+        if (ctx_->isoMode == IsoMode::TWO_PL && ctx_->txn != nullptr &&
+            ctx_->currentTxnId != INVALID_TXN_ID) {
+            Status ls = ctx_->txn->lockManager().acquireShared(
+                ctx_->currentTxnId, rid);
+            if (ls == Status::DEADLOCK) return Status::DEADLOCK;
+        }
+        return Status::OK;
     }
     return Status::DONE;
 }

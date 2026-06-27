@@ -14,10 +14,23 @@
 #include "catalog/catalog_manager.h"
 #include "common/status.h"
 #include "index/index_manager.h"
+#include "recovery/log_record.h"
+#include "recovery/wal.h"
 #include "storage/buffer_pool.h"
+#include "transaction/transaction.h"
 #include "transaction/transaction_manager.h"
 
 namespace minidb::executor {
+
+// Concurrency-control mode for the executors driven by one statement.
+//   AUTOCOMMIT — no locks; MVCC visibility applies if a reader txn is set
+//                (this is the default for ad-hoc CLI / demo statements, so
+//                the existing behaviour is preserved).
+//   TWO_PL     — strict 2PL: scans acquire S locks, writes acquire X locks
+//                on the touched RecordIds; locks are released at commit.
+//   MVCC       — non-locking snapshot path: readers filter by isVisible,
+//                writers record their write-set for first-updater-wins.
+enum class IsoMode { AUTOCOMMIT, TWO_PL, MVCC };
 
 // ----- Value / Tuple -----
 struct Value {
@@ -44,11 +57,27 @@ struct Tuple {
 };
 
 // ----- ExecutorContext (deps passed down to every executor) -----
+//
+// `wal` / `currentTxnId` / `lastLsn` are wired only when a statement runs
+// inside an implicit transaction driven by the QueryEngine (INSERT/DELETE).
+// They default to null / INVALID so a context is always default-constructible
+// and so executors can no-op the WAL path with a cheap null check.
 struct ExecutorContext {
-    storage::BufferPool*          bp;
-    catalog::CatalogManager*      cat;
-    index::IndexManager*          idx;
-    transaction::TransactionManager* txn;
+    storage::BufferPool*              bp   = nullptr;
+    catalog::CatalogManager*          cat  = nullptr;
+    index::IndexManager*              idx  = nullptr;
+    transaction::TransactionManager*  txn  = nullptr;
+    recovery::WAL*                    wal  = nullptr;
+    TransactionId                     currentTxnId = INVALID_TXN_ID;
+    LSN                               lastLsn      = INVALID_LSN;
+
+    // MVCC: the reader transaction whose snapshot filters rows in scans.
+    // Set by QueryEngine when a statement runs inside a transaction (every
+    // SELECT and the scans under DELETE). nullptr => no visibility filtering.
+    const transaction::Transaction*  readerTxn = nullptr;
+
+    // Which concurrency-control protocol the executors should follow.
+    IsoMode                           isoMode  = IsoMode::AUTOCOMMIT;
 };
 
 // ----- Base class for every executor -----
