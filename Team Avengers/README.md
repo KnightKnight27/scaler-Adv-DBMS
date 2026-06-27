@@ -233,6 +233,12 @@ Honest scope boundaries (deliberate trade-offs under the project timeline):
 - **In-memory B+ tree index.** The index is rebuilt in memory rather than paged
   to disk; only the heap pages are persistent. The page-based design is there
   (storage layer); paging the index is future work.
+- **Catalog not persisted across sessions.** Page-level storage is durable (the
+  disk manager persists pages; the WAL recovers committed transactions), but the
+  catalog — table definitions and the table→heap-page mapping — lives in memory,
+  so the interactive shell starts fresh each run and does not reload tables
+  created in a previous session. Persisting the catalog in a system table is
+  future work.
 - **Transactional store vs query path.** The MVCC/2PL managers operate on a
   row-key store; they are not yet woven into the SQL executor's read path, so
   `SELECT` does not currently run under a snapshot. The concurrency control is
