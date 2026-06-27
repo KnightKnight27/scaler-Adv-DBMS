@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# MiniDB runtime data / generated files
+*.db
+*.wal
+*.minidb
+MiniDB_Projects/Team_QuorumDB/data/*
+!MiniDB_Projects/Team_QuorumDB/data/.gitkeep
+benchmark_*.json
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
