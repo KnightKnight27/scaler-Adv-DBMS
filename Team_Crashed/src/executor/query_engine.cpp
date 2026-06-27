@@ -88,6 +88,71 @@ catalog::Schema resolveChildSchema(catalog::CatalogManager* cat,
     return catalog::Schema();
 }
 
+// Bare column name: the part after the first dot, or the whole string when
+// there is no qualifier. (resolveChildSchema qualifies names as "table.col";
+// the column name itself never contains a dot.)
+std::string bareColumnName(const std::string& qualified) {
+    auto dot = qualified.find('.');
+    return dot == std::string::npos ? qualified : qualified.substr(dot + 1);
+}
+
+// If every name in `cols` shares the same table qualifier (e.g. all
+// "users.<x>"), drop that qualifier so a single-table SELECT * renders bare
+// column names. When qualifiers differ (a join), keep them qualified so the
+// header is unambiguous.
+std::vector<std::string> stripCommonQualifier(std::vector<std::string> cols) {
+    if (cols.empty()) return cols;
+    auto qualOf = [](const std::string& s) -> std::string {
+        auto d = s.find('.');
+        return d == std::string::npos ? std::string() : s.substr(0, d);
+    };
+    std::string q = qualOf(cols[0]);
+    for (std::size_t i = 1; i < cols.size(); ++i) {
+        if (qualOf(cols[i]) != q) { q.clear(); break; }
+    }
+    if (q.empty()) return cols;                 // no single common qualifier
+    for (auto& c : cols) c = c.substr(c.find('.') + 1);
+    return cols;
+}
+
+// Compute the user-facing output column names for a SELECT plan, mirroring
+// what ProjectExecutor emits so the header matches the data column-for-column:
+//   - explicit projection (projectionExprs non-empty) -> one name per expr;
+//     COLUMN refs use the bare name, function calls / literals use
+//     parser::toString (e.g. "COUNT(*)").
+//   - outputColumns only -> those (already bare) names.
+//   - "*" (both empty) -> every column of the underlying source, resolved via
+//     resolveChildSchema, with a shared table qualifier stripped.
+std::vector<std::string> computeOutputColumns(catalog::CatalogManager* cat,
+                                              const planner::PhysicalPlan& root) {
+    std::vector<std::string> cols;
+    if (root.kind == planner::PhysicalKind::PROJECT) {
+        if (!root.projectionExprs.empty()) {
+            for (const auto& e : root.projectionExprs) {
+                if (!e) { cols.emplace_back("?"); continue; }
+                if (e->kind == parser::ExprKind::COLUMN)
+                    cols.push_back(bareColumnName(e->text));
+                else
+                    cols.push_back(parser::toString(*e));
+            }
+            return cols;
+        }
+        if (!root.outputColumns.empty()) {
+            return root.outputColumns;
+        }
+        // SELECT *: derive every column from the project's child.
+        if (!root.children.empty() && root.children[0]) {
+            catalog::Schema sch = resolveChildSchema(cat, *root.children[0]);
+            for (const auto& c : sch.columns()) cols.push_back(c.name);
+        }
+        return stripCommonQualifier(std::move(cols));
+    }
+    // Defensive: no PROJECT wrapper -> best effort via the root's own schema.
+    catalog::Schema sch = resolveChildSchema(cat, root);
+    for (const auto& c : sch.columns()) cols.push_back(c.name);
+    return stripCommonQualifier(std::move(cols));
+}
+
 } // namespace
 
 // Build an executor subtree for a single PhysicalPlan node. Returns
@@ -231,6 +296,7 @@ QueryEngine::~QueryEngine() = default;
 // ad-hoc CLI / demo path is unchanged; it simply becomes snapshot-aware.
 std::vector<Tuple> QueryEngine::execute(const std::string& sql) {
     std::vector<Tuple> out;
+    lastOutputColumns_.clear();
     parser::Lexer lex(sql);
     auto toks = lex.tokenize();
     parser::Parser p(std::move(toks));
@@ -246,6 +312,10 @@ std::vector<Tuple> QueryEngine::execute(const std::string& sql) {
         return out;
     }
     if (!plan) return out;
+
+    // Record the result-set column names (in output order) so the CLI can
+    // print a header row. Computed from the plan, mirroring ProjectExecutor.
+    lastOutputColumns_ = computeOutputColumns(ctx_.cat, *plan);
 
     // Begin an implicit reader transaction (for the MVCC snapshot). Done
     // after parsing/optimising so a parse failure doesn't leak a txn.

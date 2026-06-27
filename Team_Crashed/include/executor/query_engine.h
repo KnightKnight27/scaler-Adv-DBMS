@@ -38,11 +38,20 @@ public:
     // For INSERT / DELETE / CREATE / DROP / BEGIN / COMMIT / ROLLBACK.
     Status executeUpdate(const std::string& sql);
 
+    // Column names of the most recent SELECT's result set, in output order
+    // (mirrors what ProjectExecutor emits). Empty for non-SELECT calls or
+    // when no plan was produced. The CLI prints this as a header row so
+    // users can see the column names above the data.
+    const std::vector<std::string>& lastOutputColumns() const noexcept {
+        return lastOutputColumns_;
+    }
+
 private:
     ExecutorContext           ctx_;
     recovery::WAL*            wal_;
     std::unique_ptr<planner::Optimizer> optimizer_;
     // executors are constructed per call, not stored.
+    std::vector<std::string>  lastOutputColumns_;
 };
 
 } // namespace minidb::executor

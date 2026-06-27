@@ -96,6 +96,36 @@ static bool isSelectLike(const std::string& sql) {
     return head == "SELECT" || head == "WITH" || head == "SHOW";
 }
 
+// isSelectStatement() — stricter than isSelectLike: only real SELECT/WITH
+// queries (not SHOW TABLES). Used to decide whether to print a column-name
+// header, since SHOW TABLES does not go through QueryEngine::execute and
+// would otherwise inherit a stale header from the previous SELECT.
+static bool isSelectStatement(const std::string& sql) {
+    std::size_t i = sql.find_first_not_of(" \t\r\n");
+    if (i == std::string::npos) return false;
+    std::string head;
+    for (std::size_t j = i; j < sql.size() && std::isalpha(static_cast<unsigned char>(sql[j])); ++j) {
+        head += static_cast<char>(std::toupper(static_cast<unsigned char>(sql[j])));
+    }
+    return head == "SELECT" || head == "WITH";
+}
+
+// printResultHeader() — emit a comma-separated row of column names above a
+// SELECT's data, matching Tuple::toString's ", " separator. Guarded on the
+// column count equaling the row width so a miscomputed header can never
+// mislabel the data; silent (no header) when names are unknown.
+static void printResultHeader(const executor::QueryEngine& qe,
+                              const std::vector<executor::Tuple>& rows) {
+    const auto& cols = qe.lastOutputColumns();
+    if (cols.empty() || rows.empty()) return;
+    if (cols.size() != rows.front().values.size()) return;
+    for (std::size_t i = 0; i < cols.size(); ++i) {
+        if (i) std::cout << ", ";
+        std::cout << cols[i];
+    }
+    std::cout << "\n";
+}
+
 // tryDotCommand() — handle SQLite-style dot-commands (".tables",
 // ".quit", ".help"). Returns true if `line` matched a dot-command
 // (and the caller should NOT treat it as SQL). The helper is given
@@ -246,6 +276,7 @@ static int runInteractive(executor::QueryEngine& qe, catalog::CatalogManager* ca
                         std::cout << "OK\n";
                     }
                 } else {
+                    if (isSelectStatement(stmt)) printResultHeader(qe, rows);
                     for (const auto& t : rows) {
                         std::cout << t.toString() << "\n";
                     }
@@ -302,6 +333,7 @@ static int runFile(executor::QueryEngine& qe, catalog::CatalogManager* cat,
                                 std::cout << "OK\n";
                             }
                         } else {
+                            if (isSelectStatement(trimmed)) printResultHeader(qe, rows);
                             for (const auto& t : rows) {
                                 std::cout << t.toString() << "\n";
                             }
