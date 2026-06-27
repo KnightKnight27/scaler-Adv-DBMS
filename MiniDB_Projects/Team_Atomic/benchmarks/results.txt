@@ -1,0 +1,17 @@
+MiniDB Track C benchmark: LSM vs B+ tree row store
+
+## Sequential-key inserts  (N = 200000)
+metric           |   B+tree store |      LSM store
+-----------------+----------------+---------------
+write throughput |        26984/s |      2043747/s
+read latency     |        1.910 us |        6.954 us
+disk bytes       |       12431360 |        4488890
+space amp        |          2.11x |          1.29x
+
+## Random-key inserts  (N = 200000)
+metric           |   B+tree store |      LSM store
+-----------------+----------------+---------------
+write throughput |        26784/s |      1741417/s
+read latency     |        2.063 us |        6.981 us
+disk bytes       |       10387456 |        4488890
+space amp        |          1.76x |          1.29x
