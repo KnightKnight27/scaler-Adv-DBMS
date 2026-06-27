@@ -3,9 +3,11 @@
 **Branch:** TEAM_IndexIQ | **Extension:** Track B — Concurrency (MVCC)
 
 
-| Name         | Roll Number | Scaler Email                                                                |
-| ------------ | ----------- | --------------------------------------------------------------------------- |
-| Hariny Patel | 10407       | [hariny.24bcs10407@sst.scaler.com](mailto:hariny.24bcs10407@sst.scaler.com) |
+| Name                | Roll Number | Scaler Email                                                                |
+| ------------------- | ----------- | --------------------------------------------------------------------------- |
+| Hariny Patel        | 10407       | [hariny.24bcs10407@sst.scaler.com](mailto:hariny.24bcs10407@sst.scaler.com) |
+| Akshansh Sinha      | 10468       | [akshansh.24bcs10468@sst.scaler.com](mailto:akshansh.24bcs10468@sst.scaler.com) |
+| Pratham Onkar Singh | 10136       | [pratham.24bcs10136@sst.scaler.com](mailto:pratham.24bcs10136@sst.scaler.com) |
 
 
 ---
