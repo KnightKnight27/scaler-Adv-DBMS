@@ -1,0 +1,2 @@
+courses id:INT title:TEXT
+students id:INT name:TEXT grade:INT
