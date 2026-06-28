@@ -68,6 +68,21 @@ static Result run_workload(KVStore& store, int N, int updates, int reads) {
     return r;
 }
 
+// Hammer the store with `rounds` × N random overwrites. Used to expose how
+// each engine handles dead-version space when the same keys are rewritten
+// many times. The B+Tree's append-only heap never reclaims old slots; the
+// LSM can reclaim them via compaction.
+static double run_overwrite_storm(KVStore& store, int N, int rounds) {
+    std::vector<uint8_t> value(100, 'x');
+    std::mt19937 rng(123);
+    std::uniform_int_distribution<int> kd(0, N - 1);
+    auto t0 = Clock::now();
+    for (int r = 0; r < rounds; ++r)
+        for (int i = 0; i < N; ++i) store.put(K(kd(rng)), value);
+    store.sync();
+    return ms_since(t0);
+}
+
 static void print_row(const std::string& label, double lsm, double bt,
                       const std::string& unit) {
     std::cout << "  " << label;
@@ -95,6 +110,15 @@ int main() {
     uint64_t lsm_disk_precompact = 0, lsm_disk_postcompact = 0;
     std::size_t sst_before = 0, sst_after = 0;
     double lsm_hit_postcompact = 0, lsm_miss_postcompact = 0;
+
+    // Sustained-overwrite scenario: rewrite the dataset multiple times to
+    // expose the cost of dead-version space the append-only heap can't
+    // reclaim, vs the LSM that can.
+    const int STORM_ROUNDS = 5;  // 5 x N = 250000 random writes
+    double lsm_storm_ms = 0, bt_storm_ms = 0;
+    uint64_t lsm_disk_after_storm = 0, lsm_disk_after_storm_compact = 0;
+    std::size_t sst_after_storm = 0, sst_after_storm_compact = 0;
+    uint64_t bt_disk_after_storm = 0;
     {
         // Small MemTable so writes spill into many SSTables -> visible space &
         // read amplification, which compaction then reclaims.
@@ -120,10 +144,25 @@ int main() {
         t0 = Clock::now();
         for (int i = 0; i < READS; ++i) lsm.get(K(miss(rng3)), out);
         lsm_miss_postcompact = ms_since(t0);
+
+        // Sustained-overwrite storm: rewrite the dataset STORM_ROUNDS times.
+        // SSTables pile up, space inflates, then a final compaction collapses
+        // it back to (nearly) the logical size.
+        lsm_storm_ms = run_overwrite_storm(lsm, N, STORM_ROUNDS);
+        lsm_disk_after_storm = lsm.disk_bytes();
+        sst_after_storm = lsm.num_sstables();
+        lsm.compact();
+        lsm_disk_after_storm_compact = lsm.disk_bytes();
+        sst_after_storm_compact = lsm.num_sstables();
     }
     {
         BTreeStore bt("build/lsm_bench_data/btree", /*buffer_pool=*/256);
         bt_r = run_workload(bt, N, UPDATES, READS);
+
+        // Same sustained-overwrite storm. The append-only heap accumulates
+        // tombstoned slots that are never reclaimed (no heap compaction).
+        bt_storm_ms = run_overwrite_storm(bt, N, STORM_ROUNDS);
+        bt_disk_after_storm = bt.disk_bytes();
     }
 
     std::cout << "\n== Write throughput ==\n";
@@ -156,6 +195,31 @@ int main() {
               << "x)\n";
     std::cout << "  B+Tree (heap):       " << bt_r.disk_after_load << " bytes  ("
               << (bt_r.disk_after_load / logical) << "x)\n";
+
+    std::cout << "\n== Space after sustained overwrites (" << STORM_ROUNDS
+              << "x over-write the dataset, " << (STORM_ROUNDS * N)
+              << " random writes) ==\n";
+    std::cout << "  B+Tree heap (no compaction):    "
+              << bt_disk_after_storm << " bytes  ("
+              << (bt_disk_after_storm / logical) << "x)"
+              << "   -- dead slots not reclaimed\n";
+    std::cout << "  LSM pre-compaction:             "
+              << lsm_disk_after_storm << " bytes, "
+              << sst_after_storm << " SSTables  ("
+              << (lsm_disk_after_storm / logical) << "x)\n";
+    std::cout << "  LSM post-compaction:            "
+              << lsm_disk_after_storm_compact << " bytes, "
+              << sst_after_storm_compact << " SSTable   ("
+              << (lsm_disk_after_storm_compact / logical) << "x)\n";
+    if (lsm_disk_after_storm_compact > 0) {
+        double ratio = static_cast<double>(bt_disk_after_storm) /
+                       static_cast<double>(lsm_disk_after_storm_compact);
+        std::cout << "  -> LSM (after compaction) is "
+                  << ratio << "x smaller than B+Tree heap\n";
+    }
+    std::cout << "  storm write time:               "
+              << "LSM=" << lsm_storm_ms << "ms   "
+              << "B+Tree=" << bt_storm_ms << "ms\n";
 
     std::cout << "------------------------------------------------------------\n";
     std::cout << "Done.\n";
