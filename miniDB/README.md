@@ -79,8 +79,18 @@ graph TD
 
 ## 12. How to Run
 
-```powershell
+To build the project and run the core tests:
+
+```bash
 cmake -S . -B build
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
+
+### Interactive Demo CLI
+To visually demonstrate the project's milestones (including the Track B MVCC implementation), an interactive CLI is provided. You can run it after building:
+
+```bash
+./build/minidb_demo
+```
+This drops you into a multi-phase interactive shell where you can execute SQL strings (M1-M3), simulate Strict 2PL locking (M4), and explore MVCC snapshot isolation (M6 Track B) in real time.
