@@ -3,7 +3,7 @@
 ## Team Information
 - **Team Name**: Team_23bcs10071
 - **Team Members**:
-  - Prince Kumar (Roll Number: 23bcs10071, Email: prince@scaler.com)
+  - Prince Kumar (Roll Number: 23bcs10071, Email: prince@scaler.com),Agarsh Singh Tomar(Email : adarsh.23bcs10031@gmail.com)
 
 ---
 
