@@ -6,6 +6,7 @@
 
 #include "minidb/buffer/buffer_pool.h"
 #include "minidb/common/types.h"
+#include "minidb/execution/execution_engine.h"
 #include "minidb/index/b_plus_tree.h"
 #include "minidb/sql/parser.h"
 #include "minidb/storage/disk_manager.h"
@@ -221,6 +222,52 @@ void TestParserConnectsToPrimaryKeyIndex() {
   Require(!primary_index.Search("42").has_value(), "deleted parsed key should be absent from index");
 }
 
+void TestExecutionEngineInsertSelectDelete() {
+  auto path = TempDb("minidb_m3_execution.db");
+  DiskManager disk(path);
+  BufferPool buffer(disk, 4);
+  ExecutionEngine engine(buffer);
+  engine.CreateTable("users", {Column{"id", ColumnType::Text, true}, Column{"name", ColumnType::Text, false}});
+
+  Require(engine.Execute("INSERT INTO users VALUES ('1', 'Ada');").affected_rows == 1, "INSERT should affect one row");
+  Require(engine.Execute("INSERT INTO users VALUES ('2', 'Grace');").affected_rows == 1, "second INSERT should work");
+
+  auto selected = engine.Execute("SELECT id, name FROM users WHERE id = '1';");
+  Require(selected.rows.size() == 1, "primary-key SELECT should return one row");
+  Require(selected.rows[0][0] == "1" && selected.rows[0][1] == "Ada", "SELECT should project requested columns");
+
+  auto count = engine.Execute("SELECT COUNT(*) FROM users;");
+  Require(count.rows.size() == 1 && count.rows[0][0] == "2", "COUNT(*) should count table rows");
+
+  Require(engine.Execute("DELETE FROM users WHERE id = '1';").affected_rows == 1, "DELETE should affect one row");
+  auto after_delete = engine.Execute("SELECT COUNT(*) FROM users;");
+  Require(after_delete.rows[0][0] == "1", "COUNT(*) should reflect deleted rows");
+}
+
+void TestExecutionEngineJoinAndAggregation() {
+  auto path = TempDb("minidb_m3_join.db");
+  DiskManager disk(path);
+  BufferPool buffer(disk, 6);
+  ExecutionEngine engine(buffer);
+  engine.CreateTable("users", {Column{"id", ColumnType::Text, true}, Column{"name", ColumnType::Text, false}});
+  engine.CreateTable("orders", {Column{"id", ColumnType::Text, true}, Column{"user_id", ColumnType::Text, false},
+                                Column{"total", ColumnType::Text, false}});
+
+  engine.Execute("INSERT INTO users VALUES ('1', 'Ada');");
+  engine.Execute("INSERT INTO users VALUES ('2', 'Grace');");
+  engine.Execute("INSERT INTO orders VALUES ('10', '1', '50');");
+  engine.Execute("INSERT INTO orders VALUES ('11', '1', '75');");
+  engine.Execute("INSERT INTO orders VALUES ('12', '2', '25');");
+
+  auto joined = engine.Execute(
+      "SELECT users.name, orders.total FROM users JOIN orders ON users.id = orders.user_id WHERE users.id = '1';");
+  Require(joined.rows.size() == 2, "JOIN should return matching rows");
+  Require(joined.rows[0][0] == "Ada" && joined.rows[1][0] == "Ada", "JOIN should project left table values");
+
+  auto count = engine.Execute("SELECT COUNT(*) FROM users JOIN orders ON users.id = orders.user_id;");
+  Require(count.rows.size() == 1 && count.rows[0][0] == "3", "JOIN COUNT(*) should count joined rows");
+}
+
 }  // namespace
 
 int main() {
@@ -233,10 +280,12 @@ int main() {
     TestBPlusTreeSearchInsertDelete();
     TestSqlParserParsesM2Statements();
     TestParserConnectsToPrimaryKeyIndex();
+    TestExecutionEngineInsertSelectDelete();
+    TestExecutionEngineJoinAndAggregation();
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;
   }
-  std::cout << "M1 and M2 tests passed\n";
+  std::cout << "M1, M2, and M3 tests passed\n";
   return 0;
 }

@@ -74,16 +74,37 @@ SelectStatement SqlParser::ParseSelect(std::string_view sql) const {
   }
 
   std::size_t where_pos = FindKeyword(sql, " WHERE ", from_pos + 6);
+  std::size_t from_end = where_pos == std::string::npos ? sql.size() : where_pos;
+  std::string from_clause = Trim(sql.substr(from_pos + 6, from_end - (from_pos + 6)));
+  std::size_t join_pos = FindKeyword(from_clause, " JOIN ");
   std::string table;
+  std::optional<SelectStatement::JoinClause> join;
   Predicate where;
-  if (where_pos == std::string::npos) {
-    table = RequireIdentifier(sql.substr(from_pos + 6), "SELECT table");
+
+  if (join_pos == std::string::npos) {
+    table = RequireIdentifier(from_clause, "SELECT table");
   } else {
-    table = RequireIdentifier(sql.substr(from_pos + 6, where_pos - (from_pos + 6)), "SELECT table");
+    table = RequireIdentifier(from_clause.substr(0, join_pos), "SELECT left table");
+    std::string join_clause = Trim(std::string_view(from_clause).substr(join_pos + 6));
+    std::size_t on_pos = FindKeyword(join_clause, " ON ");
+    if (on_pos == std::string::npos) {
+      throw MiniDbError("JOIN must contain ON");
+    }
+    std::string right_table = RequireIdentifier(std::string_view(join_clause).substr(0, on_pos), "SELECT right table");
+    Predicate on = ParsePredicate(std::string_view(join_clause).substr(on_pos + 4));
+    if (on.op != "=") {
+      throw MiniDbError("JOIN ON predicate must use equality");
+    }
+    join = SelectStatement::JoinClause{std::move(right_table), std::move(on.column), std::move(on.value)};
+  }
+
+  if (where_pos != std::string::npos) {
     where = ParsePredicate(sql.substr(where_pos + 7));
   }
 
-  return SelectStatement{ParseColumns(sql.substr(prefix.size(), from_pos - prefix.size())), std::move(table), where};
+  auto columns = ParseColumns(sql.substr(prefix.size(), from_pos - prefix.size()));
+  bool count_star = columns.size() == 1 && ToUpper(columns[0]) == "COUNT(*)";
+  return SelectStatement{std::move(columns), std::move(table), std::move(join), where, count_star};
 }
 
 DeleteStatement SqlParser::ParseDelete(std::string_view sql) const {

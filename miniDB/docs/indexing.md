@@ -23,7 +23,8 @@ optimizer milestones.
 
 The SQL parser produces structured `INSERT`, `SELECT`, and `DELETE` statements.
 M2 tests connect parsed primary-key values and `WHERE id = ...` predicates to
-the B+ tree. Full table execution remains part of M3.
+the B+ tree. M3 execution uses the index for primary-key lookups and primary-key
+deletes.
 
 ## Current Limitations
 

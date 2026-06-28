@@ -18,7 +18,14 @@ struct InsertStatement {
 struct SelectStatement {
   std::vector<std::string> columns;
   std::string table;
+  struct JoinClause {
+    std::string table;
+    std::string left_column;
+    std::string right_column;
+  };
+  std::optional<JoinClause> join;
   Predicate where;
+  bool count_star{false};
 };
 
 struct DeleteStatement {

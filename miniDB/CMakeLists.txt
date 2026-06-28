@@ -14,6 +14,7 @@ add_library(minidb
   src/minidb/buffer/buffer_pool.cpp
   src/minidb/index/b_plus_tree.cpp
   src/minidb/sql/parser.cpp
+  src/minidb/execution/execution_engine.cpp
 )
 
 target_include_directories(minidb PUBLIC src)
