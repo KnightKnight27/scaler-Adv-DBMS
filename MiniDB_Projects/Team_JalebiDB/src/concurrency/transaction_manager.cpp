@@ -19,10 +19,13 @@ TransactionManager::~TransactionManager() {
 Transaction *TransactionManager::Begin() {
     std::lock_guard<std::mutex> lock(latch_);
     txn_id_t txn_id = next_txn_id_++;
-    Transaction *txn = new Transaction(txn_id);
-    txn_map_[txn_id] = txn;
+   Transaction *txn = new Transaction(txn_id);
+txn_map_[txn_id] = txn;
 
-    if (log_mgr_) {
+std::cout << "[Transaction] Started Transaction "
+          << txn_id << std::endl;
+
+if (log_mgr_)  {
         LogRecord rec(txn_id, INVALID_LSN, LogRecordType::BEGIN);
         lsn_t lsn = log_mgr_->AppendLogRecord(&rec);
         txn->SetPrevLSN(lsn);
