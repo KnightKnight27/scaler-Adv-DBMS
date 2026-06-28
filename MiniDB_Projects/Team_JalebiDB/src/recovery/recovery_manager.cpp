@@ -124,7 +124,13 @@ void RecoveryManager::RunRecovery() {
 
     // Write ABORT records for loser transactions to the log
     // This completes the crash recovery process.
-    std::cout << "[Recovery] Recovery complete." << std::endl;
+    std::cout << "====================================" << std::endl;
+std::cout << "[Recovery] Recovery complete." << std::endl;
+std::cout << "[Recovery] Total Log Records : "
+          << records.size() << std::endl;
+std::cout << "[Recovery] Active Transactions Rolled Back : "
+          << active_txns.size() << std::endl;
+std::cout << "====================================" << std::endl;
 }
 
 } // namespace minidb
