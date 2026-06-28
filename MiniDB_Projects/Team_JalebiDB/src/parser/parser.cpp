@@ -29,13 +29,27 @@ std::vector<std::string> SQLParser::Tokenize(const std::string &sql) {
                 tokens.push_back(token);
                 token.clear();
             }
-        } else if (c == ',' || c == '=' || c == '<' || c == '>' || c == '(' || c == ')') {
-            if (!token.empty()) {
-                tokens.push_back(token);
-                token.clear();
-            }
-            tokens.push_back(std::string(1, c));
-        } else {
+        } else if (c == ',' || c == '(' || c == ')') {
+    if (!token.empty()) {
+        tokens.push_back(token);
+        token.clear();
+    }
+    tokens.push_back(std::string(1, c));
+} else if (c == '<' || c == '>' || c == '=' || c == '!') {
+    if (!token.empty()) {
+        tokens.push_back(token);
+        token.clear();
+    }
+
+    std::string op(1, c);
+
+    if (i + 1 < sql.size() && sql[i + 1] == '=') {
+        op += '=';
+        i++;
+    }
+
+    tokens.push_back(op);
+} else {
             token += c;
         }
     }
