@@ -15,7 +15,9 @@ add_library(minidb
   src/minidb/index/b_plus_tree.cpp
   src/minidb/sql/parser.cpp
   src/minidb/execution/execution_engine.cpp
+  src/minidb/optimizer/optimizer.cpp
   src/minidb/transaction/transaction_manager.cpp
+  src/minidb/transaction/mvcc.cpp
   src/minidb/recovery/wal.cpp
 )
 

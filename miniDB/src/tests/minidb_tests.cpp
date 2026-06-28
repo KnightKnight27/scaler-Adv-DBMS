@@ -13,6 +13,7 @@
 #include "minidb/storage/disk_manager.h"
 #include "minidb/storage/heap_table.h"
 #include "minidb/storage/page_manager.h"
+#include "minidb/transaction/mvcc.h"
 #include "minidb/transaction/transaction_manager.h"
 
 namespace {
@@ -362,6 +363,72 @@ void TestWalRecoveryReplaysCommittedDelete() {
   Require(recovered.rows["users"].empty(), "committed delete should remove row during recovery");
 }
 
+void TestMvccSnapshotVisibility() {
+  MvccStore store;
+  Rid rid{1, 0};
+
+  auto& writer = store.Begin();
+  Require(store.Insert(writer.id, rid, EncodeRow({"1", "Ada"})), "writer should insert new version");
+
+  auto& before_commit = store.Begin();
+  Require(!store.Read(before_commit.id, rid).has_value(), "snapshot before commit should not see uncommitted row");
+
+  store.Commit(writer.id);
+  Require(!store.Read(before_commit.id, rid).has_value(), "older snapshot should not see later commit");
+
+  auto& after_commit = store.Begin();
+  auto visible = store.Read(after_commit.id, rid);
+  Require(visible.has_value() && DecodeRow(*visible)[1] == "Ada", "new snapshot should see committed row");
+}
+
+void TestMvccUpdateDeleteAndConflicts() {
+  MvccStore store;
+  Rid rid{2, 0};
+
+  auto& seed = store.Begin();
+  Require(store.Insert(seed.id, rid, EncodeRow({"2", "Grace"})), "seed insert should succeed");
+  store.Commit(seed.id);
+
+  auto& reader = store.Begin();
+  auto& updater = store.Begin();
+  Require(store.Update(updater.id, rid, EncodeRow({"2", "Updated Grace"})), "first updater should create new version");
+
+  auto& conflicting_writer = store.Begin();
+  Require(!store.Update(conflicting_writer.id, rid, EncodeRow({"2", "Conflict"})),
+          "second active writer should hit write-write conflict");
+
+  auto old_snapshot = store.Read(reader.id, rid);
+  Require(old_snapshot.has_value() && DecodeRow(*old_snapshot)[1] == "Grace",
+          "reader should keep original snapshot while update is active");
+
+  store.Commit(updater.id);
+  Require(DecodeRow(*store.Read(reader.id, rid))[1] == "Grace", "old reader should keep snapshot after commit");
+
+  auto& newer_reader = store.Begin();
+  Require(DecodeRow(*store.Read(newer_reader.id, rid))[1] == "Updated Grace",
+          "new reader should see committed update");
+
+  auto& deleter = store.Begin();
+  Require(store.Delete(deleter.id, rid), "delete should create tombstone version");
+  store.Commit(deleter.id);
+
+  auto& after_delete = store.Begin();
+  Require(!store.Read(after_delete.id, rid).has_value(), "new snapshot should not see deleted row");
+}
+
+void TestMvccAbortRemovesUncommittedVersions() {
+  MvccStore store;
+  Rid rid{3, 0};
+
+  auto& writer = store.Begin();
+  Require(store.Insert(writer.id, rid, EncodeRow({"3", "Temporary"})), "insert should create uncommitted version");
+  store.Abort(writer.id);
+
+  auto& reader = store.Begin();
+  Require(!store.Read(reader.id, rid).has_value(), "aborted insert should not be visible");
+  Require(store.Scan(reader.id).empty(), "scan should skip aborted versions");
+}
+
 }  // namespace
 
 int main() {
@@ -380,10 +447,13 @@ int main() {
     TestTransactionDeadlockDetectionAbortsRequester();
     TestWalRecoveryPreservesCommittedTransactions();
     TestWalRecoveryReplaysCommittedDelete();
+    TestMvccSnapshotVisibility();
+    TestMvccUpdateDeleteAndConflicts();
+    TestMvccAbortRemovesUncommittedVersions();
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;
   }
-  std::cout << "M1, M2, M3, M4, and M5 tests passed\n";
+  std::cout << "Core milestones and Track B MVCC tests passed\n";
   return 0;
 }

@@ -1,6 +1,7 @@
 #include "minidb/execution/execution_engine.h"
 
 #include <algorithm>
+#include "minidb/optimizer/optimizer.h"
 
 namespace minidb {
 
@@ -70,8 +71,10 @@ QueryResult ExecutionEngine::ExecuteSelect(const SelectStatement& statement) {
   result.columns = statement.count_star ? std::vector<std::string>{"count"} : statement.columns;
 
   std::vector<std::pair<Rid, Row>> candidates;
-  bool used_index = !statement.where.empty && statement.where.op == "=" &&
-                    ColumnIndex(table, statement.where.column) == table.primary_key_column;
+  bool is_pk = !statement.where.empty && ColumnIndex(table, statement.where.column) == table.primary_key_column;
+  bool used_index = Optimizer::ShouldUseIndexScan(statement.where, is_pk);
+  double selectivity = Optimizer::EstimateSelectivity(statement.where, is_pk);
+  (void)selectivity; // For cost-based decisions in a more complex engine
   if (used_index) {
     auto rid = table.primary_index.Search(statement.where.value);
     if (rid.has_value()) {
@@ -107,8 +110,8 @@ QueryResult ExecutionEngine::ExecuteDelete(const DeleteStatement& statement) {
   TableInfo& table = Table(statement.table);
   QueryResult result;
 
-  bool used_index = !statement.where.empty && statement.where.op == "=" &&
-                    ColumnIndex(table, statement.where.column) == table.primary_key_column;
+  bool is_pk = !statement.where.empty && ColumnIndex(table, statement.where.column) == table.primary_key_column;
+  bool used_index = Optimizer::ShouldUseIndexScan(statement.where, is_pk);
   if (used_index) {
     auto rid = table.primary_index.Search(statement.where.value);
     if (!rid.has_value()) {
