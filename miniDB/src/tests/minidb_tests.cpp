@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "minidb/buffer/buffer_pool.h"
 #include "minidb/common/types.h"
@@ -105,6 +106,51 @@ void TestBufferPoolEvictsDirtyPages() {
   }
 }
 
+void TestHeapTableChainsAcrossPages() {
+  auto path = TempDb("minidb_m1_heap_chain.db");
+  std::vector<Rid> inserted;
+
+  {
+    DiskManager disk(path);
+    BufferPool buffer(disk, 2);
+    PageId first_page = HeapTable::Create(buffer);
+    HeapTable table(buffer, first_page);
+
+    for (int i = 0; i < 80; ++i) {
+      inserted.push_back(table.Insert("row-" + std::to_string(i) + "-" + std::string(180, 'x')));
+    }
+    buffer.FlushAll();
+    Require(disk.PageCount() > 1, "large heap should allocate additional pages");
+  }
+
+  {
+    DiskManager disk(path);
+    BufferPool buffer(disk, 2);
+    HeapTable table(buffer, inserted.front().page_id);
+    auto rows = table.Scan();
+    Require(rows.size() == inserted.size(), "scan should traverse every heap page");
+    Require(rows.front().second.rfind("row-0-", 0) == 0, "first chained row should persist");
+    Require(rows.back().second.rfind("row-79-", 0) == 0, "last chained row should persist");
+  }
+}
+
+void TestBufferPoolRejectsEvictionWhenAllFramesPinned() {
+  auto path = TempDb("minidb_m1_pinned.db");
+  DiskManager disk(path);
+  BufferPool buffer(disk, 1);
+
+  Page& page = buffer.NewPage();
+  bool threw = false;
+  try {
+    buffer.NewPage();
+  } catch (const MiniDbError&) {
+    threw = true;
+  }
+
+  buffer.UnpinPage(page.page_id(), false);
+  Require(threw, "buffer pool should reject eviction when every frame is pinned");
+}
+
 }  // namespace
 
 int main() {
@@ -112,6 +158,8 @@ int main() {
     TestPageManagerAllocatesAndPersistsPages();
     TestHeapTableInsertScanDelete();
     TestBufferPoolEvictsDirtyPages();
+    TestHeapTableChainsAcrossPages();
+    TestBufferPoolRejectsEvictionWhenAllFramesPinned();
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;

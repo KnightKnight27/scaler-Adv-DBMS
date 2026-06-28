@@ -4,10 +4,28 @@ MiniDB is an educational relational database engine for the Advanced DBMS capsto
 
 ## Build
 
+Requires CMake and a C++20 compiler. On Windows, install **Visual Studio Build Tools**
+with the **Desktop development with C++** workload, then run these commands from a
+Developer PowerShell or Developer Command Prompt.
+
+If an earlier configure failed, remove the incomplete build directory first:
+
+```powershell
+Remove-Item -Recurse -Force build
+```
+
 ```powershell
 cmake -S . -B build
 cmake --build build
 ctest --test-dir build --output-on-failure
+```
+
+If you are not in a developer shell, use the Visual Studio generator explicitly:
+
+```powershell
+cmake -S . -B build -G "Visual Studio 17 2022"
+cmake --build build --config Debug
+ctest --test-dir build -C Debug --output-on-failure
 ```
 
 ## M1 Verification

@@ -14,3 +14,5 @@ Storage uses fixed-size pages and a slotted-page layout. Heap tables store varia
 - Records survive database close/reopen.
 - Dirty pages are flushed during buffer eviction.
 - Deleted heap slots are skipped by scans.
+- Heap scans traverse chained pages after inserts exceed one page.
+- Buffer pool reports an error when all frames are pinned and no victim can be evicted.
