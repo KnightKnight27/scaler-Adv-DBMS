@@ -128,7 +128,7 @@ std::optional<BPlusTree::SplitResult> BPlusTree::SplitInternal(Node& node) {
 BPlusTree::Node* BPlusTree::FindLeaf(std::string_view key) {
   Node* node = root_.get();
   while (!node->leaf) {
-    auto it = std::upper_bound(key, node->keys.begin(), node->keys.end(),
+    auto it = std::upper_bound(node->keys.begin(), node->keys.end(), key,
                                [](std::string_view lhs, const std::string& rhs) { return lhs < rhs; });
     node = node->children[static_cast<std::size_t>(it - node->keys.begin())].get();
   }
@@ -138,7 +138,7 @@ BPlusTree::Node* BPlusTree::FindLeaf(std::string_view key) {
 const BPlusTree::Node* BPlusTree::FindLeaf(std::string_view key) const {
   const Node* node = root_.get();
   while (!node->leaf) {
-    auto it = std::upper_bound(key, node->keys.begin(), node->keys.end(),
+    auto it = std::upper_bound(node->keys.begin(), node->keys.end(), key,
                                [](std::string_view lhs, const std::string& rhs) { return lhs < rhs; });
     node = node->children[static_cast<std::size_t>(it - node->keys.begin())].get();
   }
