@@ -104,18 +104,10 @@ SQLStatement SQLParser::Parse(const std::string &sql) {
         while (idx < tokens.size() && tokens[idx] != ")") {
             std::string val = tokens[idx];
             // Determine type: integer or varchar
-            bool is_num = true;
-            for (char c : val) {
-                if (!std::isdigit(c) && c != '-') {
-                    is_num = false;
-                    break;
-                }
-            }
-
-            if (is_num) {
-                stmt.insert_values.push_back(Value(std::stoi(val)));
+            if (IsInteger(val)) {
+                 stmt.insert_values.push_back(Value(std::stoi(val)));
             } else {
-                stmt.insert_values.push_back(Value(val));
+              stmt.insert_values.push_back(Value(val));
             }
 
             idx++;
