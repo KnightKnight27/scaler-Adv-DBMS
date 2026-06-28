@@ -26,6 +26,6 @@ primary-key index modules.
 
 ## Current Limitations
 
-- No cost-based plan selection yet; that is M4/M optimizer work.
+- No cost-based plan selection yet; that belongs to the optimizer milestone.
 - Joins are equality joins only.
 - Aggregation is currently limited to `COUNT(*)`.

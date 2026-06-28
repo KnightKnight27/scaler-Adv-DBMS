@@ -12,6 +12,7 @@
 #include "minidb/storage/disk_manager.h"
 #include "minidb/storage/heap_table.h"
 #include "minidb/storage/page_manager.h"
+#include "minidb/transaction/transaction_manager.h"
 
 namespace {
 
@@ -268,6 +269,57 @@ void TestExecutionEngineJoinAndAggregation() {
   Require(count.rows.size() == 1 && count.rows[0][0] == "3", "JOIN COUNT(*) should count joined rows");
 }
 
+void TestTransactionSharedAndExclusiveLocks() {
+  TransactionManager transactions;
+  Transaction& reader1 = transactions.Begin();
+  Transaction& reader2 = transactions.Begin();
+  Transaction& writer = transactions.Begin();
+
+  Require(transactions.LockShared(reader1.id, "users:1"), "first shared lock should be granted");
+  Require(transactions.LockShared(reader2.id, "users:1"), "compatible shared lock should be granted");
+  Require(!transactions.LockExclusive(writer.id, "users:1"), "exclusive lock should wait behind shared locks");
+
+  transactions.Commit(reader1.id);
+  Require(!transactions.LockExclusive(writer.id, "users:1"), "exclusive lock should still wait for remaining reader");
+  transactions.Commit(reader2.id);
+  Require(transactions.LockExclusive(writer.id, "users:1"), "exclusive lock should be granted after readers commit");
+  transactions.Commit(writer.id);
+
+  Transaction& after_commit = transactions.Begin();
+  Require(transactions.LockExclusive(after_commit.id, "users:1"), "commit should release strict 2PL locks");
+  transactions.Commit(after_commit.id);
+
+  bool rejected_after_commit = false;
+  try {
+    transactions.LockShared(after_commit.id, "users:2");
+  } catch (const MiniDbError&) {
+    rejected_after_commit = true;
+  }
+  Require(rejected_after_commit, "committed transactions should not acquire new locks");
+}
+
+void TestTransactionDeadlockDetectionAbortsRequester() {
+  TransactionManager transactions;
+  Transaction& left = transactions.Begin();
+  Transaction& right = transactions.Begin();
+
+  Require(transactions.LockExclusive(left.id, "page:A"), "left txn should lock page A");
+  Require(transactions.LockExclusive(right.id, "page:B"), "right txn should lock page B");
+  Require(!transactions.LockExclusive(left.id, "page:B"), "left txn should wait for right txn");
+
+  bool deadlock_detected = false;
+  try {
+    transactions.LockExclusive(right.id, "page:A");
+  } catch (const MiniDbError&) {
+    deadlock_detected = true;
+  }
+
+  Require(deadlock_detected, "cycle in wait-for graph should be detected");
+  Require(transactions.Get(right.id).state == TransactionState::Aborted, "deadlock requester should be aborted");
+  Require(transactions.LockExclusive(left.id, "page:B"), "aborted transaction should release its locks");
+  transactions.Commit(left.id);
+}
+
 }  // namespace
 
 int main() {
@@ -282,10 +334,12 @@ int main() {
     TestParserConnectsToPrimaryKeyIndex();
     TestExecutionEngineInsertSelectDelete();
     TestExecutionEngineJoinAndAggregation();
+    TestTransactionSharedAndExclusiveLocks();
+    TestTransactionDeadlockDetectionAbortsRequester();
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;
   }
-  std::cout << "M1, M2, and M3 tests passed\n";
+  std::cout << "M1, M2, M3, and M4 tests passed\n";
   return 0;
 }

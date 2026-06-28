@@ -39,10 +39,10 @@ ctest --test-dir build --output-on-failure
 - M1 Page manager + buffer pool integrated: implemented.
 - M2 B+ tree + parser connected: implemented.
 - M3 Query execution engine with joins and aggregation: implemented.
-- M4 Transactions and locking: planned.
+- M4 Transactions and locking: implemented.
 - M5 Recovery, benchmarking, and final demo: planned.
 - Track B MVCC extension: planned after the required 2PL transaction baseline.
 
 ## Required Core Features
 
-The codebase currently includes the storage-engine foundation: page-based heap files, page manager behavior, page reads/writes, and buffer pool usage. M2 adds a primary-key B+ tree and structured SQL parsing for `INSERT`, `SELECT`, and `DELETE`. M3 adds heap-backed query execution with primary-key index lookup, deletes, nested-loop joins, and `COUNT(*)` aggregation. Later milestones will add cost-based optimization, 2PL transaction management, WAL recovery, and MVCC extension support.
+The codebase currently includes the storage-engine foundation: page-based heap files, page manager behavior, page reads/writes, and buffer pool usage. M2 adds a primary-key B+ tree and structured SQL parsing for `INSERT`, `SELECT`, and `DELETE`. M3 adds heap-backed query execution with primary-key index lookup, deletes, nested-loop joins, and `COUNT(*)` aggregation. M4 adds strict 2PL transaction management with shared/exclusive locks and deadlock detection. Later milestones will add WAL recovery, benchmarking, and MVCC extension support.

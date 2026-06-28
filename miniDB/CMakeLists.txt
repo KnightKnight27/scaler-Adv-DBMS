@@ -15,6 +15,7 @@ add_library(minidb
   src/minidb/index/b_plus_tree.cpp
   src/minidb/sql/parser.cpp
   src/minidb/execution/execution_engine.cpp
+  src/minidb/transaction/transaction_manager.cpp
 )
 
 target_include_directories(minidb PUBLIC src)
