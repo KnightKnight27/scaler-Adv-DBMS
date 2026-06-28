@@ -34,15 +34,20 @@ ctest --test-dir build -C Debug --output-on-failure
 ctest --test-dir build --output-on-failure
 ```
 
+## Demo
+
+Use `docs/final_demo.md` as the viva/demo script. M5 recovery workload notes are
+under `benchmarks/workloads`, with analysis notes under `benchmarks/results`.
+
 ## Milestone Status
 
 - M1 Page manager + buffer pool integrated: implemented.
 - M2 B+ tree + parser connected: implemented.
 - M3 Query execution engine with joins and aggregation: implemented.
 - M4 Transactions and locking: implemented.
-- M5 Recovery, benchmarking, and final demo: planned.
+- M5 Recovery, benchmarking, and final demo: implemented.
 - Track B MVCC extension: planned after the required 2PL transaction baseline.
 
 ## Required Core Features
 
-The codebase currently includes the storage-engine foundation: page-based heap files, page manager behavior, page reads/writes, and buffer pool usage. M2 adds a primary-key B+ tree and structured SQL parsing for `INSERT`, `SELECT`, and `DELETE`. M3 adds heap-backed query execution with primary-key index lookup, deletes, nested-loop joins, and `COUNT(*)` aggregation. M4 adds strict 2PL transaction management with shared/exclusive locks and deadlock detection. Later milestones will add WAL recovery, benchmarking, and MVCC extension support.
+The codebase currently includes the storage-engine foundation: page-based heap files, page manager behavior, page reads/writes, and buffer pool usage. M2 adds a primary-key B+ tree and structured SQL parsing for `INSERT`, `SELECT`, and `DELETE`. M3 adds heap-backed query execution with primary-key index lookup, deletes, nested-loop joins, and `COUNT(*)` aggregation. M4 adds strict 2PL transaction management with shared/exclusive locks and deadlock detection. M5 adds WAL recovery, benchmark workloads, and demo notes. Track B MVCC extension support is the remaining extension milestone.

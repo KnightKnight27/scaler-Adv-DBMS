@@ -8,6 +8,7 @@
 #include "minidb/common/types.h"
 #include "minidb/execution/execution_engine.h"
 #include "minidb/index/b_plus_tree.h"
+#include "minidb/recovery/wal.h"
 #include "minidb/sql/parser.h"
 #include "minidb/storage/disk_manager.h"
 #include "minidb/storage/heap_table.h"
@@ -320,6 +321,47 @@ void TestTransactionDeadlockDetectionAbortsRequester() {
   transactions.Commit(left.id);
 }
 
+void TestWalRecoveryPreservesCommittedTransactions() {
+  auto path = TempDb("minidb_m5_recovery.wal");
+
+  {
+    WalLogManager wal(path);
+    wal.AppendBegin(1);
+    wal.AppendInsert(1, "users", Rid{1, 0}, EncodeRow({"1", "Ada"}));
+    wal.AppendCommit(1);
+
+    wal.AppendBegin(2);
+    wal.AppendInsert(2, "users", Rid{2, 0}, EncodeRow({"2", "Uncommitted"}));
+    wal.Flush();
+  }
+
+  WalLogManager restart(path);
+  auto recovered = restart.Recover();
+  Require(recovered.committed_txns.find(1) != recovered.committed_txns.end(), "committed txn should be recognized");
+  Require(recovered.ignored_txns.find(2) != recovered.ignored_txns.end(), "uncommitted txn should be ignored");
+  Require(recovered.rows["users"].size() == 1, "recovery should redo only committed rows");
+  Require(DecodeRow(recovered.rows["users"][0].second)[1] == "Ada", "committed row should survive recovery");
+}
+
+void TestWalRecoveryReplaysCommittedDelete() {
+  auto path = TempDb("minidb_m5_delete_recovery.wal");
+
+  {
+    WalLogManager wal(path);
+    wal.AppendBegin(1);
+    wal.AppendInsert(1, "users", Rid{1, 0}, EncodeRow({"1", "Ada"}));
+    wal.AppendCommit(1);
+
+    wal.AppendBegin(2);
+    wal.AppendDelete(2, "users", Rid{1, 0}, EncodeRow({"1", "Ada"}));
+    wal.AppendCommit(2);
+  }
+
+  WalLogManager restart(path);
+  auto recovered = restart.Recover();
+  Require(recovered.rows["users"].empty(), "committed delete should remove row during recovery");
+}
+
 }  // namespace
 
 int main() {
@@ -336,10 +378,12 @@ int main() {
     TestExecutionEngineJoinAndAggregation();
     TestTransactionSharedAndExclusiveLocks();
     TestTransactionDeadlockDetectionAbortsRequester();
+    TestWalRecoveryPreservesCommittedTransactions();
+    TestWalRecoveryReplaysCommittedDelete();
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;
   }
-  std::cout << "M1, M2, M3, and M4 tests passed\n";
+  std::cout << "M1, M2, M3, M4, and M5 tests passed\n";
   return 0;
 }
