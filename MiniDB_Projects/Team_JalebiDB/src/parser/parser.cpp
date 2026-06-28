@@ -198,15 +198,11 @@ SQLStatement SQLParser::Parse(const std::string &sql) {
                 idx++;
 
                 std::string val = tokens[idx];
-                bool is_num = true;
-                for (char c : val) {
-                    if (!std::isdigit(c) && c != '-') {
-                        is_num = false;
-                        break;
-                    }
-                }
-                if (is_num) stmt.where_val = Value(std::stoi(val));
-                else stmt.where_val = Value(val);
+                if (IsInteger(val))
+                    stmt.where_val = Value(std::stoi(val));
+                else
+                     stmt.where_val = Value(val);
+                
                 idx++;
             }
         }
