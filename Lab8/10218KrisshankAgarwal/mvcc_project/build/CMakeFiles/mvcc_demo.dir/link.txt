@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/mvcc_demo.dir/src/main.cpp.o -o mvcc_demo  -lpthread 

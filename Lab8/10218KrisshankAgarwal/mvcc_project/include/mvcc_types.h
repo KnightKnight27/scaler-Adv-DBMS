@@ -7,10 +7,12 @@
 #include <functional>
 #include <stdexcept>
 
+// ============================================================
 //  MVCC Version Chains Manager — Core Types & Constants
 //  Supports: NSM (N-ary Storage Model / Row Store),
 //            DSM (Decomposition Storage Model / Column Store),
 //            PAX (Partition Attributes Across)
+// ============================================================
 
 namespace mvcc {
 
@@ -167,4 +169,4 @@ struct TxnAbortedError : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
-} 
+} // namespace mvcc

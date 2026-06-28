@@ -1,0 +1,5 @@
+/home/claude/mvcc_project/build/CMakeFiles/mvcc_demo.dir
+/home/claude/mvcc_project/build/CMakeFiles/mvcc_tests.dir
+/home/claude/mvcc_project/build/CMakeFiles/test.dir
+/home/claude/mvcc_project/build/CMakeFiles/edit_cache.dir
+/home/claude/mvcc_project/build/CMakeFiles/rebuild_cache.dir

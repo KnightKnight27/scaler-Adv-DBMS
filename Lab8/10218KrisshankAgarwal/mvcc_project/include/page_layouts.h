@@ -1,5 +1,6 @@
 #pragma once
 
+// ============================================================
 //  Page Layout Implementations
 //  NSM  — N-ary Storage Model (Row-Oriented)
 //  DSM  — Decomposition Storage Model (Column-Oriented)
@@ -7,7 +8,8 @@
 //
 //  Each layout class models how tuples/columns are physically
 //  arranged within a 4 KB page.  For MVCC each row is written
-//  by stamping begin/end timestamps directly in the slot header. 
+//  by stamping begin/end timestamps directly in the slot header.
+// ============================================================
 
 #include "mvcc_types.h"
 #include "version_chain.h"
@@ -23,8 +25,9 @@
 
 namespace mvcc {
 
+// ────────────────────────────────────────────────────────────
 //  Slot Header — embedded in every physical slot (all layouts)
-
+// ────────────────────────────────────────────────────────────
 struct SlotHeader {
     TxnID     creatorTxn;
     Timestamp beginTS;
@@ -32,11 +35,13 @@ struct SlotHeader {
     bool      deleted;
 };
 
+// ============================================================
 //  NSM Page  (Row Store)
 //  Layout:
 //    [ SlotDirectory | → free space ← | tuples ]
 //  Each tuple:  [SlotHeader][col0][col1]...[colN]
 //  Best for:    OLTP — fetching full rows by primary key
+// ============================================================
 class NSMPage {
 public:
     struct Slot {
@@ -149,11 +154,12 @@ private:
     std::vector<Slot> slots_;
 };
 
+// ============================================================
 //  DSM Page  (Column Store)
 //  Layout:
 //    For each column: [SlotHeader+value]×N (one column array per column)
 //  Best for:   OLAP — full column scans, aggregations, projections
-
+// ============================================================
 class DSMPage {
 public:
     struct ColSlot {
@@ -209,6 +215,17 @@ public:
         for (SlotID i = 0; i < columns_[col].size(); ++i) {
             auto v = readColumn(i, col, readTS);
             if (v) result.push_back(*v);
+        }
+        return result;
+    }
+
+    // Full row scan — same interface as NSMPage / PAXPage (used by SQLExecutor)
+    std::vector<std::pair<SlotID, Tuple>> scan(Timestamp readTS) const {
+        std::vector<std::pair<SlotID, Tuple>> result;
+        size_t n = numRows();
+        for (SlotID i = 0; i < static_cast<SlotID>(n); ++i) {
+            auto t = readRow(i, readTS);
+            if (t) result.emplace_back(i, *t);
         }
         return result;
     }
@@ -272,12 +289,13 @@ private:
     std::vector<std::vector<ColSlot>> columns_;
 };
 
+// ============================================================
 //  PAX Page  (Partition Attributes Across — Hybrid)
 //  Layout (within one 4KB page):
 //    [ Mini-row-directory | col-0 minipage | col-1 minipage | ... ]
 //  Each minipage = fixed-size array of values for that column
 //  Best for:  both OLTP and OLAP — cache-friendly partial scans
-
+// ============================================================
 class PAXPage {
 public:
     // Each row gets a mini-header in a central slot array
@@ -385,4 +403,4 @@ private:
     std::vector<MiniPage> miniPages_;
 };
 
-} 
+} // namespace mvcc

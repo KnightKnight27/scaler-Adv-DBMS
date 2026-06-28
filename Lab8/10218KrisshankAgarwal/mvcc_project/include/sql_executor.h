@@ -1,10 +1,12 @@
 #pragma once
 
+// ============================================================
 //  SQL Query Executor
 //  Provides SELECT / INSERT / UPDATE / DELETE on top of:
 //    - NSMPage, DSMPage, PAXPage
 //    - VersionChainIndex  (MVCC version resolution)
 //    - TransactionManager (begin / commit / abort)
+// ============================================================
 
 #include "mvcc_types.h"
 #include "version_chain.h"
@@ -23,7 +25,9 @@
 
 namespace mvcc {
 
+// ────────────────────────────────────────────────────────────
 //  Predicate — a column-based filter used in WHERE clauses
+// ────────────────────────────────────────────────────────────
 struct Predicate {
     ColumnID col;
     enum class Op { EQ, NEQ, LT, LE, GT, GE } op;
@@ -43,6 +47,7 @@ struct Predicate {
                     case Op::GT:  return l >  r;
                     case Op::GE:  return l >= r;
                 }
+                return false;
             }
             case DataType::INT64: {
                 int64_t l = lhs.num.i64, r = rhs.num.i64;
@@ -54,6 +59,7 @@ struct Predicate {
                     case Op::GT:  return l >  r;
                     case Op::GE:  return l >= r;
                 }
+                return false;
             }
             case DataType::VARCHAR: {
                 switch (op) {
@@ -78,8 +84,9 @@ struct Predicate {
     static Predicate ge (ColumnID c, Value v){ return {c, Op::GE,  v}; }
 };
 
+// ────────────────────────────────────────────────────────────
 //  QueryResult
-
+// ────────────────────────────────────────────────────────────
 struct QueryResult {
     bool                        success  = true;
     std::string                 errorMsg;
@@ -110,7 +117,9 @@ struct QueryResult {
     }
 };
 
+// ============================================================
 //  SQLExecutor<Page>  — template over a Page layout class
+// ============================================================
 template<typename PageT>
 class SQLExecutor {
 public:
@@ -158,6 +167,10 @@ public:
     }
 
     // ── SELECT ──────────────────────────────────────────────
+    // Uses VersionChainIndex as the authoritative source:
+    // for each logical key walk the version chain to return
+    // the single latest visible version (avoids stale duplicates
+    // left behind by UPDATE/DELETE append-only writes).
     QueryResult execSelect(std::shared_ptr<Transaction>& txn,
                            const std::vector<ColumnID>& cols,
                            const std::vector<Predicate>& preds = {}) {
@@ -167,20 +180,29 @@ public:
 
         Timestamp readTS = snapshotTS(txn);
 
+        // Collect unique logical keys visible on physical pages.
+        std::unordered_set<uint64_t> seenKeys;
         for (auto& page : pages_) {
             auto rows = scanPage(*page, readTS);
-            for (auto& [sid, tuple] : rows) {
-                if (!applyPreds(tuple, preds)) continue;
-                // Project
-                Tuple projected;
-                for (ColumnID c : cols) {
-                    if (c < tuple.size()) projected.push_back(tuple[c]);
-                }
-                qr.rows.push_back(std::move(projected));
-                // Track read set for Serializable
-                if (txn->isolationLevel == IsolationLevel::SERIALIZABLE)
-                    txn->readSet.insert(primaryKey(tuple));
-            }
+            for (auto& [sid, tuple] : rows)
+                seenKeys.insert(primaryKey(tuple));
+        }
+
+        // Resolve each key through its version chain (authoritative).
+        for (uint64_t key : seenKeys) {
+            auto chain = vci_.get(key);
+            if (!chain) continue;
+            auto resolved = chain->readVersion(readTS);
+            if (!resolved) continue;          // deleted or not visible
+            if (!applyPreds(*resolved, preds)) continue;
+
+            Tuple projected;
+            for (ColumnID c : cols)
+                if (c < resolved->size()) projected.push_back((*resolved)[c]);
+            qr.rows.push_back(std::move(projected));
+
+            if (txn->isolationLevel == IsolationLevel::SERIALIZABLE)
+                txn->readSet.insert(key);
         }
         return qr;
     }
@@ -264,6 +286,7 @@ public:
     }
 
     // ── AGGREGATE SUM (demonstrating column push-down) ──────
+    // Resolves via version chains so DELETE/UPDATE are honoured.
     QueryResult execAggSum(std::shared_ptr<Transaction>& txn,
                            ColumnID aggCol,
                            const std::vector<Predicate>& preds = {}) {
@@ -272,16 +295,25 @@ public:
         Timestamp readTS = snapshotTS(txn);
         int64_t total = 0;
 
+        // Collect unique keys from physical pages, then resolve via chain.
+        std::unordered_set<uint64_t> seenKeys;
         for (auto& page : pages_) {
             auto rows = scanPage(*page, readTS);
-            for (auto& [sid, tuple] : rows) {
-                if (!applyPreds(tuple, preds)) continue;
-                if (aggCol >= tuple.size()) continue;
-                auto& v = tuple[aggCol];
-                if (!v.isNull) {
-                    if (v.type == DataType::INT64) total += v.num.i64;
-                    if (v.type == DataType::INT32) total += v.num.i32;
-                }
+            for (auto& [sid, tuple] : rows)
+                seenKeys.insert(primaryKey(tuple));
+        }
+
+        for (uint64_t key : seenKeys) {
+            auto chain = vci_.get(key);
+            if (!chain) continue;
+            auto resolved = chain->readVersion(readTS);
+            if (!resolved) continue;
+            if (!applyPreds(*resolved, preds)) continue;
+            if (aggCol >= resolved->size()) continue;
+            auto& v = (*resolved)[aggCol];
+            if (!v.isNull) {
+                if (v.type == DataType::INT64) total += v.num.i64;
+                if (v.type == DataType::INT32) total += v.num.i32;
             }
         }
         Tuple sumRow{ Value::makeInt64(total) };
@@ -353,4 +385,4 @@ using NSMExecutor = SQLExecutor<NSMPage>;
 using DSMExecutor = SQLExecutor<DSMPage>;
 using PAXExecutor = SQLExecutor<PAXPage>;
 
-} 
+} // namespace mvcc

@@ -12,24 +12,27 @@
 
 namespace mvcc {
 
+// ============================================================
 //  Transaction State
-
+// ============================================================
 enum class TxnState : uint8_t {
     ACTIVE    = 0,
     COMMITTED = 1,
     ABORTED   = 2
 };
 
+// ============================================================
 //  Write-Set Entry — tracks what a transaction wrote
-
+// ============================================================
 struct WriteSetEntry {
     uint64_t                           logicalKey;
     std::shared_ptr<VersionRecord>     newVersion;
     std::shared_ptr<VersionRecord>     prevHead;   // old head (for rollback)
 };
 
+// ============================================================
 //  Transaction Context
-
+// ============================================================
 struct Transaction {
     TxnID       id;
     Timestamp   beginTS;
@@ -49,8 +52,9 @@ struct Transaction {
     bool isAborted()   const { return state == TxnState::ABORTED; }
 };
 
+// ============================================================
 //  Transaction Manager
-
+// ============================================================
 class TransactionManager {
 public:
     explicit TransactionManager(IsolationLevel defaultIso = IsolationLevel::SNAPSHOT)
@@ -160,4 +164,4 @@ private:
     Timestamp horizon_ = 0;
 };
 
-} 
+} // namespace mvcc

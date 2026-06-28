@@ -13,8 +13,9 @@
 
 namespace mvcc {
 
+// ============================================================
 //  Version Record — one entry in a version chain
-
+// ============================================================
 struct VersionRecord {
     TxnID         creatorTxn;     // transaction that created this version
     Timestamp     beginTS;        // visible from this timestamp (inclusive)
@@ -32,8 +33,9 @@ struct VersionRecord {
 
     // Is this version visible to a transaction with the given read timestamp?
     bool visibleTo(Timestamp readTS) const {
-        return status == VersionStatus::COMMITTED &&
-               beginTS <= readTS && readTS < endTS;
+        return (status == VersionStatus::COMMITTED) &&
+               (beginTS <= readTS) && (readTS < endTS) &&
+               (data.size() > 0);  // empty data == tombstone (logically deleted)
     }
 
     std::string statusStr() const {
@@ -47,8 +49,10 @@ struct VersionRecord {
     }
 };
 
+// ============================================================
 //  Version Chain — linked list of VersionRecords for one logical row
 //  Head = newest; tail = oldest
+// ============================================================
 class VersionChain {
 public:
     using RecordPtr = std::shared_ptr<VersionRecord>;
@@ -145,8 +149,9 @@ private:
     mutable std::shared_mutex mu_;
 };
 
+// ============================================================
 //  Version Chain Index — maps logical key → VersionChain
-
+// ============================================================
 class VersionChainIndex {
 public:
     using ChainPtr = std::shared_ptr<VersionChain>;
@@ -192,4 +197,4 @@ private:
     std::unordered_map<uint64_t, ChainPtr> index_;
 };
 
-} 
+} // namespace mvcc
