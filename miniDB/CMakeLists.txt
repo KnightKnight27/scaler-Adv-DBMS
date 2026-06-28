@@ -12,6 +12,8 @@ add_library(minidb
   src/minidb/storage/page_manager.cpp
   src/minidb/storage/heap_table.cpp
   src/minidb/buffer/buffer_pool.cpp
+  src/minidb/index/b_plus_tree.cpp
+  src/minidb/sql/parser.cpp
 )
 
 target_include_directories(minidb PUBLIC src)

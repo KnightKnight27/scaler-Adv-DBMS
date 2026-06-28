@@ -37,7 +37,7 @@ ctest --test-dir build --output-on-failure
 ## Milestone Status
 
 - M1 Page manager + buffer pool integrated: implemented.
-- M2 B+ tree + parser connected: planned.
+- M2 B+ tree + parser connected: implemented.
 - M3 Query execution engine with joins and aggregation: planned.
 - M4 Transactions and locking: planned.
 - M5 Recovery, benchmarking, and final demo: planned.
@@ -45,4 +45,4 @@ ctest --test-dir build --output-on-failure
 
 ## Required Core Features
 
-The M1 codebase currently includes the storage-engine foundation: page-based heap files, page manager behavior, page reads/writes, and buffer pool usage. Later milestones will add B+ tree indexing, SQL execution, cost-based optimization, 2PL transaction management, WAL recovery, and MVCC extension support.
+The codebase currently includes the storage-engine foundation: page-based heap files, page manager behavior, page reads/writes, and buffer pool usage. M2 adds a primary-key B+ tree and structured SQL parsing for `INSERT`, `SELECT`, and `DELETE`. Later milestones will add full SQL execution, cost-based optimization, 2PL transaction management, WAL recovery, and MVCC extension support.

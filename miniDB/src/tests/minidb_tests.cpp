@@ -6,6 +6,8 @@
 
 #include "minidb/buffer/buffer_pool.h"
 #include "minidb/common/types.h"
+#include "minidb/index/b_plus_tree.h"
+#include "minidb/sql/parser.h"
 #include "minidb/storage/disk_manager.h"
 #include "minidb/storage/heap_table.h"
 #include "minidb/storage/page_manager.h"
@@ -151,6 +153,74 @@ void TestBufferPoolRejectsEvictionWhenAllFramesPinned() {
   Require(threw, "buffer pool should reject eviction when every frame is pinned");
 }
 
+void TestBPlusTreeSearchInsertDelete() {
+  BPlusTree index(3);
+  std::vector<std::string> keys{"05", "02", "09", "01", "07", "03", "08", "04", "06"};
+
+  for (std::size_t i = 0; i < keys.size(); ++i) {
+    Require(index.Insert(keys[i], Rid{static_cast<PageId>(i + 1), 0}), "new key should be inserted");
+  }
+
+  Require(index.Size() == keys.size(), "index size should track inserted keys");
+  auto left = index.Search("01");
+  auto right = index.Search("09");
+  Require(left.has_value() && left->page_id == 4, "search should find key in left leaf");
+  Require(right.has_value() && right->page_id == 3, "search should find key after splits");
+  Require(!index.Search("10").has_value(), "missing key should not be found");
+
+  auto rows = index.Scan();
+  Require(rows.size() == keys.size(), "index scan should include all keys");
+  for (std::size_t i = 1; i < rows.size(); ++i) {
+    Require(rows[i - 1].first < rows[i].first, "index scan should be sorted");
+  }
+
+  Require(!index.Insert("05", Rid{99, 1}), "duplicate primary key should update existing RID");
+  auto updated = index.Search("05");
+  Require(updated.has_value() && updated->page_id == 99, "duplicate insert should update RID");
+  Require(index.Delete("05"), "delete should remove existing key");
+  Require(!index.Search("05").has_value(), "deleted key should not be searchable");
+  Require(!index.Delete("05"), "deleting missing key should return false");
+}
+
+void TestSqlParserParsesM2Statements() {
+  SqlParser parser;
+
+  auto insert = parser.Parse("INSERT INTO users VALUES ('1', 'Ada Lovelace');");
+  Require(insert.type == StatementType::Insert, "INSERT should parse as insert statement");
+  Require(insert.insert->table == "users", "INSERT table should parse");
+  Require(insert.insert->values.size() == 2 && insert.insert->values[1] == "Ada Lovelace",
+          "INSERT values should parse and unquote");
+
+  auto select = parser.Parse("SELECT id, name FROM users WHERE id = '1';");
+  Require(select.type == StatementType::Select, "SELECT should parse as select statement");
+  Require(select.select->columns.size() == 2, "SELECT columns should parse");
+  Require(select.select->table == "users", "SELECT table should parse");
+  Require(!select.select->where.empty && select.select->where.column == "id" && select.select->where.value == "1",
+          "SELECT WHERE predicate should parse");
+
+  auto delete_from = parser.Parse("DELETE FROM users WHERE id = '1';");
+  Require(delete_from.type == StatementType::Delete, "DELETE should parse as delete statement");
+  Require(delete_from.delete_from->table == "users", "DELETE table should parse");
+  Require(delete_from.delete_from->where.op == "=", "DELETE predicate operator should parse");
+}
+
+void TestParserConnectsToPrimaryKeyIndex() {
+  SqlParser parser;
+  BPlusTree primary_index(3);
+
+  auto insert = parser.Parse("INSERT INTO users VALUES ('42', 'Katherine Johnson');");
+  Rid rid{7, 2};
+  Require(primary_index.Insert(insert.insert->values[0], rid), "parsed INSERT primary key should enter index");
+
+  auto select = parser.Parse("SELECT id, name FROM users WHERE id = '42';");
+  auto found = primary_index.Search(select.select->where.value);
+  Require(found.has_value() && *found == rid, "parsed SELECT primary key predicate should use index key");
+
+  auto delete_from = parser.Parse("DELETE FROM users WHERE id = '42';");
+  Require(primary_index.Delete(delete_from.delete_from->where.value), "parsed DELETE primary key should delete index key");
+  Require(!primary_index.Search("42").has_value(), "deleted parsed key should be absent from index");
+}
+
 }  // namespace
 
 int main() {
@@ -160,10 +230,13 @@ int main() {
     TestBufferPoolEvictsDirtyPages();
     TestHeapTableChainsAcrossPages();
     TestBufferPoolRejectsEvictionWhenAllFramesPinned();
+    TestBPlusTreeSearchInsertDelete();
+    TestSqlParserParsesM2Statements();
+    TestParserConnectsToPrimaryKeyIndex();
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;
   }
-  std::cout << "M1 tests passed\n";
+  std::cout << "M1 and M2 tests passed\n";
   return 0;
 }
