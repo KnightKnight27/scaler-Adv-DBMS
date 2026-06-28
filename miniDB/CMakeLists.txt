@@ -27,3 +27,6 @@ enable_testing()
 add_executable(minidb_tests src/tests/minidb_tests.cpp)
 target_link_libraries(minidb_tests PRIVATE minidb)
 add_test(NAME minidb_tests COMMAND minidb_tests)
+
+add_executable(minidb_demo src/demo.cpp)
+target_link_libraries(minidb_demo PRIVATE minidb)
