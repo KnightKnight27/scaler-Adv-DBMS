@@ -58,7 +58,21 @@ std::vector<std::string> SQLParser::Tokenize(const std::string &sql) {
     }
     return tokens;
 }
+bool IsInteger(const std::string &value) {
+    if (value.empty()) return false;
 
+    size_t start = (value[0] == '-') ? 1 : 0;
+
+    if (start == value.size()) return false;
+
+    for (size_t i = start; i < value.size(); i++) {
+        if (!std::isdigit(value[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
 SQLStatement SQLParser::Parse(const std::string &sql) {
     auto tokens = Tokenize(sql);
     if (tokens.empty()) {
