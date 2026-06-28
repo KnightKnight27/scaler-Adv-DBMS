@@ -36,9 +36,14 @@ if (log_mgr_)  {
 
 void TransactionManager::Commit(Transaction *txn) {
     std::lock_guard<std::mutex> lock(latch_);
-    txn->SetState(TransactionState::COMMITTED);
+   txn->SetState(TransactionState::COMMITTED);
 
-    if (log_mgr_) {
+std::cout << "[Transaction] Transaction "
+          << txn->GetTxnId()
+          << " committed successfully."
+          << std::endl;
+
+if (log_mgr_) {
         LogRecord rec(txn->GetTxnId(), txn->GetPrevLSN(), LogRecordType::COMMIT);
         lsn_t lsn = log_mgr_->AppendLogRecord(&rec);
         log_mgr_->Flush(lsn); // force log at commit
@@ -51,9 +56,14 @@ void TransactionManager::Commit(Transaction *txn) {
 
 void TransactionManager::Abort(Transaction *txn) {
     std::lock_guard<std::mutex> lock(latch_);
-    txn->SetState(TransactionState::ABORTED);
+   txn->SetState(TransactionState::ABORTED);
 
-    RollbackTransaction(txn);
+std::cout << "[Transaction] Transaction "
+          << txn->GetTxnId()
+          << " aborted."
+          << std::endl;
+
+RollbackTransaction(txn);
 
     if (log_mgr_) {
         LogRecord rec(txn->GetTxnId(), txn->GetPrevLSN(), LogRecordType::ABORT);
