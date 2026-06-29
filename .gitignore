@@ -1,0 +1,23 @@
+# CMake Build Directories
+build/
+CMakeCache.txt
+CMakeFiles/
+CMakeSettings.json
+Makefile
+cmake_install.cmake
+
+# Compilation artifacts
+*.exe
+*.out
+*.o
+*.obj
+*.pdb
+*.ilk
+
+# IDE Directories
+.vs/
+.vscode/
+.idea/
+.clion.source.dir
+out/
+bin/
