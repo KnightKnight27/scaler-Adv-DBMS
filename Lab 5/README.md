@@ -1,5 +1,8 @@
 # Lab 5: Red-Black Tree Implementation
 
+**Roll No.:** 24BCS10318
+**Name:** Utkarsh Raj
+
 ## Objective
 The objective of this lab is to implement and analyze a self-balancing Red-Black Tree (RBT) in C++. We demonstrate how recoloring and rotations (left and right) restore tree properties after node insertions, guaranteeing a balanced height and keeping operations efficient.
 
